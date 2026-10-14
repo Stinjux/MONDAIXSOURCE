@@ -88,15 +88,33 @@ export function ReviewBoard({ items, overdue }: { items: ProductView[]; overdue:
 const toInput = (v: number | null) => (v == null ? "" : String(v).replace(".", ","));
 const fromInput = (v: string) => (v.trim() ? amount(v) ?? null : null);
 
+/**
+ * Les champs sont pré-remplis avec les valeurs de la Sheet. Une valeur n'est enregistrée comme
+ * « vérifiée » que si elle diffère de la Sheet (ou avait déjà été vérifiée) : sinon elle reste « importée ».
+ */
+function asVerified(input: string, imported: number | null, previous: number | null): number | null {
+  const v = fromInput(input);
+  if (v == null) return null;
+  if (previous == null && imported != null && Math.abs(v - imported) < 0.005) return null;
+  return v;
+}
+
 function ReviewCard({ product: p, overdue, onSaved }: { product: ProductView; overdue?: boolean; onSaved: (id: string) => void }) {
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState(p.reviewStatus as ReviewStatus);
   const [notes, setNotes] = useState(p.reviewNotes ?? "");
   const [checklist, setChecklist] = useState<Checklist>(p.reviewChecklist);
-  const [sale, setSale] = useState(toInput(p.verifiedSalePrice));
-  const [fee, setFee] = useState(toInput(p.verifiedFbaFee));
+  const sheetAmazon = p.best?.amazonPrice ?? null;
+  const sheetFee = p.best?.fbaFee ?? null;
+  const [sale, setSale] = useState(toInput(p.verifiedSalePrice ?? sheetAmazon));
+  const [fee, setFee] = useState(toInput(p.verifiedFbaFee ?? sheetFee));
   const [restriction, setRestriction] = useState(p.restriction);
-  const [offers, setOffers] = useState(() => Object.fromEntries(p.offers.map((o) => [o.id, { cost: toInput(o.verifiedCostPrice), availability: o.verifiedAvailability ?? "" }])));
+  const sheetCost = (o: OfferView) => (o.currency === "CAD" ? o.costPrice : null);
+  const [offers, setOffers] = useState(() =>
+    Object.fromEntries(p.offers.map((o) => [o.id, { cost: toInput(o.verifiedCostPrice ?? sheetCost(o)), availability: o.verifiedAvailability ?? "" }])),
+  );
+  const verifiedSale = asVerified(sale, sheetAmazon, p.verifiedSalePrice);
+  const verifiedFee = asVerified(fee, sheetFee, p.verifiedFbaFee);
   const [pending, start] = useTransition();
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
   const [dirty, setDirty] = useState(false);
@@ -116,12 +134,12 @@ function ReviewCard({ product: p, overdue, onSaved }: { product: ProductView; ov
         status: nextStatus,
         notes: notes || null,
         checklist,
-        verifiedSalePrice: fromInput(sale),
-        verifiedFbaFee: fromInput(fee),
+        verifiedSalePrice: verifiedSale,
+        verifiedFbaFee: verifiedFee,
         restriction: restriction as ReviewInput["restriction"],
         offers: p.offers.map((o) => ({
           id: o.id,
-          verifiedCostPrice: fromInput(offers[o.id].cost),
+          verifiedCostPrice: asVerified(offers[o.id].cost, sheetCost(o), o.verifiedCostPrice),
           verifiedAvailability: (offers[o.id].availability || null) as "IN_STOCK" | "OUT_OF_STOCK" | null,
         })),
       };
@@ -165,19 +183,22 @@ function ReviewCard({ product: p, overdue, onSaved }: { product: ProductView; ov
                 <Asin asin={p.asin} url={p.amazonUrl} />
               </div>
               <dl className="mb-3 grid grid-cols-3 gap-2 text-xs">
-                <div><dt className="text-ink-3">Sale Price <OriginTag origin="imported" /></dt><dd className="mt-0.5 text-sm tabular-nums">{cad(best?.salePrice)}</dd></div>
-                <div><dt className="text-ink-3">Buy Box 90 j</dt><dd className="mt-0.5 text-sm tabular-nums">{cad(best?.buyBox90)}</dd></div>
-                <div><dt className="text-ink-3">FBA Fee <OriginTag origin="imported" /></dt><dd className="mt-0.5 text-sm tabular-nums">{cad(best?.fbaFee)}</dd></div>
+                <div><dt className="text-ink-3">Buy Box 90 j (D)</dt><dd className="mt-0.5 text-sm tabular-nums">{cad(best?.buyBox90)}</dd></div>
+                <div><dt className="text-ink-3">Sale Price (E)</dt><dd className="mt-0.5 text-sm tabular-nums text-ink-2">{cad(best?.salePrice)}</dd></div>
+                <div><dt className="text-ink-3">FBA Fee (H)</dt><dd className="mt-0.5 text-sm tabular-nums">{cad(best?.fbaFee)}</dd></div>
               </dl>
               <div className="grid grid-cols-2 gap-2">
                 <label className="text-xs text-ink-2">
-                  Prix Amazon vérifié
-                  <input className="field mt-1" inputMode="decimal" placeholder="ex. 44,99" value={sale} onChange={(e) => touch(setSale)(e.target.value)} />
+                  Prix Amazon (BB 90 j)
+                  <OriginTag origin={verifiedSale != null ? "verified" : sheetAmazon != null ? "imported" : "missing"} />
+                  <input className="field mt-1" inputMode="decimal" placeholder="Absent de la Sheet" value={sale} onChange={(e) => touch(setSale)(e.target.value)} />
                 </label>
                 <label className="text-xs text-ink-2">
-                  Frais FBA vérifiés
-                  <input className="field mt-1" inputMode="decimal" placeholder="ex. 7,10" value={fee} onChange={(e) => touch(setFee)(e.target.value)} />
+                  Frais FBA
+                  <OriginTag origin={verifiedFee != null ? "verified" : sheetFee != null ? "imported" : "missing"} />
+                  <input className="field mt-1" inputMode="decimal" placeholder="Absent de la Sheet" value={fee} onChange={(e) => touch(setFee)(e.target.value)} />
                 </label>
+                <p className="col-span-2 -mt-0.5 text-[11px] text-ink-3">Valeurs pré-remplies depuis la Sheet. Modifiez-les seulement si vous constatez un autre montant : elles seront alors marquées « vérifié ».</p>
                 <label className="col-span-2 text-xs text-ink-2">
                   Restrictions / autorisation Amazon
                   <select className="field mt-1" value={restriction} onChange={(e) => touch(setRestriction)(e.target.value)}>
@@ -208,8 +229,8 @@ function ReviewCard({ product: p, overdue, onSaved }: { product: ProductView; ov
                   availability={offers[o.id].availability}
                   onCost={(v) => touch(setOffers)({ ...offers, [o.id]: { ...offers[o.id], cost: v } })}
                   onAvailability={(v) => touch(setOffers)({ ...offers, [o.id]: { ...offers[o.id], availability: v } })}
-                  verifiedSale={fromInput(sale)}
-                  verifiedFee={fromInput(fee)}
+                  verifiedSale={verifiedSale}
+                  verifiedFee={verifiedFee}
                 />
               ))}
             </div>
@@ -293,8 +314,8 @@ function OfferPanel({
   verifiedSale: number | null;
   verifiedFee: number | null;
 }) {
-  const s = pick(verifiedSale, o.salePrice);
-  const c = pick(fromInput(cost), o.costPrice);
+  const s = pick(verifiedSale, o.amazonPrice);
+  const c = pick(asVerified(cost, o.currency === "CAD" ? o.costPrice : null, o.verifiedCostPrice), o.costPrice);
   const f = pick(verifiedFee, o.fbaFee);
   // Un coût vérifié est saisi en CAD ; sinon la devise importée s'applique.
   const currency = c.origin === "verified" ? "CAD" : o.currency;
@@ -313,8 +334,9 @@ function OfferPanel({
       </div>
       <div className="mt-2 grid grid-cols-2 gap-2">
         <label className="text-xs text-ink-2">
-          Prix fournisseur vérifié (CAD)
-          <input className="field mt-1" inputMode="decimal" placeholder="ex. 19,99" value={cost} onChange={(e) => onCost(e.target.value)} />
+          Prix fournisseur (CAD)
+          <OriginTag origin={c.origin} />
+          <input className="field mt-1" inputMode="decimal" placeholder="Absent de la Sheet" value={cost} onChange={(e) => onCost(e.target.value)} />
         </label>
         <label className="text-xs text-ink-2">
           Disponibilité vérifiée

@@ -6,7 +6,7 @@ import { config } from "./config";
 import { recentWeekKeys, weekBoundsFromKey, weekKey } from "./dates";
 import { duplicateAlertActive, duplicateFlags, type DuplicateFlags } from "./duplicates";
 import { isDecided, parseChecklist, type Checklist } from "./labels";
-import { preliminaryProfit, type ProfitResult } from "./profit";
+import { amazonPrice, preliminaryProfit, type ProfitResult } from "./profit";
 import { needsRecheck } from "./stock";
 
 const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
@@ -20,6 +20,8 @@ export type OfferView = {
   lastSeenAt: string;
   salePrice: number | null;
   buyBox90: number | null;
+  /** Prix Amazon retenu : Buy Box 90 j, sinon Sale Price */
+  amazonPrice: number | null;
   fbaFee: number | null;
   costPrice: number | null;
   estimatedSales: number | null;
@@ -102,6 +104,7 @@ export async function loadProducts(now = new Date()) {
         lastSeenAt: o.lastSeenAt.toISOString(),
         salePrice: o.salePrice,
         buyBox90: o.buyBox90,
+        amazonPrice: amazonPrice(o),
         fbaFee: o.fbaFee,
         costPrice: o.costPrice,
         estimatedSales: o.estimatedSales,
@@ -123,7 +126,7 @@ export async function loadProducts(now = new Date()) {
         oosNotes: latestOos?.notes ?? null,
         sheetRoi: latestOos?.sheetRoi ?? null,
         sheetProfit: latestOos?.sheetProfit ?? null,
-        profit: preliminaryProfit(o),
+        profit: preliminaryProfit({ ...o, salePrice: amazonPrice(o) }),
       };
     });
     const ranked = offers.filter((o) => o.profit.roi !== null).sort((a, b) => b.profit.roi! - a.profit.roi!);

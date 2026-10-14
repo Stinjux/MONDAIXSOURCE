@@ -88,7 +88,7 @@ export default async function DuplicatesPage({ searchParams }: { searchParams: P
                       <th>Sources</th>
                       <th className="text-right">Occurrences</th>
                       <th className="text-right">Coût</th>
-                      <th className="text-right">Prix Amazon</th>
+                      <th className="text-right">Prix Amazon (BB 90 j)</th>
                       <th className="text-right">Profit prélim.</th>
                       <th>Première découverte</th>
                       <th>Dernière</th>
@@ -104,7 +104,7 @@ export default async function DuplicatesPage({ searchParams }: { searchParams: P
                         <td><SourceBadges sources={o.sources} /></td>
                         <td className="text-right tabular-nums">{o.occurrences}</td>
                         <td className="text-right tabular-nums">{cad(o.costPrice)}</td>
-                        <td className="text-right tabular-nums">{cad(o.salePrice)}</td>
+                        <td className="text-right tabular-nums">{cad(o.amazonPrice)}</td>
                         <td className="text-right tabular-nums">{o.profit.issue ? <span className="text-ink-3">n/d</span> : cad(o.profit.profit)}</td>
                         <td className="text-ink-2">{formatDate(o.firstSeenAt)}</td>
                         <td className="text-ink-2">{formatDate(o.lastSeenAt)}</td>

@@ -33,7 +33,7 @@ export default async function OutOfStockPage() {
     supplierKey: o.supplierKey,
     costPrice: o.costPrice,
     currency: o.currency,
-    salePrice: o.salePrice,
+    salePrice: o.amazonPrice,
     sheetRoi: o.sheetRoi,
     sheetProfit: o.sheetProfit,
     estimatedSales: o.estimatedSales,

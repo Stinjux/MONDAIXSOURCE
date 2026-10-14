@@ -6,7 +6,7 @@ import type { OfferView, ProductView } from "../src/lib/queries";
 
 const offer = (id: string, name: string, cost: number): OfferView => ({
   id, supplierKey: name.toLowerCase(), supplierName: name, supplierUrl: null, firstSeenAt: "2026-10-12T16:00:00Z", lastSeenAt: "2026-10-13T16:00:00Z",
-  salePrice: 40, buyBox90: 39, fbaFee: 7, costPrice: cost, estimatedSales: 50, currency: "CAD", valuesSource: "LEADS",
+  salePrice: 42, buyBox90: 40, amazonPrice: 40, fbaFee: 7, costPrice: cost, estimatedSales: 50, currency: "CAD", valuesSource: "LEADS",
   stockStatus: "UNKNOWN", stockCheckedAt: null, stockDetail: null, backInStockAt: null, backInStockAlert: false, needsRecheck: true,
   verifiedCostPrice: null, verifiedAvailability: null, verifiedAt: null, occurrences: 1, sources: ["LEADS"], present: true,
   oosAvailability: null, oosNotes: null, sheetRoi: null, sheetProfit: null,

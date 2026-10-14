@@ -184,6 +184,7 @@ export function Asin({ asin, url }: { asin: string; url?: string | null }) {
 }
 
 export function Supplier({ name, url, fallback }: { name?: string | null; url?: string | null; fallback?: string }) {
+  if (!name && !url && fallback === "unknown") return <span className="text-warning" title="La colonne J (Supplier URL) est vide dans la Sheet">URL fournisseur manquante</span>;
   const label = name || fallback || "—";
   return url ? (
     <a href={url} target="_blank" rel="noopener noreferrer" className="link">

@@ -61,7 +61,7 @@ export default function SettingsPage() {
 
           <Card title="Estimations de rentabilité">
             <p className="text-sm text-ink-2">
-              Profit préliminaire = Sale Price − Cost Price − FBA Fee. ROI = profit / coût. Marge = profit / prix de vente. Profit mensuel = profit × ventes estimées.
+              Profit préliminaire = prix Amazon (Buy Box moyenne 90 jours, colonne D ; Sale Price si vide) − Cost Price − FBA Fee. ROI = profit / coût. Marge = profit / prix Amazon. Profit mensuel = profit × ventes estimées.
               Les commissions Amazon (si non incluses), le transport, la préparation, le stockage et les taxes non récupérables ne sont pas encore déduits.
               Aucun calcul n&apos;est fait sur un coût dans une autre devise que le CAD.
             </p>

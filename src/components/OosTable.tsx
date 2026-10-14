@@ -83,7 +83,7 @@ export function OosTable({ rows }: { rows: OosRow[] }) {
                 <th>Disponibilité (Sheet)</th>
                 <th>Dernière vérification</th>
                 <th className="text-right">Prix fournisseur</th>
-                <th className="text-right">Prix Amazon</th>
+                <th className="text-right">Prix Amazon (BB 90 j)</th>
                 <th className="text-right">ROI (Sheet)</th>
                 <th className="text-right">Profit (Sheet)</th>
                 <th className="text-right">Ventes/mois</th>

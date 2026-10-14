@@ -9,7 +9,7 @@ export function toLeadRows(products: ProductView[]): LeadRow[] {
       supplierName: o.supplierName,
       supplierUrl: o.supplierUrl,
       supplierKey: o.supplierKey,
-      salePrice: o.salePrice,
+      salePrice: o.amazonPrice,
       costPrice: o.costPrice,
       fbaFee: o.fbaFee,
       estimatedSales: o.estimatedSales,

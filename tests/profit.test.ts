@@ -44,3 +44,13 @@ test("valeur vérifiée prioritaire sur la valeur importée", () => {
   assert.deepEqual(pick(null, 22), { value: 22, origin: "imported" });
   assert.deepEqual(pick(undefined, null), { value: null, origin: "missing" });
 });
+
+test("prix Amazon = Buy Box moyenne 90 jours, Sale Price seulement si la Buy Box est vide", async () => {
+  const { amazonPrice } = await import("../src/lib/profit");
+  assert.equal(amazonPrice({ buyBox90: 33.89, salePrice: 31.49 }), 33.89);
+  assert.equal(amazonPrice({ buyBox90: null, salePrice: 31.49 }), 31.49);
+  assert.equal(amazonPrice({}), null);
+  // Exemple réel : Buy Box 33,89 − coût 10,87 − FBA 6,33 = 16,69
+  const r = preliminaryProfit({ salePrice: amazonPrice({ buyBox90: 33.89, salePrice: 31.49 }), costPrice: 10.87, fbaFee: 6.33 });
+  close(r.profit, 16.69);
+});

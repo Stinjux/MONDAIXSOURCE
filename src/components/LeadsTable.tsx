@@ -127,7 +127,7 @@ export function LeadsTable({ rows, currentWeek }: { rows: LeadRow[]; currentWeek
 
   const exportCsv = () => {
     // Une ligne par fournisseur, regroupées par ASIN (le statut de revue est celui de l'ASIN).
-    const head = ["ASIN", "Produit", "Fournisseur", "Meilleure offre", "URL fournisseur", "Sale Price", "Cost Price", "FBA Fee", "Profit prélim.", "ROI prélim. %", "Marge prélim. %", "Ventes est.", "Profit mensuel prélim.", "Sources", "Occurrences", "Première découverte", "Dernière découverte", "Revue"];
+    const head = ["ASIN", "Produit", "Fournisseur", "Meilleure offre", "URL fournisseur", "Prix Amazon (Buy Box 90 j)", "Cost Price", "FBA Fee", "Profit prélim.", "ROI prélim. %", "Marge prélim. %", "Ventes est.", "Profit mensuel prélim.", "Sources", "Occurrences", "Première découverte", "Dernière découverte", "Revue"];
     const esc = (v: unknown) => (v == null ? "" : /[",\n;]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
     const lines = filtered.flatMap((r) =>
       r.suppliers.map((s) =>
@@ -211,7 +211,7 @@ export function LeadsTable({ rows, currentWeek }: { rows: LeadRow[]; currentWeek
               <tr>
                 {header("Produit", "name")}
                 {header("Fournisseurs", "supplierCount")}
-                {header("Prix Amazon", "salePrice", "right")}
+                {header("Prix Amazon (BB 90 j)", "salePrice", "right")}
                 {header("Coût", "costPrice", "right")}
                 {header("Profit*", "profit", "right")}
                 {header("ROI*", "roi", "right")}
@@ -301,7 +301,7 @@ export function LeadsTable({ rows, currentWeek }: { rows: LeadRow[]; currentWeek
         </div>
       )}
       <div className="flex flex-col gap-2 border-t border-line px-3 py-2.5 text-xs text-ink-3 sm:flex-row sm:items-center sm:justify-between">
-        <span>Un lead = un ASIN. Montants = meilleure offre (ROI le plus élevé). * Estimations préliminaires : Sale Price − Cost Price − FBA Fee, pas un profit net.</span>
+        <span>Un lead = un ASIN. Montants = meilleure offre (ROI le plus élevé). Prix Amazon = Buy Box moyenne 90 j (colonne D). * Estimations préliminaires : Buy Box 90 j − Cost Price − FBA Fee, pas un profit net.</span>
         {pages > 1 && (
           <span className="flex shrink-0 items-center gap-2">
             <button type="button" className="btn-ghost px-2 py-1 text-xs" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Précédent</button>
@@ -322,7 +322,7 @@ function SupplierList({ row }: { row: LeadRow }) {
           <tr className="border-b border-line">
             <th className="px-3 py-2 font-medium">Fournisseur ({row.supplierCount})</th>
             <th className="px-3 py-2 text-right font-medium">Coût</th>
-            <th className="px-3 py-2 text-right font-medium">Prix Amazon</th>
+            <th className="px-3 py-2 text-right font-medium">Prix Amazon (BB 90 j)</th>
             <th className="px-3 py-2 text-right font-medium">FBA</th>
             <th className="px-3 py-2 text-right font-medium">Profit*</th>
             <th className="px-3 py-2 text-right font-medium">ROI*</th>

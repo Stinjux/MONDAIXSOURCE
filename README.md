@@ -50,9 +50,9 @@ Statut dérivé des colonnes N (Disponibilité), O (Dernière vérification) et 
 
 | Indicateur | Formule |
 |---|---|
-| Profit | Sale Price − Cost Price − FBA Fee |
+| Profit | Prix Amazon (Buy Box moyenne 90 j, colonne D ; Sale Price si vide) − Cost Price − FBA Fee |
 | ROI | Profit / Cost Price × 100 |
-| Marge | Profit / Sale Price × 100 |
+| Marge | Profit / prix Amazon × 100 |
 | Profit mensuel | Profit × Estimated Sales |
 
 Ce n'est **pas un profit net** (commissions, transport, préparation, stockage, taxes non récupérables non déduits). Aucun calcul n'est fait si une donnée manque ou si le coût n'est pas en CAD (pas de conversion inventée).

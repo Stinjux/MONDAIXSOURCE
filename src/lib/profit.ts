@@ -1,6 +1,14 @@
-// Rentabilité PRÉLIMINAIRE Amazon FBA (CAD).
+// Rentabilité PRÉLIMINAIRE Amazon FBA (CAD) : prix Amazon (Buy Box 90 j) − Cost Price − FBA Fee.
 // Ces indicateurs ne sont pas un profit net : commissions de parrainage (si non incluses dans FBA Fee),
 // transport, préparation, stockage et taxes non récupérables ne sont pas encore déduits.
+
+/**
+ * Prix Amazon retenu pour les calculs : Buy Box moyenne 90 jours (colonne D),
+ * sinon Sale Price (colonne E) si la Buy Box est vide.
+ */
+export function amazonPrice(o: { buyBox90?: number | null; salePrice?: number | null }): number | null {
+  return o.buyBox90 ?? o.salePrice ?? null;
+}
 
 export type ProfitInput = {
   salePrice?: number | null;
