@@ -1,53 +1,303 @@
+// MONDAIX SOURCE — data model
+//
+//   Product (ASIN Amazon.ca)
+//     └─ SupplierOffer (le même ASIN chez un fournisseur donné)
+//          └─ Occurrence (une ligne vue dans une Google Sheet : LEADS ou OUT_OF_STOCK)
+//
+// Règles :
+//   * Rien n'est supprimé automatiquement : une ligne retirée d'une Sheet passe à present=false.
+//   * Les valeurs importées (Sheets) et les valeurs vérifiées (saisies manuellement) sont
+//     stockées dans des colonnes distinctes (préfixe "verified").
+//   * Les schémas sont appliqués avec `prisma db push` SANS --accept-data-loss : Prisma refuse
+//     toute modification destructive.
+
 generator client {
   provider = "prisma-client-js"
 }
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
-model Lead {
-  id            String   @id @default(cuid())
-  source        String
-  sourceRow     Int
-  key           String
-  asin          String
-  supplierKey   String
-  name          String
-  amazonUrl     String?
-  supplierUrl   String?
-  store         String?
-  salePrice     Float?
-  costPrice     Float?
-  buyBox90      Float?
-  fbaFee        Float?
+
+/// Produit Amazon.ca identifié par son ASIN.
+model Product {
+  id               String    @id @default(cuid())
+  asin             String    @unique
+  marketplace      String    @default("CA")
+  name             String
+  amazonUrl        String?
+  /// Première / dernière date de découverte (date d'export LEADS si fiable, sinon date d'import).
+  firstSeenAt      DateTime
+  lastSeenAt       DateTime
+  /// Source qui a fait découvrir le produit : LEADS | OUT_OF_STOCK | LEGACY
+  firstSource      String
+  /// Compte dans l'objectif hebdomadaire (uniquement les nouveaux ASIN du pipeline LEADS).
+  countsTowardGoal Boolean   @default(false)
+  /// Lundi (AAAA-MM-JJ, fuseau America/Toronto) de la semaine de découverte. Figé à la création.
+  goalWeek         String?
+
+  // --- Revue hebdomadaire (manuelle) ---
+  /// TO_REVIEW | IN_PROGRESS | VALIDATED | REJECTED | FOLLOW_UP
+  reviewStatus     String    @default("TO_REVIEW")
+  reviewNotes      String?
+  reviewChecklist  Json?
+  reviewedAt       DateTime?
+
+  // --- Données Amazon vérifiées manuellement (jamais importées) ---
+  verifiedSalePrice Float?
+  verifiedFbaFee    Float?
+  /// UNKNOWN | UNGATED | GATED | APPROVAL_PENDING | APPROVED
+  restriction       String   @default("UNKNOWN")
+  verifiedAt        DateTime?
+
+  // --- Alertes de doublons ---
+  lastDuplicateAt DateTime?
+  duplicateAckAt  DateTime?
+
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  offers      SupplierOffer[]
+  occurrences Occurrence[]
+
+  @@index([goalWeek])
+  @@index([reviewStatus])
+  @@index([firstSeenAt])
+}
+
+/// Offre d'un fournisseur pour un produit (ASIN + fournisseur normalisé).
+model SupplierOffer {
+  id           String  @id @default(cuid())
+  productId    String
+  product      Product @relation(fields: [productId], references: [id])
+  /// URL normalisée (hôte + chemin) ou "store:<nom>" lorsque seule la boutique est connue.
+  supplierKey  String
+  supplierName String?
+  supplierUrl  String?
+  firstSeenAt  DateTime
+  lastSeenAt   DateTime
+
+  // --- Valeurs importées courantes (LEADS prioritaire sur OUT OF STOCK) ---
+  salePrice      Float?
+  buyBox90       Float?
+  fbaFee         Float?
+  costPrice      Float?
   estimatedSales Float?
-  currency      String?
-  availability  String?
-  notes         String?
-  sheetRoi      Float?
-  sheetMargin   Float?
-  sheetProfit   Float?
-  lastChecked   String?
-  checkDetail   String?
-  exportDate    String?
-  firstSeenAt   DateTime @default(now())
-  lastSeenAt    DateTime @updatedAt
-  status        String   @default("NEW")
-  reviewStatus  String   @default("PENDING")
-  reviewedAt    DateTime?
-  occurrences   Int      @default(1)
-  @@unique([source,sourceRow])
+  currency       String   @default("CAD")
+  valuesSource   String?
+
+  // --- Suivi de stock (module OUT OF STOCK, d'après les colonnes N-P de la Sheet) ---
+  /// IN_STOCK | OUT_OF_STOCK | CHECK_FAILED | UNVERIFIED | UNKNOWN
+  stockStatus      String    @default("UNKNOWN")
+  stockCheckedAt   DateTime?
+  stockDetail      String?
+  backInStockAt    DateTime?
+  backInStockAckAt DateTime?
+
+  // --- Données fournisseur vérifiées manuellement ---
+  verifiedCostPrice    Float?
+  /// IN_STOCK | OUT_OF_STOCK
+  verifiedAvailability String?
+  verifiedAt           DateTime?
+
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  occurrences    Occurrence[]
+  priceSnapshots PriceSnapshot[]
+  stockChecks    StockCheck[]
+
+  @@unique([productId, supplierKey])
+  @@index([stockStatus])
+}
+
+/// Une ligne d'une Google Sheet rattachée à une offre.
+/// Identité stable : (source, offre, rang) — le rang est la n-ième ligne de cette offre dans la feuille,
+/// ce qui rend l'import insensible aux tris / insertions de lignes.
+model Occurrence {
+  id              String        @id @default(cuid())
+  productId       String
+  product         Product       @relation(fields: [productId], references: [id])
+  offerId         String
+  offer           SupplierOffer @relation(fields: [offerId], references: [id])
+  /// LEADS | OUT_OF_STOCK
+  source          String
+  ordinal         Int
+  sheetRow        Int
+  /// NEW_PRODUCT | NEW_SUPPLIER | REPEAT
+  kind            String
+  discoveredAt    DateTime
+  firstImportedAt DateTime
+  lastImportedAt  DateTime
+  present         Boolean       @default(true)
+  missingSince    DateTime?
+  rowHash         String
+  raw             Json
+  firstRunId      String?
+  lastRunId       String?
+
+  // Valeurs importées de cette ligne
+  name           String
+  salePrice      Float?
+  buyBox90       Float?
+  fbaFee         Float?
+  costPrice      Float?
+  estimatedSales Float?
+  currency       String?
+  exportDate     String?
+  sheetRoi       Float?
+  sheetMargin    Float?
+  sheetProfit    Float?
+  notes          String?
+  availability   String?
+  lastChecked    String?
+  checkDetail    String?
+
+  @@unique([source, offerId, ordinal])
+  @@index([productId])
+  @@index([source, present])
+}
+
+/// Historique des prix importés (une entrée à chaque changement).
+model PriceSnapshot {
+  id             String        @id @default(cuid())
+  offerId        String
+  offer          SupplierOffer @relation(fields: [offerId], references: [id])
+  occurrenceId   String?
+  source         String
+  runId          String?
+  capturedAt     DateTime      @default(now())
+  salePrice      Float?
+  buyBox90       Float?
+  fbaFee         Float?
+  costPrice      Float?
+  estimatedSales Float?
+  currency       String?
+
+  @@index([offerId, capturedAt])
+}
+
+/// Historique des vérifications de disponibilité.
+model StockCheck {
+  id           String        @id @default(cuid())
+  offerId      String
+  offer        SupplierOffer @relation(fields: [offerId], references: [id])
+  /// SHEET (colonnes N-P de OUT OF STOCK) | MANUAL (Weekly Review)
+  origin       String
+  status       String
+  availability String?
+  checkedAt    DateTime?
+  checkedText  String?
+  detail       String?
+  runId        String?
+  recordedAt   DateTime      @default(now())
+
+  @@index([offerId, recordedAt])
+}
+
+/// Journal des modifications manuelles (revue, vérifications, alertes).
+model ChangeLog {
+  id        String   @id @default(cuid())
+  entity    String
+  entityId  String
+  action    String
+  before    Json?
+  after     Json?
+  actor     String   @default("admin")
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
+
+/// Exécution d'une synchronisation. (Table historique "ImportEvent" conservée.)
+model ImportRun {
+  id         String    @id @default(cuid())
+  source     String
+  startedAt  DateTime  @default(now())
+  /// Nouveaux produits (ASIN) créés
+  imported   Int       @default(0)
+  /// Lignes existantes dont les valeurs ont changé
+  updated    Int       @default(0)
+  /// Nouvelles occurrences d'un produit déjà connu
+  duplicates Int       @default(0)
+  /// Lignes invalides ou impossibles à traiter
+  errors     Int       @default(0)
+  details    String?
+  finishedAt DateTime?
+  /// RUNNING | SUCCESS | FAILED | SKIPPED | LEGACY
+  status     String    @default("LEGACY")
+  /// MANUAL | CRON | CLI | LEGACY_MIGRATION
+  trigger    String?
+  rowsRead   Int       @default(0)
+  unchanged  Int       @default(0)
+  warnings   Int       @default(0)
+  missing    Int       @default(0)
+  issues     ImportIssue[]
+
+  @@index([startedAt])
+  @@map("ImportEvent")
+}
+
+/// Ligne invalide ou avertissement relevé pendant un import.
+model ImportIssue {
+  id        String    @id @default(cuid())
+  runId     String
+  run       ImportRun @relation(fields: [runId], references: [id])
+  source    String
+  sheetRow  Int?
+  /// ERROR | WARNING
+  severity  String
+  message   String
+  raw       Json?
+  createdAt DateTime  @default(now())
+
+  @@index([runId])
+}
+
+/// Réglages et verrous applicatifs (clé / valeur).
+model AppSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+/// Table de la phase 1 initiale, conservée intacte (lecture seule).
+/// Ses lignes sont migrées une fois vers Product / SupplierOffer / Occurrence (statuts de revue inclus).
+model LegacyLead {
+  id             String    @id @default(cuid())
+  source         String
+  sourceRow      Int
+  key            String
+  asin           String
+  supplierKey    String
+  name           String
+  amazonUrl      String?
+  supplierUrl    String?
+  store          String?
+  salePrice      Float?
+  costPrice      Float?
+  buyBox90       Float?
+  fbaFee         Float?
+  estimatedSales Float?
+  currency       String?
+  availability   String?
+  notes          String?
+  sheetRoi       Float?
+  sheetMargin    Float?
+  sheetProfit    Float?
+  lastChecked    String?
+  checkDetail    String?
+  exportDate     String?
+  firstSeenAt    DateTime  @default(now())
+  lastSeenAt     DateTime  @updatedAt
+  status         String    @default("NEW")
+  reviewStatus   String    @default("PENDING")
+  reviewedAt     DateTime?
+  occurrences    Int       @default(1)
+
+  @@unique([source, sourceRow])
   @@index([asin])
   @@index([key])
   @@index([firstSeenAt])
-}
-model ImportEvent {
-  id         String   @id @default(cuid())
-  source     String
-  startedAt  DateTime @default(now())
-  imported   Int      @default(0)
-  updated    Int      @default(0)
-  duplicates Int      @default(0)
-  errors     Int      @default(0)
-  details    String?
+  @@map("Lead")
 }

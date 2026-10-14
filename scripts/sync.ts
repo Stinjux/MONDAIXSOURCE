@@ -1,2 +1,15 @@
-import {syncAll} from "../src/lib/sync";
-syncAll().then(r=>{console.log(JSON.stringify(r,null,2));process.exit(0)}).catch(e=>{console.error(e);process.exit(1)});
+// Synchronisation en ligne de commande (tâche planifiée Railway) : `npm run sync`
+import { syncAll } from "../src/lib/sync/engine";
+import { prisma } from "../src/lib/prisma";
+
+syncAll({ trigger: process.argv.includes("--cron") ? "CRON" : "CLI" })
+  .then(async (results) => {
+    console.log(JSON.stringify(results, null, 2));
+    await prisma.$disconnect();
+    process.exit(results.some((r) => r.status === "FAILED") ? 1 : 0);
+  })
+  .catch(async (e) => {
+    console.error(e);
+    await prisma.$disconnect();
+    process.exit(1);
+  });
