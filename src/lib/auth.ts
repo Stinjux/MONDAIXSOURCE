@@ -13,8 +13,18 @@ export function safeEqual(a: string, b: string) {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
+/**
+ * Lit un secret en tolérant les erreurs de saisie courantes dans Railway :
+ * espaces ou retour à la ligne en trop, guillemets autour de la valeur.
+ */
+export function readSecret(name: "ADMIN_PASSWORD" | "SYNC_SECRET"): string | undefined {
+  let v = process.env[name]?.trim();
+  if (v && v.length >= 2 && ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'")))) v = v.slice(1, -1).trim();
+  return v || undefined;
+}
+
 function sign(payload: string): string | null {
-  const secret = process.env.ADMIN_PASSWORD;
+  const secret = readSecret("ADMIN_PASSWORD");
   if (!secret) return null;
   // Changer ADMIN_PASSWORD invalide toutes les sessions existantes.
   return createHmac("sha256", "mondaix-session:" + secret).update(payload).digest("base64url");
@@ -34,13 +44,10 @@ export function verifySessionValue(value: string | undefined, now = Date.now()):
   return Number(exp) > now;
 }
 
-export const sessionCookieOptions = {
-  httpOnly: true,
-  sameSite: "lax" as const,
-  secure: process.env.NODE_ENV === "production",
-  path: "/",
-  maxAge: SESSION_DAYS * 86_400,
-};
+/** `secure` seulement en HTTPS : sinon le navigateur refuserait le cookie (ex. accès local en http). */
+export function sessionCookieOptions(https: boolean) {
+  return { httpOnly: true, sameSite: "lax" as const, secure: https, path: "/", maxAge: SESSION_DAYS * 86_400 };
+}
 
 export async function isAdmin(): Promise<boolean> {
   const store = await cookies();
@@ -52,15 +59,15 @@ export async function requireAdmin() {
 }
 
 export function checkPassword(password: string): boolean {
-  const secret = process.env.ADMIN_PASSWORD;
-  return !!secret && safeEqual(password, secret);
+  const secret = readSecret("ADMIN_PASSWORD");
+  return !!secret && safeEqual(password.trim(), secret);
 }
 
 /** Jeton Bearer : "sync" accepte SYNC_SECRET, "admin" accepte ADMIN_PASSWORD. */
 export function bearerAuthorized(request: Request, kind: "admin" | "sync"): boolean {
-  const secret = process.env[kind === "admin" ? "ADMIN_PASSWORD" : "SYNC_SECRET"];
+  const secret = readSecret(kind === "admin" ? "ADMIN_PASSWORD" : "SYNC_SECRET");
   if (!secret) return false;
-  return safeEqual(request.headers.get("authorization") ?? "", "Bearer " + secret);
+  return safeEqual((request.headers.get("authorization") ?? "").trim(), "Bearer " + secret);
 }
 
 /** Pour les routes API : jeton Bearer ou session administrateur. */
