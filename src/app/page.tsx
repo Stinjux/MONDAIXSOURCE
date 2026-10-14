@@ -12,9 +12,10 @@ export default function Home(){
  const unique=useMemo(()=>[...new Map(leads.map(l=>[l.key,l])).values()], [data]);
  const weekly=unique.filter(l=>l.firstSeenAt.slice(0,10)>=monday);
  const pending=weekly.filter(l=>l.reviewStatus==="PENDING");
+ const reviewQueue=leads.filter(l=>l.reviewStatus==="PENDING"||l.firstSeenAt.slice(0,10)>=monday);
  const counts=useMemo(()=>{const groups=new Map<string,number>();for(const l of data)groups.set(l.key,(groups.get(l.key)||0)+1);return groups},[data]);
  const dup=[...counts.values()].reduce((sum,c)=>sum+Math.max(0,c-1),0);
- const visible=(tab==="oos"?oos:tab==="review"?weekly:leads).filter(l=>(l.name+" "+l.asin+" "+l.store+" "+l.supplierKey).toLowerCase().includes(search.toLowerCase()));
+ const visible=(tab==="oos"?oos:tab==="review"?reviewQueue:leads).filter(l=>(l.name+" "+l.asin+" "+l.store+" "+l.supplierKey).toLowerCase().includes(search.toLowerCase()));
  const review=async(id:string,status:string)=>{setBusy(true);try{const r=await fetch("/api/review",{method:"PATCH",headers:{"Content-Type":"application/json",Authorization:"Bearer "+token},body:JSON.stringify({id,status})});if(!r.ok)throw Error("Mise à jour impossible");await load(token)}catch(e){setError(String(e))}finally{setBusy(false)}};
  if(!token)return <main className="layout"><div className="form card"><div className="brand">MONDAIX</div><p className="muted">Connexion au Sourcing Center</p><input aria-label="Mot de passe" type="password" placeholder="Mot de passe administrateur" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==="Enter"&&login()}/><button disabled={busy||!password} onClick={login}>Se connecter</button>{error&&<p className="alert">{error}</p>}</div></main>;
  return <main className="layout"><header className="header"><div><div className="brand">MONDAIX <span style={{fontSize:12,color:"#96b5ff"}}>SOURCE</span></div><div className="muted">Amazon.ca · Phase 1 · CAD</div></div><button className="tab" onClick={()=>{setToken("");setData([])}}>Déconnexion</button></header>
