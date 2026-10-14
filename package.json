@@ -6,24 +6,38 @@
     "dev": "next dev -H 0.0.0.0",
     "build": "prisma generate && next build",
     "start": "next start -H 0.0.0.0 -p ${PORT:-3000}",
+    "postinstall": "prisma generate",
+    "db:push": "prisma db push --skip-generate",
     "db": "prisma db push",
     "sync": "tsx scripts/sync.ts",
+    "sync:cron": "tsx scripts/sync.ts --cron",
+    "reminder": "tsx scripts/reminder.ts",
+    "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.0.0",
     "googleapis": "^150.0.0",
+    "lucide-react": "^1.56.0",
     "next": "^15.5.0",
+    "prisma": "^6.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "recharts": "^3.10.1",
+    "server-only": "^0.0.1",
+    "tsx": "^4.20.0",
     "zod": "^4.0.0"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "prisma": "^6.0.0",
-    "tsx": "^4.20.0",
+    "postcss": "^8.5.30",
+    "tailwindcss": "^4.3.3",
     "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=20.9"
   }
 }
