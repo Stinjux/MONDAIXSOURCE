@@ -1,0 +1,53 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+model Lead {
+  id            String   @id @default(cuid())
+  source        String
+  sourceRow     Int
+  key           String
+  asin          String
+  supplierKey   String
+  name          String
+  amazonUrl     String?
+  supplierUrl   String?
+  store         String?
+  salePrice     Float?
+  costPrice     Float?
+  buyBox90      Float?
+  fbaFee        Float?
+  estimatedSales Float?
+  currency      String?
+  availability  String?
+  notes         String?
+  sheetRoi      Float?
+  sheetMargin   Float?
+  sheetProfit   Float?
+  lastChecked   String?
+  checkDetail   String?
+  exportDate    String?
+  firstSeenAt   DateTime @default(now())
+  lastSeenAt    DateTime @updatedAt
+  status        String   @default("NEW")
+  reviewStatus  String   @default("PENDING")
+  reviewedAt    DateTime?
+  occurrences   Int      @default(1)
+  @@unique([source,sourceRow])
+  @@index([asin])
+  @@index([key])
+  @@index([firstSeenAt])
+}
+model ImportEvent {
+  id         String   @id @default(cuid())
+  source     String
+  startedAt  DateTime @default(now())
+  imported   Int      @default(0)
+  updated    Int      @default(0)
+  duplicates Int      @default(0)
+  errors     Int      @default(0)
+  details    String?
+}
