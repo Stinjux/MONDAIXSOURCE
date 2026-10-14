@@ -98,3 +98,12 @@ test("ID de Google Sheet : ID seul, URL complète ou guillemets", async () => {
   assert.equal(parseSheetId(`${id}/edit`), id);
   assert.equal(parseSheetId(""), undefined);
 });
+
+test("plage : onglet corrigé automatiquement si sans ambiguïté", async () => {
+  const { resolveRange } = await import("../src/lib/google");
+  assert.equal(resolveRange("LEADS!A:J", ["Leads", "Archive"]), "'Leads'!A:J");
+  assert.equal(resolveRange("'OUT OF STOCK'!A:P", ["Out of stock "]), "'Out of stock '!A:P");
+  assert.equal(resolveRange("'OUT OF STOCK'!A:P", ["Rupture-Écoulé"]), "'Rupture-Écoulé'!A:P"); // onglet unique
+  assert.equal(resolveRange("LEADS!A:J", ["Feuille 1", "Feuille 2"]), null); // ambigu : on ne devine pas
+  assert.equal(resolveRange("A:J", ["Feuille 1"]), "'Feuille 1'!A:J");
+});
