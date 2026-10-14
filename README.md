@@ -20,6 +20,7 @@ ImportRun · ImportIssue                  ← journal des synchronisations et li
 
 - **Rien n'est jamais supprimé automatiquement.** Une ligne retirée d'une Sheet est marquée « retirée » et reste consultable.
 - **Valeurs importées ≠ valeurs vérifiées** : les champs saisis pendant la revue (`verified…`) sont séparés et étiquetés « vérifié » / « importé » dans l'interface.
+- **Un lead = un ASIN** : tous les fournisseurs trouvés pour cet ASIN lui sont rattachés (ligne dépliable dans All Leads, meilleure offre en tête). L'ASIN ne compte qu'une fois dans l'objectif.
 - Une occurrence est identifiée par *(Sheet, offre, rang)* et non par numéro de ligne : **trier ou insérer des lignes dans la Sheet ne réinitialise ni les revues ni les dates.**
 
 ### Doublons
