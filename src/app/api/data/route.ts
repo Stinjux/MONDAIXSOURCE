@@ -1,7 +1,12 @@
-import {authorized} from "@/lib/auth";import {prisma} from "@/lib/prisma";
-export const runtime="nodejs";export const dynamic="force-dynamic";
-export async function GET(request:Request){
- if(!authorized(request))return Response.json({error:"Unauthorized"},{status:401});
- const [leads,imports]=await Promise.all([prisma.lead.findMany({orderBy:{firstSeenAt:"desc"},take:5000}),prisma.importEvent.findMany({orderBy:{startedAt:"desc"},take:10})]);
- return Response.json({leads,imports});
+// GET /api/data — export JSON des leads (Bearer ADMIN_PASSWORD ou session administrateur).
+import { requestAuthorized } from "@/lib/auth";
+import { latestRuns, loadProducts } from "@/lib/queries";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export async function GET(request: Request) {
+  if (!(await requestAuthorized(request, "admin"))) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const [{ products }, imports] = await Promise.all([loadProducts(), latestRuns(10)]);
+  return Response.json({ products, imports });
 }
