@@ -3,11 +3,25 @@ import type { SheetSource } from "./normalize";
 
 const DEFAULT_RANGE: Record<SheetSource, string> = { LEADS: "A:J", OUT_OF_STOCK: "A:P" };
 
+const unquote = (v: string | undefined) => v?.trim().replace(/^(["'])(.*)\1$/, "$2").trim() || undefined;
+
+/**
+ * ID d'une Google Sheet. Accepte l'ID seul ou l'URL complète collée par erreur
+ * (https://docs.google.com/spreadsheets/d/<ID>/edit#gid=0).
+ */
+export function parseSheetId(value: string | undefined): string | undefined {
+  const v = unquote(value);
+  if (!v) return undefined;
+  const fromUrl = v.match(/\/d\/([a-zA-Z0-9_-]{20,})/);
+  if (fromUrl) return fromUrl[1];
+  return v.replace(/[/?#].*$/, "");
+}
+
 export function sheetConfig(source: SheetSource) {
   const prefix = source === "LEADS" ? "LEADS" : "OOS";
   return {
-    id: process.env[`${prefix}_SHEET_ID`]?.trim(),
-    range: process.env[`${prefix}_SHEET_RANGE`]?.trim() || DEFAULT_RANGE[source],
+    id: parseSheetId(process.env[`${prefix}_SHEET_ID`]),
+    range: unquote(process.env[`${prefix}_SHEET_RANGE`]) || DEFAULT_RANGE[source],
     idVar: `${prefix}_SHEET_ID`,
   };
 }
@@ -38,8 +52,16 @@ export async function readSheet(source: SheetSource): Promise<string[][]> {
   } catch (e) {
     const status = (e as { code?: number }).code;
     if (status === 403) throw new Error(`Accès refusé à la Sheet ${source} : partagez-la en lecture avec le client_email du compte de service`);
-    if (status === 404) throw new Error(`Sheet ${source} introuvable : vérifiez ${idVar}`);
-    if (status === 400) throw new Error(`Plage invalide pour ${source} (« ${range} ») : vérifiez le nom de l'onglet`);
+    if (status === 404)
+      throw new Error(
+        `Sheet ${source} introuvable (ID « ${id} ») : vérifiez ${idVar}. Si le fichier est un Excel (.xlsx) importé dans Drive, ouvrez-le puis Fichier → Enregistrer au format Google Sheets et utilisez l'ID du nouveau fichier.`,
+      );
+    if (status === 400) {
+      const msg = String((e as { message?: string }).message ?? "");
+      if (/not supported for this document/i.test(msg))
+        throw new Error(`Le fichier ${source} est un Excel (.xlsx), pas une Google Sheet : ouvrez-le puis Fichier → Enregistrer au format Google Sheets, et utilisez l'ID du nouveau fichier.`);
+      throw new Error(`Plage invalide pour ${source} (« ${range} ») : vérifiez le nom de l'onglet`);
+    }
     throw e;
   }
 }

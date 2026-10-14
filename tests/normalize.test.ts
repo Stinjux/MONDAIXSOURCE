@@ -87,3 +87,14 @@ test("marque fournisseur : nom de boutique ↔ URL", () => {
   assert.equal(supplierBrand("Pharmaprix"), "pharmaprix");
   assert.deepEqual(supplierIdentity(undefined, ""), { key: "unknown" });
 });
+
+test("ID de Google Sheet : ID seul, URL complète ou guillemets", async () => {
+  const { parseSheetId } = await import("../src/lib/google");
+  const id = "1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-abcd";
+  assert.equal(parseSheetId(id), id);
+  assert.equal(parseSheetId(`https://docs.google.com/spreadsheets/d/${id}/edit#gid=0`), id);
+  assert.equal(parseSheetId(`https://docs.google.com/spreadsheets/u/1/d/${id}/edit?usp=sharing`), id);
+  assert.equal(parseSheetId(` "${id}" `), id);
+  assert.equal(parseSheetId(`${id}/edit`), id);
+  assert.equal(parseSheetId(""), undefined);
+});
