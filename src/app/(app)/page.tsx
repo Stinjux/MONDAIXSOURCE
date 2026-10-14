@@ -132,10 +132,10 @@ export default async function DashboardPage() {
                   ))}
                 </tbody>
               </table>
-              <p className="px-4 py-2.5 text-[11px] text-ink-3">* Estimations préliminaires (Buy Box 90 j − Cost Price − FBA Fee), hors commissions, transport, préparation, stockage et taxes.</p>
+              <p className="px-4 py-2.5 text-[11px] text-ink-3">* Estimations préliminaires (Buy Box 90 j − Cost Price − Total Fees), frais Amazon inclus ; hors transport, préparation, stockage et taxes.</p>
             </div>
           ) : (
-            <EmptyState title="Aucun lead rentable calculable cette semaine">Synchronisez les Sheets ou complétez Sale Price, Cost Price et FBA Fee dans LEADS.</EmptyState>
+            <EmptyState title="Aucun lead rentable calculable cette semaine">Synchronisez les Sheets ou complétez Buy Box 90 j (D), Total Fees (H) et Cost Price (I) dans LEADS.</EmptyState>
           )}
         </Card>
 

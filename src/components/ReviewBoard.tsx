@@ -185,7 +185,7 @@ function ReviewCard({ product: p, overdue, onSaved }: { product: ProductView; ov
               <dl className="mb-3 grid grid-cols-3 gap-2 text-xs">
                 <div><dt className="text-ink-3">Buy Box 90 j (D)</dt><dd className="mt-0.5 text-sm tabular-nums">{cad(best?.buyBox90)}</dd></div>
                 <div><dt className="text-ink-3">Sale Price (E)</dt><dd className="mt-0.5 text-sm tabular-nums text-ink-2">{cad(best?.salePrice)}</dd></div>
-                <div><dt className="text-ink-3">FBA Fee (H)</dt><dd className="mt-0.5 text-sm tabular-nums">{cad(best?.fbaFee)}</dd></div>
+                <div><dt className="text-ink-3">Total Fees (H)</dt><dd className="mt-0.5 text-sm tabular-nums">{cad(best?.fbaFee)}</dd></div>
               </dl>
               <div className="grid grid-cols-2 gap-2">
                 <label className="text-xs text-ink-2">
@@ -194,7 +194,7 @@ function ReviewCard({ product: p, overdue, onSaved }: { product: ProductView; ov
                   <input className="field mt-1" inputMode="decimal" placeholder="Absent de la Sheet" value={sale} onChange={(e) => touch(setSale)(e.target.value)} />
                 </label>
                 <label className="text-xs text-ink-2">
-                  Frais FBA
+                  Total Fees (frais Amazon)
                   <OriginTag origin={verifiedFee != null ? "verified" : sheetFee != null ? "imported" : "missing"} />
                   <input className="field mt-1" inputMode="decimal" placeholder="Absent de la Sheet" value={fee} onChange={(e) => touch(setFee)(e.target.value)} />
                 </label>
@@ -357,8 +357,8 @@ function OfferPanel({
             <span className="text-warning">{r.issue}</span>
           ) : (
             <>
-              Prix<OriginTag origin={s.origin} /> · Coût<OriginTag origin={c.origin} /> · FBA<OriginTag origin={f.origin} /> —{" "}
-              {allVerified ? "calcul sur valeurs vérifiées" : "estimation préliminaire"}, hors commissions, transport et taxes.
+              Prix<OriginTag origin={s.origin} /> · Coût<OriginTag origin={c.origin} /> · Frais<OriginTag origin={f.origin} /> —{" "}
+              {allVerified ? "calcul sur valeurs vérifiées" : "estimation préliminaire"}, frais Amazon inclus, hors transport, préparation et taxes.
             </>
           )}
         </div>

@@ -1,6 +1,6 @@
-// Rentabilité PRÉLIMINAIRE Amazon FBA (CAD) : prix Amazon (Buy Box 90 j) − Cost Price − FBA Fee.
-// Ces indicateurs ne sont pas un profit net : commissions de parrainage (si non incluses dans FBA Fee),
-// transport, préparation, stockage et taxes non récupérables ne sont pas encore déduits.
+// Rentabilité PRÉLIMINAIRE Amazon FBA (CAD) : prix Amazon (Buy Box 90 j) − Cost Price − Total Fees.
+// Total Fees (colonne H, champ `fbaFee`) = frais Amazon totaux (commission + FBA).
+// Ce n'est pas un profit net : transport, préparation, stockage et taxes non récupérables ne sont pas déduits.
 
 /**
  * Prix Amazon retenu pour les calculs : Buy Box moyenne 90 jours (colonne D),
@@ -35,7 +35,7 @@ export function preliminaryProfit(input: ProfitInput): ProfitResult {
   const missing = [
     !num(input.salePrice) && "prix de vente",
     !num(input.costPrice) && "coût",
-    !num(input.fbaFee) && "frais FBA",
+    !num(input.fbaFee) && "Total Fees",
   ].filter(Boolean);
   if (missing.length) return empty("Donnée manquante : " + missing.join(", "));
   const sale = input.salePrice!, cost = input.costPrice!, fee = input.fbaFee!;

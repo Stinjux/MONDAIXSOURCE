@@ -151,7 +151,7 @@ export function parseRow(source: SheetSource, r: string[], sheetRow: number): Pa
     const row: ParsedRow = {
       source, sheetRow, asin, name: name || asin, amazonUrl,
       buyBox90: amount(r[3]), salePrice: amount(r[4]), estimatedSales: amount(r[5]),
-      exportDate: opt(cell(r, 6)), fbaFee: amount(r[7]), costPrice: amount(r[8]),
+      exportDate: opt(cell(r, 6)), fbaFee: amount(r[7]) /* H : Total Fees (frais Amazon totaux) */, costPrice: amount(r[8]),
       supplierKey: supplier.key, supplierName: supplier.name, supplierUrl: supplier.url, currency: "CAD",
     };
     if (supplier.key === "unknown") warnings.push("URL fournisseur manquante (colonne J)");

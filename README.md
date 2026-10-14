@@ -40,7 +40,7 @@ Chaque fournisseur, chaque occurrence, la première et la dernière date de déc
 
 ### Weekly Review
 
-Statuts : À revoir · En cours · Revu et validé · Rejeté · À suivre. Pour chaque lead : prix Amazon et frais FBA vérifiés, coût et disponibilité vérifiés par fournisseur, restrictions Amazon, rentabilité recalculée en direct, doublons, checklist en 6 points, notes. Les leads sans décision des semaines précédentes restent affichés (« En retard »). Chaque modification est journalisée (`ChangeLog`).
+Statuts : À revoir · En cours · Revu et validé · Rejeté · À suivre. Pour chaque lead : prix Amazon et frais Amazon (Total Fees) vérifiés, coût et disponibilité vérifiés par fournisseur, restrictions Amazon, rentabilité recalculée en direct, doublons, checklist en 6 points, notes. Les leads sans décision des semaines précédentes restent affichés (« En retard »). Chaque modification est journalisée (`ChangeLog`).
 
 ### OUT OF STOCK
 
@@ -50,12 +50,12 @@ Statut dérivé des colonnes N (Disponibilité), O (Dernière vérification) et 
 
 | Indicateur | Formule |
 |---|---|
-| Profit | Prix Amazon (Buy Box moyenne 90 j, colonne D ; Sale Price si vide) − Cost Price − FBA Fee |
+| Profit | Prix Amazon (Buy Box moyenne 90 j, colonne D ; Sale Price si vide) − Cost Price − Total Fees (colonne H : commission Amazon + FBA) |
 | ROI | Profit / Cost Price × 100 |
 | Marge | Profit / prix Amazon × 100 |
 | Profit mensuel | Profit × Estimated Sales |
 
-Ce n'est **pas un profit net** (commissions, transport, préparation, stockage, taxes non récupérables non déduits). Aucun calcul n'est fait si une donnée manque ou si le coût n'est pas en CAD (pas de conversion inventée).
+Les frais Amazon (commission + FBA) sont inclus via Total Fees, mais ce n'est **pas encore un profit net** (transport, préparation, stockage, taxes non récupérables non déduits). Aucun calcul n'est fait si une donnée manque ou si le coût n'est pas en CAD (pas de conversion inventée).
 
 ---
 

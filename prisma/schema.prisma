@@ -79,7 +79,9 @@ model SupplierOffer {
 
   // --- Valeurs importées courantes (LEADS prioritaire sur OUT OF STOCK) ---
   salePrice      Float?
+  /// Prix Amazon retenu pour les calculs (colonne D)
   buyBox90       Float?
+  /// Colonne H de LEADS : Total Fees (frais Amazon totaux, commission + FBA)
   fbaFee         Float?
   costPrice      Float?
   estimatedSales Float?
