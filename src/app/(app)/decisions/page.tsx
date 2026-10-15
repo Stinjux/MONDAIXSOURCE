@@ -7,14 +7,14 @@ import { loadProducts } from "@/lib/queries";
 export const metadata = { title: "Buy Decisions" };
 
 export default async function DecisionsPage() {
-  const { products } = await loadProducts();
+  const { products, tax } = await loadProducts();
   return (
     <>
       <PageHeader
         title="Buy Decisions"
         description="Classez vos leads par score, ROI, profit mensuel ou marge, appliquez vos critères d'achat et préparez votre commande avec un budget."
       />
-      <BuyDecisions rows={toDecisionRows(products)} currentWeek={weekKey(new Date())} />
+      <BuyDecisions rows={toDecisionRows(products, tax)} currentWeek={weekKey(new Date())} tax={tax} />
     </>
   );
 }

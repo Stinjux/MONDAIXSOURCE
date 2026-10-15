@@ -5,6 +5,7 @@ import { setReviewStatus } from "@/app/(app)/actions";
 import { DEFAULT_THRESHOLDS, VERDICT_LABELS, planTotals, verdict, type Thresholds, type Verdict } from "@/lib/decision";
 import type { DecisionRow } from "@/lib/decisionRows";
 import { cad, num, pct } from "@/lib/format";
+import { NO_TAX, maxCost, type TaxConfig } from "@/lib/profit";
 import { Asin, Badge, EmptyState, ReviewBadge, Supplier, cn } from "./ui";
 
 type Strategy = "score" | "roi" | "monthlyProfit" | "margin" | "profit";
@@ -35,7 +36,7 @@ function load(): Partial<Saved> {
   }
 }
 
-export function BuyDecisions({ rows, currentWeek }: { rows: DecisionRow[]; currentWeek: string }) {
+export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: DecisionRow[]; currentWeek: string; tax?: TaxConfig }) {
   const [strategy, setStrategy] = useState<Strategy>("score");
   const [thresholds, setThresholds] = useState<Thresholds>(DEFAULT_THRESHOLDS);
   const [budget, setBudget] = useState("");
@@ -282,6 +283,7 @@ export function BuyDecisions({ rows, currentWeek }: { rows: DecisionRow[]; curre
                   <th className={cn("text-right", strategy === "monthlyProfit" && "text-accent")}>Profit mensuel</th>
                   <th className="text-right">Ventes/mois</th>
                   <th className="text-right">Coût</th>
+                  <th className="text-right" title="Coût d'achat maximum pour atteindre vos critères de profit et de ROI">Coût max</th>
                   <th className="text-right">Qté</th>
                   <th className="text-right">Sous-total</th>
                   <th />
@@ -327,6 +329,14 @@ export function BuyDecisions({ rows, currentWeek }: { rows: DecisionRow[]; curre
                       <td className="text-right font-medium tabular-nums">{cad(r.monthlyProfit)}</td>
                       <td className="text-right tabular-nums text-ink-2">{num(r.estimatedSales)}</td>
                       <td className="text-right tabular-nums text-ink-2">{cad(r.costPrice)}</td>
+                      <td className="text-right tabular-nums">
+                        {(() => {
+                          const mc = maxCost({ salePrice: r.amazonPrice, fbaFee: r.fees }, thresholds, tax);
+                          if (mc == null) return <span className="text-ink-3">—</span>;
+                          const ok = r.costPrice != null && r.costPrice <= mc;
+                          return <span className={ok ? "text-[#5fd35f]" : "text-[#f08080]"}>{cad(mc)}</span>;
+                        })()}
+                      </td>
                       <td className="text-right">
                         <input
                           className="field w-16 py-1 text-right text-xs tabular-nums"
@@ -355,8 +365,9 @@ export function BuyDecisions({ rows, currentWeek }: { rows: DecisionRow[]; curre
           </div>
         )}
         <p className="border-t border-line px-3 py-2.5 text-xs text-ink-3">
-          Calcul : Buy Box 90 j − Cost Price − Total Fees, avec vos valeurs vérifiées (Weekly Review) en priorité. Profit mensuel = profit unitaire × ventes estimées du produit
-          (colonne F, ventes totales de l&apos;annonce, pas votre part). Hors transport vers Amazon, préparation, stockage et taxes.
+          Calcul façon SellerAmp : Buy Box 90 j − Cost Price − Total Fees{tax.mode !== "NONE" ? ` − taxes (${String(tax.rate).replace(".", ",")} %, réglage Settings)` : ""}, avec vos valeurs vérifiées (Weekly Review) en priorité.
+          Coût max = prix d&apos;achat maximum pour respecter vos critères de profit et de ROI. Profit mensuel = profit unitaire × ventes estimées du produit
+          (colonne F, ventes totales de l&apos;annonce, pas votre part). Hors transport vers Amazon, préparation et stockage.
         </p>
       </div>
     </div>

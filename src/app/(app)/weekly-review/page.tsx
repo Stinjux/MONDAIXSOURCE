@@ -13,7 +13,7 @@ export default async function WeeklyReviewPage({ searchParams }: { searchParams:
   const current = weekKey(now);
   const requested = (await searchParams).week;
   const week = isWeekKey(requested) && requested <= current ? requested : current;
-  const { products } = await loadProducts(now);
+  const { products, tax } = await loadProducts(now);
   const items = products.filter((p) => p.countsTowardGoal && p.goalWeek === week).sort((a, b) => a.firstSeenAt.localeCompare(b.firstSeenAt));
   const overdue = week === current ? overdueReviews(products, now) : [];
 
@@ -73,7 +73,7 @@ export default async function WeeklyReviewPage({ searchParams }: { searchParams:
         <Kpi label="Rejetés" value={items.filter((p) => p.reviewStatus === "REJECTED").length} tone="critical" />
       </div>
 
-      <ReviewBoard items={items} overdue={overdue} />
+      <ReviewBoard items={items} overdue={overdue} tax={tax} />
     </>
   );
 }

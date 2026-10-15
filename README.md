@@ -59,7 +59,7 @@ Statut dérivé des colonnes N (Disponibilité), O (Dernière vérification) et 
 | Marge | Profit / prix Amazon × 100 |
 | Profit mensuel | Profit × Estimated Sales |
 
-Les frais Amazon (commission + FBA) sont inclus via Total Fees, mais ce n'est **pas encore un profit net** (transport, préparation, stockage, taxes non récupérables non déduits). Aucun calcul n'est fait si une donnée manque ou si le coût n'est pas en CAD (pas de conversion inventée).
+Les frais Amazon (commission + FBA) sont inclus via Total Fees. **Taxes (TPS/TVQ)** : réglables dans Settings, même méthode que SellerAmp — *inscrit* : profit = (vente − coût) ÷ (1 + taux) − frais ; *non inscrit* : profit = vente − coût − frais × (1 + taux) ; taxes arrondies au cent. Exemple SellerAmp vérifié par les tests : vente 20,20 $, coût 8,13 $, frais 9,46 $, taxe 20 % → profit 0,60 $, ROI 7,38 %, marge 2,97 %, coût max 5,24 $. Ce n'est **pas encore un profit net** : transport vers Amazon, préparation et stockage ne sont pas déduits. Aucun calcul n'est fait si une donnée manque ou si le coût n'est pas en CAD (pas de conversion inventée).
 
 ---
 

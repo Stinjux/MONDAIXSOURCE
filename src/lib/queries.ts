@@ -7,6 +7,7 @@ import { recentWeekKeys, weekBoundsFromKey, weekKey } from "./dates";
 import { duplicateAlertActive, duplicateFlags, type DuplicateFlags } from "./duplicates";
 import { isDecided, parseChecklist, type Checklist } from "./labels";
 import { amazonPrice, preliminaryProfit, type ProfitResult } from "./profit";
+import { getTaxConfig } from "./settings";
 import { needsRecheck } from "./stock";
 
 const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
@@ -78,6 +79,7 @@ export type ProductView = {
 export type DuplicateEvent = { productId: string; kind: string; source: string; firstImportedAt: string };
 
 export async function loadProducts(now = new Date()) {
+  const tax = await getTaxConfig();
   const products = await prisma.product.findMany({
     orderBy: { firstSeenAt: "desc" },
     include: {
@@ -126,7 +128,7 @@ export async function loadProducts(now = new Date()) {
         oosNotes: latestOos?.notes ?? null,
         sheetRoi: latestOos?.sheetRoi ?? null,
         sheetProfit: latestOos?.sheetProfit ?? null,
-        profit: preliminaryProfit({ ...o, salePrice: amazonPrice(o) }),
+        profit: preliminaryProfit({ ...o, salePrice: amazonPrice(o) }, tax),
       };
     });
     const ranked = offers.filter((o) => o.profit.roi !== null).sort((a, b) => b.profit.roi! - a.profit.roi!);
@@ -158,7 +160,7 @@ export async function loadProducts(now = new Date()) {
       best: ranked[0] ?? offers[0] ?? null,
     };
   });
-  return { products: views, duplicateEvents };
+  return { products: views, duplicateEvents, tax };
 }
 
 export type WeekStats = {

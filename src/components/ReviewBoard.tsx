@@ -6,7 +6,7 @@ import { formatDate, formatWeekRange } from "@/lib/dates";
 import { cad, num, pct } from "@/lib/format";
 import { CHECKLIST, REVIEW_LABELS, REVIEW_STATUSES, RESTRICTIONS, RESTRICTION_LABELS, isDecided, type Checklist, type ReviewStatus } from "@/lib/labels";
 import { amount } from "@/lib/normalize";
-import { pick, preliminaryProfit } from "@/lib/profit";
+import { NO_TAX, pick, preliminaryProfit, type TaxConfig } from "@/lib/profit";
 import type { OfferView, ProductView } from "@/lib/queries";
 import { Asin, Badge, DuplicateBadges, EmptyState, OriginTag, ReviewBadge, SourceBadges, StockBadge, Supplier, cn } from "./ui";
 
@@ -20,7 +20,7 @@ const STATUS_STYLE: Record<ReviewStatus, string> = {
 
 type Filter = "ALL" | "PENDING" | ReviewStatus;
 
-export function ReviewBoard({ items, overdue }: { items: ProductView[]; overdue: ProductView[] }) {
+export function ReviewBoard({ items, overdue, tax = NO_TAX }: { items: ProductView[]; overdue: ProductView[]; tax?: TaxConfig }) {
   const [filter, setFilter] = useState<Filter>("PENDING");
   // Une fiche qui vient d'être enregistrée reste affichée jusqu'au prochain changement de filtre.
   const [pinned, setPinned] = useState<Set<string>>(new Set());
@@ -58,7 +58,7 @@ export function ReviewBoard({ items, overdue }: { items: ProductView[]; overdue:
         {visible(items).length ? (
           <div className="flex flex-col gap-2">
             {visible(items).map((p) => (
-              <ReviewCard key={p.id} product={p} onSaved={onSaved} />
+              <ReviewCard key={p.id} product={p} onSaved={onSaved} tax={tax} />
             ))}
           </div>
         ) : (
@@ -76,7 +76,7 @@ export function ReviewBoard({ items, overdue }: { items: ProductView[]; overdue:
           </summary>
           <div className="flex flex-col gap-2">
             {visible(overdue).map((p) => (
-              <ReviewCard key={p.id} product={p} overdue onSaved={onSaved} />
+              <ReviewCard key={p.id} product={p} overdue onSaved={onSaved} tax={tax} />
             ))}
           </div>
         </details>
@@ -99,7 +99,7 @@ function asVerified(input: string, imported: number | null, previous: number | n
   return v;
 }
 
-function ReviewCard({ product: p, overdue, onSaved }: { product: ProductView; overdue?: boolean; onSaved: (id: string) => void }) {
+function ReviewCard({ product: p, overdue, onSaved, tax }: { product: ProductView; overdue?: boolean; onSaved: (id: string) => void; tax: TaxConfig }) {
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState(p.reviewStatus as ReviewStatus);
   const [notes, setNotes] = useState(p.reviewNotes ?? "");
@@ -231,6 +231,7 @@ function ReviewCard({ product: p, overdue, onSaved }: { product: ProductView; ov
                   onAvailability={(v) => touch(setOffers)({ ...offers, [o.id]: { ...offers[o.id], availability: v } })}
                   verifiedSale={verifiedSale}
                   verifiedFee={verifiedFee}
+                  tax={tax}
                 />
               ))}
             </div>
@@ -304,6 +305,7 @@ function OfferPanel({
   onAvailability,
   verifiedSale,
   verifiedFee,
+  tax,
 }: {
   offer: OfferView;
   isExactDuplicate: boolean;
@@ -313,13 +315,14 @@ function OfferPanel({
   onAvailability: (v: string) => void;
   verifiedSale: number | null;
   verifiedFee: number | null;
+  tax: TaxConfig;
 }) {
   const s = pick(verifiedSale, o.amazonPrice);
   const c = pick(asVerified(cost, o.currency === "CAD" ? o.costPrice : null, o.verifiedCostPrice), o.costPrice);
   const f = pick(verifiedFee, o.fbaFee);
   // Un coût vérifié est saisi en CAD ; sinon la devise importée s'applique.
   const currency = c.origin === "verified" ? "CAD" : o.currency;
-  const r = preliminaryProfit({ salePrice: s.value, costPrice: c.value, fbaFee: f.value, estimatedSales: o.estimatedSales, currency });
+  const r = preliminaryProfit({ salePrice: s.value, costPrice: c.value, fbaFee: f.value, estimatedSales: o.estimatedSales, currency }, tax);
   const allVerified = [s, c, f].every((x) => x.origin === "verified");
 
   return (
@@ -357,8 +360,9 @@ function OfferPanel({
             <span className="text-warning">{r.issue}</span>
           ) : (
             <>
+              {r.taxes ? <span className="mr-1 text-ink-2">Taxes {cad(r.taxes)} ·</span> : null}
               Prix<OriginTag origin={s.origin} /> · Coût<OriginTag origin={c.origin} /> · Frais<OriginTag origin={f.origin} /> —{" "}
-              {allVerified ? "calcul sur valeurs vérifiées" : "estimation préliminaire"}, frais Amazon inclus, hors transport, préparation et taxes.
+              {allVerified ? "calcul sur valeurs vérifiées" : "estimation préliminaire"}, frais Amazon inclus{tax.mode !== "NONE" ? ` et taxes (${String(tax.rate).replace(".", ",")} %)` : ""}, hors transport et préparation.
             </>
           )}
         </div>

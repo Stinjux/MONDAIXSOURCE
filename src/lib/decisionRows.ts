@@ -1,7 +1,7 @@
 // Lignes de la section Buy Decisions : un lead = un ASIN, évalué sur sa meilleure offre fournisseur.
 // Les valeurs vérifiées en Weekly Review remplacent les valeurs importées de la Sheet.
 import { buyScore, type DecisionMetrics } from "./decision";
-import { pick, preliminaryProfit } from "./profit";
+import { NO_TAX, pick, preliminaryProfit, type TaxConfig } from "./profit";
 import type { OfferView, ProductView } from "./queries";
 
 export type DecisionRow = DecisionMetrics & {
@@ -17,6 +17,8 @@ export type DecisionRow = DecisionMetrics & {
   costPrice: number | null;
   fees: number | null;
   calcIssue: string | null;
+  /** Taxes retranchées du profit (selon le réglage) */
+  taxes: number | null;
   score: number | null;
   /** Nombre de valeurs vérifiées utilisées (prix Amazon, coût, frais) */
   verifiedCount: number;
@@ -30,17 +32,18 @@ export type DecisionRow = DecisionMetrics & {
   present: boolean;
 };
 
-function evaluate(p: ProductView, o: OfferView) {
+function evaluate(p: ProductView, o: OfferView, tax: TaxConfig) {
   const s = pick(p.verifiedSalePrice, o.amazonPrice);
   const c = pick(o.verifiedCostPrice, o.costPrice);
   const f = pick(p.verifiedFbaFee, o.fbaFee);
   const currency = c.origin === "verified" ? "CAD" : o.currency;
-  const r = preliminaryProfit({ salePrice: s.value, costPrice: c.value, fbaFee: f.value, estimatedSales: o.estimatedSales, currency });
+  const r = preliminaryProfit({ salePrice: s.value, costPrice: c.value, fbaFee: f.value, estimatedSales: o.estimatedSales, currency }, tax);
   const metrics: DecisionMetrics = { profit: r.profit, roi: r.roi, margin: r.margin, monthlyProfit: r.monthlyProfit, estimatedSales: o.estimatedSales };
   return {
     offer: o,
     metrics,
     issue: r.issue,
+    taxes: r.taxes,
     score: buyScore(metrics),
     amazonPrice: s.value,
     costPrice: c.value,
@@ -50,13 +53,13 @@ function evaluate(p: ProductView, o: OfferView) {
   };
 }
 
-export function toDecisionRows(products: ProductView[]): DecisionRow[] {
+export function toDecisionRows(products: ProductView[], tax: TaxConfig = NO_TAX): DecisionRow[] {
   return products
     .filter((p) => p.offers.length > 0)
     .map((p) => {
       // Meilleure offre : disponible d'abord, puis meilleur score
       const best = p.offers
-        .map((o) => evaluate(p, o))
+        .map((o) => evaluate(p, o, tax))
         .sort((a, b) => Number(a.unavailable) - Number(b.unavailable) || (b.score ?? -1) - (a.score ?? -1))[0];
       return {
         ...best.metrics,
@@ -72,6 +75,7 @@ export function toDecisionRows(products: ProductView[]): DecisionRow[] {
         costPrice: best.costPrice,
         fees: best.fees,
         calcIssue: best.issue,
+        taxes: best.taxes,
         score: best.score,
         verifiedCount: best.verifiedCount,
         unavailable: best.unavailable,

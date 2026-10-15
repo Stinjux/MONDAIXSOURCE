@@ -3,10 +3,13 @@ import { Card, PageHeader } from "@/components/ui";
 import { config, envStatus } from "@/lib/config";
 import { TIME_ZONE } from "@/lib/dates";
 import { sheetConfig } from "@/lib/google";
+import { getTaxConfig } from "@/lib/settings";
+import { TaxSettingsForm } from "@/components/TaxSettingsForm";
 
 export const metadata = { title: "Settings" };
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  const tax = await getTaxConfig();
   const env = envStatus();
   const leads = sheetConfig("LEADS");
   const oos = sheetConfig("OUT_OF_STOCK");
@@ -59,10 +62,19 @@ export default function SettingsPage() {
             </p>
           </Card>
 
+          <Card title="Taxes dans le calcul du profit (TPS/TVQ)">
+            <p className="mb-3 text-sm text-ink-2">
+              Même méthode que SellerAmp (« VAT »). Inscrit : les taxes perçues sur la vente sont reversées et celles payées sur le coût et les frais
+              sont récupérées, donc profit = (vente − coût) ÷ (1 + taux) − frais. Non inscrit : les taxes sur les frais Amazon sont un coût.
+              En cas de doute sur votre situation fiscale, validez avec votre comptable.
+            </p>
+            <TaxSettingsForm initial={tax} />
+          </Card>
+
           <Card title="Estimations de rentabilité">
             <p className="text-sm text-ink-2">
               Profit préliminaire = prix Amazon (Buy Box moyenne 90 jours, colonne D ; Sale Price si vide) − Cost Price − Total Fees (colonne H, frais Amazon totaux : commission + FBA). ROI = profit / coût. Marge = profit / prix Amazon. Profit mensuel = profit × ventes estimées.
-              Le transport vers Amazon, la préparation, le stockage mensuel et les taxes non récupérables ne sont pas encore déduits.
+              Les taxes sont déduites selon le réglage ci-dessus. Le transport vers Amazon, la préparation et le stockage mensuel ne sont pas encore déduits.
               Aucun calcul n&apos;est fait sur un coût dans une autre devise que le CAD.
             </p>
           </Card>

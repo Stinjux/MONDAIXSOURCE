@@ -10,6 +10,7 @@ import { isAdmin, SESSION_COOKIE } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { syncAll, type SyncResult } from "@/lib/sync/engine";
 import { CHECKLIST, REVIEW_STATUSES, RESTRICTIONS } from "@/lib/labels";
+import { setTaxConfig } from "@/lib/settings";
 
 async function guard() {
   if (!(await isAdmin())) throw new Error("Session expirée : reconnectez-vous");
@@ -157,6 +158,21 @@ export async function runManualSync(): Promise<{ ok: boolean; results?: SyncResu
     return { ok: results.every((r) => r.status === "SUCCESS"), results };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Synchronisation impossible" };
+  }
+}
+
+const taxSchema = z.object({ mode: z.enum(["NONE", "REGISTERED", "NOT_REGISTERED"]), rate: z.number().finite().min(0).max(50) });
+
+export async function saveTaxSettings(input: z.infer<typeof taxSchema>): Promise<ActionResult> {
+  try {
+    await guard();
+    const data = taxSchema.parse(input);
+    const saved = await setTaxConfig(data);
+    await prisma.changeLog.create({ data: { entity: "AppSetting", entityId: "profit.tax", action: "UPDATE", after: saved } });
+    refresh();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof z.ZodError ? "Valeurs invalides" : e instanceof Error ? e.message : "Erreur" };
   }
 }
 

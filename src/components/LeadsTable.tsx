@@ -301,7 +301,7 @@ export function LeadsTable({ rows, currentWeek }: { rows: LeadRow[]; currentWeek
         </div>
       )}
       <div className="flex flex-col gap-2 border-t border-line px-3 py-2.5 text-xs text-ink-3 sm:flex-row sm:items-center sm:justify-between">
-        <span>Un lead = un ASIN. Montants = meilleure offre (ROI le plus élevé). Prix Amazon = Buy Box moyenne 90 j (colonne D). * Estimations préliminaires : Buy Box 90 j − Cost Price − Total Fees (colonne H, frais Amazon totaux). Hors transport, préparation et taxes.</span>
+        <span>Un lead = un ASIN. Montants = meilleure offre (ROI le plus élevé). Prix Amazon = Buy Box moyenne 90 j (colonne D). * Estimations préliminaires : Buy Box 90 j − Cost Price − Total Fees (colonne H, frais Amazon totaux) − taxes selon le réglage Settings. Hors transport et préparation.</span>
         {pages > 1 && (
           <span className="flex shrink-0 items-center gap-2">
             <button type="button" className="btn-ghost px-2 py-1 text-xs" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Précédent</button>
