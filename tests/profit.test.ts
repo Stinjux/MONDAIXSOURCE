@@ -83,3 +83,13 @@ test("coût maximum : contrainte la plus stricte entre profit et ROI, null si im
   assert.equal(maxCost({ salePrice: 5, fbaFee: 7 }, { minProfit: 3, minRoi: 30 }), null);
   assert.equal(maxCost({ salePrice: null, fbaFee: 7 }, { minProfit: 3, minRoi: 30 }), null);
 });
+
+test("réglage par défaut = SellerAmp (inscrit, 20 %), plus prudent que le taux du Québec", async () => {
+  const { DEFAULT_TAX, QUEBEC_TAX_RATE } = await import("../src/lib/profit");
+  assert.deepEqual(DEFAULT_TAX, { mode: "REGISTERED", rate: 20 });
+  const base = { salePrice: 20.2, costPrice: 8.13, fbaFee: 9.46 };
+  const prudent = preliminaryProfit(base, DEFAULT_TAX).profit!;
+  const quebec = preliminaryProfit(base, { mode: "REGISTERED", rate: QUEBEC_TAX_RATE }).profit!;
+  assert.equal(prudent.toFixed(2), "0.60");
+  assert.ok(prudent < quebec, "20 % doit donner un profit plus faible (marge de sécurité)");
+});

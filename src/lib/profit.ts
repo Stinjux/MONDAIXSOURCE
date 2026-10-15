@@ -14,6 +14,11 @@ export type TaxMode = "NONE" | "REGISTERED" | "NOT_REGISTERED";
 export type TaxConfig = { mode: TaxMode; rate: number };
 export const NO_TAX: TaxConfig = { mode: "NONE", rate: 0 };
 export const QUEBEC_TAX_RATE = 14.975;
+/**
+ * Réglage par défaut : identique à SellerAmp (inscrit, 20 %). Plus prudent que le taux réel du Québec
+ * (14,975 %) : la différence sert de marge de sécurité sur chaque lead.
+ */
+export const DEFAULT_TAX: TaxConfig = { mode: "REGISTERED", rate: 20 };
 
 export const TAX_MODE_LABELS: Record<TaxMode, string> = {
   NONE: "Aucune taxe dans le calcul",
