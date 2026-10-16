@@ -46,6 +46,10 @@ Statuts : À revoir · En cours · Revu et validé · Rejeté · À suivre. Pour
 
 Classe les leads selon 5 stratégies : **score d'achat** (40 % ROI plafonné à 100 %, 35 % profit mensuel en échelle logarithmique plafonné à 2 000 $, 25 % marge plafonnée à 40 %), **ROI %**, **profit mensuel**, **marge (profit %)** ou **profit unitaire**. Chaque lead reçoit un verdict selon vos critères (ROI, profit unitaire, marge, ventes mensuelles minimum ; 30 % / 3 $ / 15 % / 10 par défaut) : *Acheter* (tous atteints), *À considérer* (1–2 manqués, rupture ou ASIN restreint), *Éviter* (profit ≤ 0 ou plus de 2 manqués), *Incomplet*. Les valeurs vérifiées en Weekly Review remplacent les valeurs de la Sheet. Le plan d'achat calcule investissement, profit attendu, ROI du panier et budget restant ; critères, budget et quantités sont conservés dans le navigateur.
 
+### Achat · Rejeté · À définir
+
+Trois listes distinctes pour vos décisions d'achat : **Achat** (statut « Revu et validé »), **Rejeté** (« Rejeté ») et **À définir** (« À revoir », « En cours », « À suivre »). Un clic déplace un lead d'une liste à l'autre (changement journalisé) ; chaque carte affiche ROI, marge, profit, coût et l'avis calculé selon vos critères de Buy Decisions. La liste Achat totalise le coût d'une unité de chaque lead, le ROI moyen et le profit mensuel maximal. Les boutons « Acheter » et « Rejeter » existent aussi dans Buy Decisions.
+
 ### OUT OF STOCK
 
 Statut dérivé des colonnes N (Disponibilité), O (Dernière vérification) et P (Détail). **Un produit n'est déclaré « En stock » que si la Sheet l'indique ET qu'une date de vérification valide existe** ; sinon il est « Non vérifié ». Le retour en stock déclenche une alerte. Chaque changement est historisé.

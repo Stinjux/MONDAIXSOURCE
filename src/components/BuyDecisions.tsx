@@ -47,7 +47,7 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
   const [includeUnavailable, setIncludeUnavailable] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [pending, start] = useTransition();
-  const [validated, setValidated] = useState<Set<string>>(new Set());
+  const [decided, setDecided] = useState<Record<string, "VALIDATED" | "REJECTED">>({});
 
   // Préférences et panier conservés dans ce navigateur
   useEffect(() => {
@@ -131,10 +131,10 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
     });
   };
 
-  const validate = (id: string) =>
+  const decide = (id: string, status: "VALIDATED" | "REJECTED") =>
     start(async () => {
-      const res = await setReviewStatus(id, "VALIDATED");
-      if (res.ok) setValidated((s) => new Set(s).add(id));
+      const res = await setReviewStatus(id, status);
+      if (res.ok) setDecided((s) => ({ ...s, [id]: status }));
     });
 
   const thresholdInput = (key: keyof Thresholds, label: string, unit: string) => (
@@ -292,7 +292,7 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
               <tbody>
                 {list.map((r, i) => {
                   const q = qty[r.productId] ?? 0;
-                  const isValidated = validated.has(r.productId) || r.reviewStatus === "VALIDATED";
+                  const decision = decided[r.productId] ?? (r.reviewStatus === "VALIDATED" || r.reviewStatus === "REJECTED" ? r.reviewStatus : null);
                   return (
                     <tr key={r.productId} className={cn(q > 0 && "bg-accent/5")}>
                       <td className="text-right text-ink-3 tabular-nums">{i + 1}</td>
@@ -349,12 +349,21 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
                       </td>
                       <td className="text-right tabular-nums">{q > 0 && r.costPrice != null ? cad(q * r.costPrice) : <span className="text-ink-3">—</span>}</td>
                       <td>
-                        {isValidated ? (
-                          <ReviewBadge status="VALIDATED" />
+                        {decision ? (
+                          <a href="/purchases" title="Voir dans Achat · Rejeté · À définir">
+                            <Badge tone={decision === "VALIDATED" ? "good" : "critical"} icon={decision === "VALIDATED" ? <ShoppingCart size={11} /> : <CircleSlash size={11} />}>
+                              {decision === "VALIDATED" ? "Achat" : "Rejeté"}
+                            </Badge>
+                          </a>
                         ) : (
-                          <button type="button" disabled={pending} className="btn-ghost px-2 py-1 text-xs whitespace-nowrap" onClick={() => validate(r.productId)} title="Passer le lead à « Revu et validé »">
-                            <CheckCircle2 size={13} /> Valider
-                          </button>
+                          <span className="flex gap-1">
+                            <button type="button" disabled={pending} className="btn-ghost px-2 py-1 text-xs whitespace-nowrap hover:border-good/60 hover:text-[#5fd35f]" onClick={() => decide(r.productId, "VALIDATED")} title="Ajouter à la liste Achat">
+                              <ShoppingCart size={12} /> Acheter
+                            </button>
+                            <button type="button" disabled={pending} className="btn-ghost px-2 py-1 text-xs whitespace-nowrap hover:border-critical/60 hover:text-[#f08080]" onClick={() => decide(r.productId, "REJECTED")} title="Ajouter à la liste Rejeté">
+                              <CircleSlash size={12} />
+                            </button>
+                          </span>
                         )}
                       </td>
                     </tr>

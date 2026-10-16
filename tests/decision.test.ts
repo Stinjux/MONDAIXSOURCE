@@ -44,3 +44,13 @@ test("panier : investissement, profit et ROI global", () => {
   ]);
   assert.deepEqual(t, { investment: 80, profit: 32, units: 6, roi: 40 });
 });
+
+test("listes Achat · Rejeté · À définir : chaque statut va dans une seule liste", async () => {
+  const { BUCKET_STATUS, REVIEW_STATUSES, bucketOf } = await import("../src/lib/labels");
+  assert.equal(bucketOf("VALIDATED"), "BUY");
+  assert.equal(bucketOf("REJECTED"), "REJECT");
+  for (const s of ["TO_REVIEW", "IN_PROGRESS", "FOLLOW_UP"]) assert.equal(bucketOf(s), "UNDECIDED");
+  // Déplacer vers une liste puis relire le statut retombe dans la même liste
+  for (const [bucket, status] of Object.entries(BUCKET_STATUS)) assert.equal(bucketOf(status), bucket);
+  assert.equal(REVIEW_STATUSES.map(bucketOf).length, 5);
+});
