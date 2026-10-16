@@ -1,11 +1,13 @@
 "use client";
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { CircleSlash, HelpCircle, Lock, PackageX, Search, ShoppingCart } from "lucide-react";
+import { CircleSlash, HelpCircle, Lock, PackageX, Search, ShoppingCart, SlidersHorizontal } from "lucide-react";
 import { setReviewStatus } from "@/app/(app)/actions";
-import { DEFAULT_THRESHOLDS, VERDICT_LABELS, verdict, type Thresholds, type Verdict } from "@/lib/decision";
+import { VERDICT_LABELS, type Verdict } from "@/lib/decision";
+import { STRATEGIES, compareRows, evaluateRow, inScope, matchesVerdict } from "@/lib/decisionFilters";
 import type { DecisionRow } from "@/lib/decisionRows";
 import { cad, pct } from "@/lib/format";
 import { BUCKET_STATUS as TARGET, REVIEW_LABELS, bucketOf, type Bucket, type ReviewStatus } from "@/lib/labels";
+import { FilterPanel, VerdictChips, countVerdicts, useDecisionFilters } from "./DecisionFilters";
 import { Asin, Badge, EmptyState, Supplier, cn } from "./ui";
 
 
@@ -15,47 +17,53 @@ const COLUMNS: { key: Bucket; title: string; hint: string; icon: React.ReactNode
   { key: "REJECT", title: "Rejeté", hint: "Leads écartés", icon: <CircleSlash size={16} />, accent: "text-[#f08080]" },
 ];
 
+const STRATEGY_LABEL = Object.fromEntries(STRATEGIES.map((s) => [s.key, s.label])) as Record<(typeof STRATEGIES)[number]["key"], string>;
+
 const VERDICT_TONE: Record<Verdict, "good" | "warning" | "critical" | "neutral"> = { BUY: "good", CONSIDER: "warning", AVOID: "critical", INCOMPLETE: "neutral" };
 
-/** Reprend les critères définis dans Buy Decisions (même navigateur), sinon les valeurs par défaut. */
-function loadThresholds(): Thresholds {
-  try {
-    const saved = JSON.parse(localStorage.getItem("mondaix.buyDecisions.v1") ?? "{}");
-    return { ...DEFAULT_THRESHOLDS, ...(saved.thresholds ?? {}) };
-  } catch {
-    return DEFAULT_THRESHOLDS;
-  }
-}
 
 export function PurchaseBoard({ rows, currentWeek }: { rows: DecisionRow[]; currentWeek: string }) {
   const [status, setStatus] = useState<Record<string, string>>(() => Object.fromEntries(rows.map((r) => [r.productId, r.reviewStatus])));
-  const [thresholds, setThresholds] = useState<Thresholds>(DEFAULT_THRESHOLDS);
+  // Mêmes filtres que Buy Decisions (réglages partagés et synchronisés)
+  const { filters, update } = useDecisionFilters();
+  const [showFilters, setShowFilters] = useState(false);
   const [query, setQuery] = useState("");
-  const [weekOnly, setWeekOnly] = useState(false);
   const [mobileTab, setMobileTab] = useState<Bucket>("UNDECIDED");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [, start] = useTransition();
 
-  useEffect(() => setThresholds(loadThresholds()), []);
   // Les données serveur rafraîchies (après une action) font foi
   useEffect(() => setStatus(Object.fromEntries(rows.map((r) => [r.productId, r.reviewStatus]))), [rows]);
 
-  const visible = useMemo(() => {
+  // Recherche + périmètre (semaine, ruptures), puis avis selon les critères — comme Buy Decisions
+  const pool = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return rows.filter(
-      (r) =>
-        (!q || `${r.asin} ${r.name} ${r.supplierName ?? ""} ${r.supplierKey}`.toLowerCase().includes(q)) &&
-        (!weekOnly || (r.countsTowardGoal && r.goalWeek === currentWeek)),
-    );
-  }, [rows, query, weekOnly, currentWeek]);
+    return rows
+      .map((r) => evaluateRow(r, filters.thresholds))
+      .filter((r) => (!q || `${r.asin} ${r.name} ${r.supplierName ?? ""} ${r.supplierKey}`.toLowerCase().includes(q)) && inScope(r, filters, currentWeek));
+  }, [rows, query, filters, currentWeek]);
 
-  const columns = useMemo(() => {
-    const by: Record<Bucket, DecisionRow[]> = { BUY: [], REJECT: [], UNDECIDED: [] };
-    for (const r of visible) by[bucketOf(status[r.productId] ?? r.reviewStatus)].push(r);
-    for (const k of Object.keys(by) as Bucket[]) by[k].sort((a, b) => (b.score ?? -1) - (a.score ?? -1) || (b.monthlyProfit ?? -Infinity) - (a.monthlyProfit ?? -Infinity));
-    return by;
-  }, [visible, status]);
+  const counts = useMemo(() => countVerdicts(pool), [pool]);
+
+  const { columns, hidden } = useMemo(() => {
+    type Row = (typeof pool)[number];
+    const by: Record<Bucket, Row[]> = { BUY: [], REJECT: [], UNDECIDED: [] };
+    const hiddenBy: Record<Bucket, number> = { BUY: 0, REJECT: 0, UNDECIDED: 0 };
+    for (const r of rows) {
+      const b = bucketOf(status[r.productId] ?? r.reviewStatus);
+      hiddenBy[b]++;
+    }
+    for (const r of pool) {
+      if (!matchesVerdict(r.verdict, filters.verdict)) continue;
+      const b = bucketOf(status[r.productId] ?? r.reviewStatus);
+      by[b].push(r);
+      hiddenBy[b]--;
+    }
+    const sort = compareRows(filters.strategy);
+    for (const k of Object.keys(by) as Bucket[]) by[k].sort(sort);
+    return { columns: by, hidden: hiddenBy };
+  }, [rows, pool, status, filters.verdict, filters.strategy]);
 
   const move = (r: DecisionRow, to: Bucket) => {
     const previous = status[r.productId];
@@ -85,15 +93,26 @@ export function PurchaseBoard({ rows, currentWeek }: { rows: DecisionRow[]; curr
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-3 rounded-xl border border-line bg-surface p-3 sm:flex-row sm:items-center">
-        <div className="relative flex-1">
-          <Search size={15} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-3" />
-          <input className="field pl-9" placeholder="Rechercher par ASIN, produit ou fournisseur" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Rechercher" />
+      <div className="rounded-xl border border-line bg-surface">
+        <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <Search size={15} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-3" />
+            <input className="field pl-9" placeholder="Rechercher par ASIN, produit ou fournisseur" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Rechercher" />
+          </div>
+          <button type="button" className="btn-ghost" aria-expanded={showFilters} onClick={() => setShowFilters((v) => !v)}>
+            <SlidersHorizontal size={15} /> {showFilters ? "Masquer les filtres" : "Classement et critères"}
+          </button>
         </div>
-        <label className="flex cursor-pointer items-center gap-2 text-xs text-ink-2">
-          <input type="checkbox" className="accent-[#3987e5]" checked={weekOnly} onChange={(e) => setWeekOnly(e.target.checked)} /> Leads de cette semaine seulement
-        </label>
+        <div className="flex flex-wrap items-center gap-1.5 border-t border-line px-3 py-2">
+          <VerdictChips value={filters.verdict} onChange={(v) => update({ verdict: v })} counts={counts} total={pool.length} />
+          <span className="ml-auto text-[11px] text-ink-3">
+            Tri : {STRATEGY_LABEL[filters.strategy]}
+            {filters.weekOnly && " · cette semaine"}
+            {!filters.includeUnavailable && " · ruptures masquées"}
+          </span>
+        </div>
       </div>
+      {showFilters && <FilterPanel filters={filters} update={update} />}
       {error && <p className="rounded-lg border border-critical/40 bg-critical/10 px-3 py-2 text-sm text-[#f08080]">{error}</p>}
 
       {/* Onglets sur mobile */}
@@ -126,20 +145,29 @@ export function PurchaseBoard({ rows, currentWeek }: { rows: DecisionRow[]; curr
                   <span className="rounded-full bg-surface-3 px-2 text-xs font-semibold tabular-nums text-ink">{s.count}</span>
                 </div>
                 <p className="mt-0.5 text-[11px] text-ink-3">{c.hint}</p>
+                {hidden[c.key] > 0 && (
+                  <p className="mt-1 text-[11px] text-ink-3">
+                    + {hidden[c.key]} masqué{hidden[c.key] > 1 ? "s" : ""} par les filtres ·{" "}
+                    <button type="button" className="text-accent hover:underline" onClick={() => { update({ verdict: "ALL", includeUnavailable: true, weekOnly: false }); setQuery(""); }}>
+                      tout afficher
+                    </button>
+                  </p>
+                )}
                 {c.key === "BUY" && s.count > 0 && (
                   <dl className="mt-2 grid grid-cols-3 gap-2 rounded-lg bg-page/60 p-2 text-[11px]">
-                    <div><dt className="text-ink-3">1 unité de chaque</dt><dd className="font-semibold tabular-nums text-ink">{cad(s.unitCost)}</dd></div>
+                    <div><dt className="text-ink-3" title="Calculé sur les leads affichés (selon les filtres)">1 unité de chaque*</dt><dd className="font-semibold tabular-nums text-ink">{cad(s.unitCost)}</dd></div>
                     <div><dt className="text-ink-3">ROI moyen</dt><dd className="font-semibold tabular-nums text-ink">{pct(s.avgRoi, 0)}</dd></div>
                     <div><dt className="text-ink-3">Profit mensuel max.</dt><dd className="font-semibold tabular-nums text-ink">{cad(s.monthly)}</dd></div>
                   </dl>
                 )}
+                {c.key === "BUY" && s.count > 0 && hidden.BUY > 0 && <p className="mt-1 text-[10px] text-ink-3">* Totaux des leads affichés selon les filtres.</p>}
               </header>
               <div className="flex max-h-[70vh] flex-col gap-2 overflow-y-auto p-2">
                 {list.length === 0 ? (
                   <EmptyState title="Aucun lead" icon={<PackageX size={20} />} />
                 ) : (
                   list.map((r) => {
-                    const v = verdict(r, thresholds).verdict;
+                    const v = r.verdict;
                     const current = status[r.productId] ?? r.reviewStatus;
                     return (
                       <article key={r.productId} className={cn("rounded-lg border border-line bg-surface-2/50 p-3 transition", busy === r.productId && "opacity-60")}>
@@ -195,7 +223,8 @@ export function PurchaseBoard({ rows, currentWeek }: { rows: DecisionRow[]; curr
         })}
       </div>
       <p className="text-xs text-ink-3">
-        L&apos;avis (acheter, à considérer, éviter…) est une recommandation calculée avec vos critères de Buy Decisions ; la colonne est votre décision. Déplacer un lead change son statut de revue : Achat = « Revu et validé »,
+        Mêmes filtres que Buy Decisions (classement, critères, avis, semaine, ruptures) : un réglage modifié ici l&apos;est aussi là-bas. L&apos;avis est une
+        recommandation calculée avec vos critères ; la colonne est votre décision. Déplacer un lead change son statut de revue : Achat = « Revu et validé »,
         Rejeté = « Rejeté », À définir = « À revoir ». Chaque changement est journalisé.
       </p>
     </div>

@@ -1,22 +1,14 @@
 "use client";
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { AlertTriangle, CheckCircle2, CircleSlash, HelpCircle, Lock, PackageX, RotateCcw, ShoppingCart, ThumbsUp } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CircleSlash, HelpCircle, Lock, PackageX, ShoppingCart, ThumbsUp } from "lucide-react";
 import { setReviewStatus } from "@/app/(app)/actions";
-import { DEFAULT_THRESHOLDS, VERDICT_LABELS, planTotals, verdict, type Thresholds, type Verdict } from "@/lib/decision";
+import { VERDICT_LABELS, planTotals, type Verdict } from "@/lib/decision";
+import { compareRows, evaluateRow, inScope, matchesVerdict } from "@/lib/decisionFilters";
+import { FilterPanel, VerdictChips, countVerdicts, readSaved, useDecisionFilters, writeSaved } from "./DecisionFilters";
 import type { DecisionRow } from "@/lib/decisionRows";
 import { cad, num, pct } from "@/lib/format";
 import { NO_TAX, maxCost, type TaxConfig } from "@/lib/profit";
 import { Asin, Badge, EmptyState, ReviewBadge, Supplier, cn } from "./ui";
-
-type Strategy = "score" | "roi" | "monthlyProfit" | "margin" | "profit";
-
-const STRATEGIES: { key: Strategy; label: string; hint: string }[] = [
-  { key: "score", label: "Score d'achat", hint: "Équilibre ROI (40 %), profit mensuel (35 %) et marge (25 %)" },
-  { key: "roi", label: "ROI %", hint: "Rendement du capital : idéal avec un budget limité" },
-  { key: "monthlyProfit", label: "Profit mensuel", hint: "Potentiel total : idéal pour maximiser les gains" },
-  { key: "margin", label: "Marge (profit %)", hint: "Sécurité face aux baisses de prix Amazon" },
-  { key: "profit", label: "Profit unitaire", hint: "Gain par unité vendue" },
-];
 
 const VERDICT_STYLE: Record<Verdict, { tone: "good" | "warning" | "critical" | "neutral"; icon: React.ReactNode }> = {
   BUY: { tone: "good", icon: <ThumbsUp size={11} /> },
@@ -25,96 +17,38 @@ const VERDICT_STYLE: Record<Verdict, { tone: "good" | "warning" | "critical" | "
   INCOMPLETE: { tone: "neutral", icon: <AlertTriangle size={11} /> },
 };
 
-const STORAGE_KEY = "mondaix.buyDecisions.v1";
-type Saved = { thresholds: Thresholds; budget: string; qty: Record<string, number>; strategy: Strategy };
-
-function load(): Partial<Saved> {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
-  } catch {
-    return {};
-  }
-}
-
 export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: DecisionRow[]; currentWeek: string; tax?: TaxConfig }) {
-  const [strategy, setStrategy] = useState<Strategy>("score");
-  const [thresholds, setThresholds] = useState<Thresholds>(DEFAULT_THRESHOLDS);
+  // Filtres partagés avec « Achat · Rejeté · À définir » (mêmes réglages sur les deux pages)
+  const { filters, update } = useDecisionFilters();
+  const { strategy, thresholds } = filters;
   const [budget, setBudget] = useState("");
   const [qty, setQty] = useState<Record<string, number>>({});
-  const [show, setShow] = useState<"ACTIONABLE" | Verdict | "ALL">("ACTIONABLE");
-  const [weekOnly, setWeekOnly] = useState(false);
   const [includeRejected, setIncludeRejected] = useState(false);
-  const [includeUnavailable, setIncludeUnavailable] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [pending, start] = useTransition();
   const [decided, setDecided] = useState<Record<string, "VALIDATED" | "REJECTED">>({});
 
-  // Préférences et panier conservés dans ce navigateur
+  // Budget et quantités conservés dans ce navigateur
   useEffect(() => {
-    const s = load();
-    if (s.thresholds) setThresholds({ ...DEFAULT_THRESHOLDS, ...s.thresholds });
+    const s = readSaved();
     if (typeof s.budget === "string") setBudget(s.budget);
-    if (s.qty) setQty(s.qty);
-    if (s.strategy) setStrategy(s.strategy);
+    if (s.qty && typeof s.qty === "object") setQty(s.qty as Record<string, number>);
     setLoaded(true);
   }, []);
   useEffect(() => {
-    if (!loaded) return;
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ thresholds, budget, qty, strategy } satisfies Saved));
-    } catch {
-      /* stockage indisponible : préférences non conservées */
-    }
-  }, [thresholds, budget, qty, strategy, loaded]);
+    if (loaded) writeSaved({ budget, qty });
+  }, [budget, qty, loaded]);
 
-  const evaluated = useMemo(
-    () =>
-      rows.map((r) => {
-        const v = verdict(r, thresholds);
-        // Un produit en rupture ou restreint ne peut pas être « Acheter » tel quel
-        const blocked = r.unavailable || r.restricted;
-        const finalVerdict: Verdict = v.verdict === "BUY" && blocked ? "CONSIDER" : v.verdict;
-        const reasons = [...(r.unavailable ? ["Fournisseur en rupture"] : []), ...(r.restricted ? ["ASIN restreint sur Amazon"] : []), ...v.reasons];
-        return { ...r, verdict: finalVerdict, reasons };
-      }),
-    [rows, thresholds],
-  );
+  const evaluated = useMemo(() => rows.map((r) => evaluateRow(r, thresholds)), [rows, thresholds]);
 
   const pool = useMemo(
-    () =>
-      evaluated.filter(
-        (r) =>
-          (includeRejected || r.reviewStatus !== "REJECTED") &&
-          (includeUnavailable || !r.unavailable) &&
-          (!weekOnly || (r.countsTowardGoal && r.goalWeek === currentWeek)),
-      ),
-    [evaluated, includeRejected, includeUnavailable, weekOnly, currentWeek],
+    () => evaluated.filter((r) => (includeRejected || r.reviewStatus !== "REJECTED") && inScope(r, filters, currentWeek)),
+    [evaluated, includeRejected, filters, currentWeek],
   );
 
-  const counts = useMemo(() => {
-    const c: Record<Verdict, number> = { BUY: 0, CONSIDER: 0, AVOID: 0, INCOMPLETE: 0 };
-    for (const r of pool) c[r.verdict]++;
-    return c;
-  }, [pool]);
+  const counts = useMemo(() => countVerdicts(pool), [pool]);
 
-  const list = useMemo(() => {
-    const filtered = pool.filter((r) => (show === "ALL" ? true : show === "ACTIONABLE" ? r.verdict === "BUY" || r.verdict === "CONSIDER" : r.verdict === show));
-    const order: Record<Verdict, number> = { BUY: 0, CONSIDER: 1, AVOID: 2, INCOMPLETE: 3 };
-    return filtered.sort((a, b) => {
-      const x = a[strategy], y = b[strategy];
-      if (x == null && y == null) return order[a.verdict] - order[b.verdict];
-      if (x == null) return 1;
-      if (y == null) return -1;
-      // Départage : score, puis profit mensuel, puis ROI
-      return (
-        (y as number) - (x as number) ||
-        (b.score ?? -1) - (a.score ?? -1) ||
-        (b.monthlyProfit ?? -Infinity) - (a.monthlyProfit ?? -Infinity) ||
-        (b.roi ?? -Infinity) - (a.roi ?? -Infinity) ||
-        order[a.verdict] - order[b.verdict]
-      );
-    });
-  }, [pool, show, strategy]);
+  const list = useMemo(() => pool.filter((r) => matchesVerdict(r.verdict, filters.verdict)).sort(compareRows(strategy)), [pool, filters.verdict, strategy]);
 
   const cart = rows.filter((r) => (qty[r.productId] ?? 0) > 0);
   const totals = planTotals(cart.map((r) => ({ cost: r.costPrice, profit: r.profit, qty: qty[r.productId] ?? 0 })));
@@ -137,82 +71,14 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
       if (res.ok) setDecided((s) => ({ ...s, [id]: status }));
     });
 
-  const thresholdInput = (key: keyof Thresholds, label: string, unit: string) => (
-    <label className="text-xs text-ink-2">
-      {label}
-      <span className="mt-1 flex items-center gap-1.5">
-        <input
-          className="field w-20 py-1.5 text-right tabular-nums"
-          inputMode="decimal"
-          value={String(thresholds[key]).replace(".", ",")}
-          onChange={(e) => {
-            const v = Number(e.target.value.replace(",", "."));
-            if (Number.isFinite(v)) setThresholds((t) => ({ ...t, [key]: v }));
-          }}
-        />
-        <span className="text-ink-3">{unit}</span>
-      </span>
-    </label>
-  );
-
-  const chip = (key: typeof show, label: string, n?: number) => (
-    <button
-      key={key}
-      type="button"
-      onClick={() => setShow(key)}
-      className={cn("rounded-full px-3 py-1 text-xs transition", show === key ? "bg-accent-soft text-ink ring-1 ring-accent/40" : "text-ink-2 hover:bg-surface-2")}
-    >
-      {label}
-      {n != null && <span className="ml-1 text-ink-3 tabular-nums">{n}</span>}
-    </button>
-  );
-
   return (
     <div className="flex flex-col gap-4">
-      {/* Stratégie de classement */}
-      <div className="rounded-xl border border-line bg-surface p-3">
-        <div className="mb-2 text-xs font-semibold tracking-wide text-ink-2 uppercase">Classer par</div>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5" role="radiogroup" aria-label="Classement">
-          {STRATEGIES.map((s) => (
-            <button
-              key={s.key}
-              type="button"
-              role="radio"
-              aria-checked={strategy === s.key}
-              onClick={() => setStrategy(s.key)}
-              className={cn(
-                "rounded-lg border px-3 py-2 text-left transition",
-                strategy === s.key ? "border-accent/60 bg-accent/10" : "border-line bg-surface-2/50 hover:border-line-strong",
-              )}
-            >
-              <div className={cn("text-sm font-medium", strategy === s.key ? "text-ink" : "text-ink-2")}>{s.label}</div>
-              <div className="mt-0.5 text-[11px] leading-snug text-ink-3">{s.hint}</div>
-            </button>
-          ))}
-        </div>
-      </div>
-
       <div className="grid items-start gap-4 xl:grid-cols-[1fr_340px]">
-        {/* Seuils + filtres */}
-        <div className="rounded-xl border border-line bg-surface p-3">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-semibold tracking-wide text-ink-2 uppercase">Mes critères d&apos;achat</span>
-            <button type="button" className="flex items-center gap-1 text-xs text-ink-3 hover:text-ink" onClick={() => setThresholds(DEFAULT_THRESHOLDS)}>
-              <RotateCcw size={12} /> Par défaut
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-4">
-            {thresholdInput("minRoi", "ROI minimum", "%")}
-            {thresholdInput("minProfit", "Profit unitaire min.", "$")}
-            {thresholdInput("minMargin", "Marge minimum", "%")}
-            {thresholdInput("minSales", "Ventes min. / mois", "u.")}
-          </div>
-          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 border-t border-line pt-3 text-xs text-ink-2">
-            <label className="flex cursor-pointer items-center gap-2"><input type="checkbox" className="accent-[#3987e5]" checked={weekOnly} onChange={(e) => setWeekOnly(e.target.checked)} /> Leads de cette semaine seulement</label>
-            <label className="flex cursor-pointer items-center gap-2"><input type="checkbox" className="accent-[#3987e5]" checked={includeUnavailable} onChange={(e) => setIncludeUnavailable(e.target.checked)} /> Inclure les ruptures</label>
-            <label className="flex cursor-pointer items-center gap-2"><input type="checkbox" className="accent-[#3987e5]" checked={includeRejected} onChange={(e) => setIncludeRejected(e.target.checked)} /> Inclure les leads rejetés</label>
-          </div>
-        </div>
+        <FilterPanel
+          filters={filters}
+          update={update}
+          extraToggle={{ label: "Inclure les leads rejetés", checked: includeRejected, onChange: setIncludeRejected }}
+        />
 
         {/* Planificateur */}
         <div className="rounded-xl border border-line bg-surface p-3">
@@ -259,12 +125,7 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
       {/* Liste */}
       <div className="rounded-xl border border-line bg-surface">
         <div className="flex flex-wrap items-center gap-1.5 border-b border-line px-3 py-2">
-          {chip("ACTIONABLE", "À acheter ou considérer", counts.BUY + counts.CONSIDER)}
-          {chip("BUY", VERDICT_LABELS.BUY, counts.BUY)}
-          {chip("CONSIDER", VERDICT_LABELS.CONSIDER, counts.CONSIDER)}
-          {chip("AVOID", VERDICT_LABELS.AVOID, counts.AVOID)}
-          {chip("INCOMPLETE", VERDICT_LABELS.INCOMPLETE, counts.INCOMPLETE)}
-          {chip("ALL", "Tous", pool.length)}
+          <VerdictChips value={filters.verdict} onChange={(v) => update({ verdict: v })} counts={counts} total={pool.length} />
         </div>
         {list.length === 0 ? (
           <EmptyState title="Aucun lead dans cette catégorie" icon={<PackageX size={22} />}>Ajustez vos critères ou les filtres.</EmptyState>
