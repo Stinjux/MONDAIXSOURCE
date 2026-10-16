@@ -1,6 +1,7 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { AlertTriangle, CheckCircle2, CircleSlash, HelpCircle, Lock, PackageX, ShoppingCart, ThumbsUp } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CircleSlash, HelpCircle, Lock, PackageX, Pencil, ShoppingCart, StickyNote, ThumbsUp } from "lucide-react";
 import { setReviewStatus } from "@/app/(app)/actions";
 import { VERDICT_LABELS, type Verdict } from "@/lib/decision";
 import { Cart, type CartState } from "./Cart";
@@ -116,7 +117,9 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
                         {r.calcIssue && <div className="mt-1 text-[11px] text-warning">{r.calcIssue}</div>}
                       </td>
                       <td className="max-w-72">
-                        <div className="truncate font-medium text-ink" title={r.name}>{r.name}</div>
+                        <Link href={`/leads/${r.asin}`} className="block truncate font-medium text-ink hover:text-accent hover:underline" title={`${r.name} — ouvrir la fiche (notes, prix, statut)`}>
+                          {r.name}
+                        </Link>
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
                           <Asin asin={r.asin} url={r.amazonUrl} />
                           <span className="max-w-40 truncate"><Supplier name={r.supplierName} url={r.supplierUrl} fallback={r.supplierKey} /></span>
@@ -124,6 +127,12 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
                           {r.verifiedCount > 0 && <Badge tone="good" icon={<CheckCircle2 size={10} />}>{r.verifiedCount} vérifié{r.verifiedCount > 1 ? "s" : ""}</Badge>}
                           {r.restricted && <Badge tone="serious" icon={<Lock size={10} />}>Restreint</Badge>}
                         </div>
+                        {r.notes && (
+                          <div className="mt-1 flex max-w-72 items-start gap-1 text-[11px] text-ink-2" title={r.notes}>
+                            <StickyNote size={11} className="mt-0.5 shrink-0 text-warning" />
+                            <span className="truncate">{r.notes}</span>
+                          </div>
+                        )}
                       </td>
                       <td className="text-right">
                         {r.score == null ? (
@@ -163,6 +172,10 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
                         </button>
                       </td>
                       <td>
+                        <span className="flex items-center gap-1">
+                        <Link href={`/leads/${r.asin}`} className="btn-ghost px-2 py-1 text-xs" title="Modifier : notes, prix vérifiés, statut, restrictions">
+                          <Pencil size={12} />
+                        </Link>
                         {decision ? (
                           <a href="/purchases" title="Voir dans Achat · Rejeté · À définir">
                             <Badge tone={decision === "VALIDATED" ? "good" : "critical"} icon={decision === "VALIDATED" ? <ShoppingCart size={11} /> : <CircleSlash size={11} />}>
@@ -179,6 +192,7 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
                             </button>
                           </span>
                         )}
+                        </span>
                       </td>
                     </tr>
                   );

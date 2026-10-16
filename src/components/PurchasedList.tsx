@@ -184,7 +184,9 @@ export function PurchasedList({ purchases }: { purchases: PurchaseView[] }) {
                       {p.items.map((i) => (
                         <tr key={i.id}>
                           <td className="max-w-72">
-                            <div className="truncate font-medium text-ink" title={i.name}>{i.name}</div>
+                            <Link href={`/leads/${i.asin}`} className="block truncate font-medium text-ink hover:text-accent hover:underline" title={i.name}>
+                              {i.name}
+                            </Link>
                             <Asin asin={i.asin} />
                           </td>
                           <td className="max-w-48 truncate"><Supplier name={i.supplierName} url={i.supplierUrl} fallback="—" /></td>

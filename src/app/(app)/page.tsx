@@ -120,7 +120,9 @@ export default async function DashboardPage() {
                   {top.map((p) => (
                     <tr key={p.id}>
                       <td className="max-w-56">
-                        <div className="truncate font-medium text-ink" title={p.name}>{p.name}</div>
+                        <Link href={`/leads/${p.asin}`} className="block truncate font-medium text-ink hover:text-accent hover:underline" title={p.name}>
+                          {p.name}
+                        </Link>
                         <Asin asin={p.asin} url={p.amazonUrl} />
                       </td>
                       <td className="max-w-36 truncate"><Supplier name={p.best!.supplierName} url={p.best!.supplierUrl} fallback={p.best!.supplierKey} /></td>

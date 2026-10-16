@@ -26,6 +26,8 @@ export type DecisionRow = DecisionMetrics & {
   unavailable: boolean;
   restricted: boolean;
   reviewStatus: string;
+  /** Notes de revue (aperçu dans Buy Decisions) */
+  notes: string | null;
   goalWeek: string | null;
   countsTowardGoal: boolean;
   firstSeenAt: string;
@@ -81,6 +83,7 @@ export function toDecisionRows(products: ProductView[], tax: TaxConfig = NO_TAX)
         unavailable: best.unavailable,
         restricted: p.restriction === "GATED" || p.restriction === "APPROVAL_PENDING",
         reviewStatus: p.reviewStatus,
+        notes: p.reviewNotes,
         goalWeek: p.goalWeek,
         countsTowardGoal: p.countsTowardGoal,
         firstSeenAt: p.firstSeenAt,

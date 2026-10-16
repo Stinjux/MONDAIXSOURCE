@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { Fragment, useMemo, useState, useTransition } from "react";
 import { ArrowDown, ArrowUp, ChevronDown, ChevronsUpDown, Download, Search, Star } from "lucide-react";
 import { setReviewStatus } from "@/app/(app)/actions";
@@ -232,7 +233,9 @@ export function LeadsTable({ rows, currentWeek }: { rows: LeadRow[]; currentWeek
                   <Fragment key={r.productId}>
                     <tr className={cn(!r.present && "opacity-60", isOpen && "bg-surface-2/40")}>
                       <td className="max-w-72">
-                        <div className="truncate font-medium text-ink" title={r.name}>{r.name}</div>
+                        <Link href={`/leads/${r.asin}`} className="block truncate font-medium text-ink hover:text-accent hover:underline" title={`${r.name} — ouvrir la fiche`}>
+                          {r.name}
+                        </Link>
                         <div className="flex items-center gap-2">
                           <Asin asin={r.asin} url={r.amazonUrl} />
                           {!r.present && <Badge>Retiré de la Sheet</Badge>}

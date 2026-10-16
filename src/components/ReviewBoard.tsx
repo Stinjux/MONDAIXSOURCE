@@ -99,8 +99,20 @@ function asVerified(input: string, imported: number | null, previous: number | n
   return v;
 }
 
-function ReviewCard({ product: p, overdue, onSaved, tax }: { product: ProductView; overdue?: boolean; onSaved: (id: string) => void; tax: TaxConfig }) {
-  const [open, setOpen] = useState(false);
+export function ReviewCard({
+  product: p,
+  overdue,
+  onSaved,
+  tax,
+  defaultOpen = false,
+}: {
+  product: ProductView;
+  overdue?: boolean;
+  onSaved: (id: string) => void;
+  tax: TaxConfig;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
   const [status, setStatus] = useState(p.reviewStatus as ReviewStatus);
   const [notes, setNotes] = useState(p.reviewNotes ?? "");
   const [checklist, setChecklist] = useState<Checklist>(p.reviewChecklist);

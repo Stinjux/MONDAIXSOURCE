@@ -65,7 +65,7 @@ export default async function DuplicatesPage({ searchParams }: { searchParams: P
               <div className="flex flex-col gap-3 border-b border-line px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="truncate font-medium">{p.name}</span>
+                    <Link href={`/leads/${p.asin}`} className="truncate font-medium hover:text-accent hover:underline">{p.name}</Link>
                     <Asin asin={p.asin} url={p.amazonUrl} />
                     <ReviewBadge status={p.reviewStatus} />
                     {!p.duplicateAlert && <Badge tone="good" icon={<CheckCircle2 size={11} />}>Examiné</Badge>}

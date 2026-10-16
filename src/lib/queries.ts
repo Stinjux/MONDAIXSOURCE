@@ -78,9 +78,10 @@ export type ProductView = {
 
 export type DuplicateEvent = { productId: string; kind: string; source: string; firstImportedAt: string };
 
-export async function loadProducts(now = new Date()) {
+export async function loadProducts(now = new Date(), filter: { asin?: string } = {}) {
   const tax = await getTaxConfig();
   const products = await prisma.product.findMany({
+    where: filter.asin ? { asin: filter.asin } : undefined,
     orderBy: { firstSeenAt: "desc" },
     include: {
       offers: { orderBy: { firstSeenAt: "asc" } },

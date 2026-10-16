@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { ArrowLeft, CircleSlash, Expand, HelpCircle, Lock, Maximize2, PackageX, Search, ShoppingCart, Shrink, SlidersHorizontal } from "lucide-react";
 import { setReviewStatus } from "@/app/(app)/actions";
@@ -246,7 +247,10 @@ export function PurchaseBoard({ rows, currentWeek, initialView = null }: { rows:
                       <article key={r.productId} className={cn("rounded-lg border border-line bg-surface-2/50 p-3 transition", busy === r.productId && "opacity-60")}>
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <div className="truncate text-sm font-medium text-ink" title={r.name}>{r.name}</div>
+                            <Link href={`/leads/${r.asin}`} className="block truncate text-sm font-medium text-ink hover:text-accent hover:underline" title={`${r.name} — ouvrir la fiche`}>
+                              {r.name}
+                            </Link>
+                            {r.notes && <div className="truncate text-[11px] text-ink-2" title={r.notes}>📝 {r.notes}</div>}
                             <div className="flex flex-wrap items-center gap-x-2 text-xs">
                               <Asin asin={r.asin} url={r.amazonUrl} />
                               <span className="max-w-36 truncate"><Supplier name={r.supplierName} url={r.supplierUrl} fallback={r.supplierKey} /></span>
