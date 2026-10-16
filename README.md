@@ -44,7 +44,11 @@ Statuts : À revoir · En cours · Revu et validé · Rejeté · À suivre. Pour
 
 ### Buy Decisions (aide à l'achat)
 
-Classe les leads selon 5 stratégies : **score d'achat** (40 % ROI plafonné à 100 %, 35 % profit mensuel en échelle logarithmique plafonné à 2 000 $, 25 % marge plafonnée à 40 %), **ROI %**, **profit mensuel**, **marge (profit %)** ou **profit unitaire**. Chaque lead reçoit un verdict selon vos critères (ROI, profit unitaire, marge, ventes mensuelles minimum ; 30 % / 3 $ / 15 % / 10 par défaut) : *Acheter* (tous atteints), *À considérer* (1–2 manqués, rupture ou ASIN restreint), *Éviter* (profit ≤ 0 ou plus de 2 manqués), *Incomplet*. Les valeurs vérifiées en Weekly Review remplacent les valeurs de la Sheet. Le plan d'achat calcule investissement, profit attendu, ROI du panier et budget restant ; critères, budget et quantités sont conservés dans le navigateur.
+Classe les leads selon 5 stratégies : **score d'achat** (40 % ROI plafonné à 100 %, 35 % profit mensuel en échelle logarithmique plafonné à 2 000 $, 25 % marge plafonnée à 40 %), **ROI %**, **profit mensuel**, **marge (profit %)** ou **profit unitaire**. Chaque lead reçoit un verdict selon vos critères (ROI, profit unitaire, marge, ventes mensuelles minimum ; 30 % / 3 $ / 15 % / 10 par défaut) : *Acheter* (tous atteints), *À considérer* (1–2 manqués, rupture ou ASIN restreint), *Éviter* (profit ≤ 0 ou plus de 2 manqués), *Incomplet*. Les valeurs vérifiées en Weekly Review remplacent les valeurs de la Sheet. **Panier** : ajout par copier-coller d'ASIN ou de liens Amazon (un par ligne, suivi de la quantité : `B0ABC12345 5`, `B0ABC12345,5`, `x5`, colonnes copiées depuis Sheets) ou par le bouton 🛒 de chaque ligne. Quantité et coût unitaire modifiables ; coût total, profit attendu, ROI du panier et budget restant calculés en direct. **Confirmer l'achat** enregistre la commande en base (prix, frais, taxes et profit recalculés côté serveur puis figés) et classe les produits dans la liste Achat.
+
+### Acheté
+
+Historique de toutes les commandes confirmées (tables `Purchase` / `PurchaseItem`) : totaux (commandes, unités, investissement, profit attendu), recherche, détail par commande, **export CSV** (tout ou par commande, compatible Excel / Google Sheets). Une commande annulée n'est jamais supprimée : elle reste dans l'historique, marquée « Annulé », hors totaux.
 
 ### Achat · Rejeté · À définir
 

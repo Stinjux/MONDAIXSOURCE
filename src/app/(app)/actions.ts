@@ -11,6 +11,9 @@ import { prisma } from "@/lib/prisma";
 import { syncAll, type SyncResult } from "@/lib/sync/engine";
 import { CHECKLIST, REVIEW_STATUSES, RESTRICTIONS } from "@/lib/labels";
 import { setTaxConfig } from "@/lib/settings";
+import { loadProducts } from "@/lib/queries";
+import { toDecisionRows } from "@/lib/decisionRows";
+import { preliminaryProfit } from "@/lib/profit";
 
 async function guard() {
   if (!(await isAdmin())) throw new Error("Session expirée : reconnectez-vous");
@@ -173,6 +176,101 @@ export async function saveTaxSettings(input: z.infer<typeof taxSchema>): Promise
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof z.ZodError ? "Valeurs invalides" : e instanceof Error ? e.message : "Erreur" };
+  }
+}
+
+const purchaseSchema = z.object({
+  note: z.string().max(500).nullable(),
+  items: z
+    .array(
+      z.object({
+        productId: z.string().min(1),
+        quantity: z.number().int().min(1).max(100_000),
+        /** Coût unitaire payé (CAD) ; null = coût du lead */
+        unitCost: z.number().finite().min(0).max(1_000_000).nullable(),
+      }),
+    )
+    .min(1)
+    .max(500),
+});
+export type PurchaseInput = z.infer<typeof purchaseSchema>;
+
+/**
+ * Confirme le panier : crée une commande avec les valeurs figées (recalculées côté serveur),
+ * et place les produits dans la liste « Achat » (statut « Revu et validé »).
+ */
+export async function confirmPurchase(input: PurchaseInput): Promise<{ ok: true; purchaseId: string } | { ok: false; error: string }> {
+  try {
+    await guard();
+    const data = purchaseSchema.parse(input);
+    const { products, tax } = await loadProducts();
+    const rows = new Map(toDecisionRows(products, tax).map((r) => [r.productId, r]));
+    const lines: Prisma.PurchaseItemCreateWithoutPurchaseInput[] & { productId: string; quantity: number; unitCost: number; unitProfit: number | null }[] = [];
+    for (const item of data.items) {
+      const row = rows.get(item.productId);
+      if (!row) return { ok: false, error: "Un produit du panier est introuvable : rechargez la page." };
+      const unitCost = item.unitCost ?? row.costPrice;
+      if (unitCost == null) return { ok: false, error: `Coût unitaire manquant pour ${row.asin} : saisissez-le dans le panier.` };
+      // Coût saisi = CAD ; coût du lead dans une autre devise = profit non calculé
+      const foreign = item.unitCost == null && !!row.calcIssue?.startsWith("Devise");
+      const p = foreign ? null : preliminaryProfit({ salePrice: row.amazonPrice, costPrice: unitCost, fbaFee: row.fees }, tax);
+      lines.push({
+        productId: row.productId,
+        asin: row.asin,
+        name: row.name,
+        supplierName: row.supplierName,
+        supplierUrl: row.supplierUrl,
+        quantity: item.quantity,
+        unitCost,
+        amazonPrice: row.amazonPrice,
+        fees: row.fees,
+        taxes: p?.taxes ?? null,
+        unitProfit: p?.profit ?? null,
+        roi: p?.roi ?? null,
+        margin: p?.margin ?? null,
+      });
+    }
+    const totalCost = lines.reduce((n, l) => n + l.unitCost * l.quantity, 0);
+    const profits = lines.map((l) => (l.unitProfit == null ? null : l.unitProfit * l.quantity));
+    const totalProfit = profits.every((x) => x != null) ? profits.reduce((n, x) => n + (x as number), 0) : null;
+    const toValidate = products.filter((p) => lines.some((l) => l.productId === p.id) && p.reviewStatus !== "VALIDATED");
+
+    const purchase = await prisma.$transaction(async (tx) => {
+      const created = await tx.purchase.create({
+        data: {
+          note: data.note?.trim() || null,
+          totalCost,
+          totalProfit,
+          totalUnits: lines.reduce((n, l) => n + l.quantity, 0),
+          items: { create: lines },
+        },
+      });
+      for (const p of toValidate) {
+        await tx.product.update({ where: { id: p.id }, data: { reviewStatus: "VALIDATED", reviewedAt: new Date() } });
+        await tx.changeLog.create({ data: { entity: "Product", entityId: p.id, action: "REVIEW_STATUS", before: { reviewStatus: p.reviewStatus }, after: { reviewStatus: "VALIDATED", via: "purchase" } } });
+      }
+      await tx.changeLog.create({ data: { entity: "Purchase", entityId: created.id, action: "CREATE", after: json({ items: lines.length, totalCost, totalProfit }) } });
+      return created;
+    });
+    refresh();
+    return { ok: true, purchaseId: purchase.id };
+  } catch (e) {
+    return { ok: false, error: e instanceof z.ZodError ? "Panier invalide" : e instanceof Error ? e.message : "Erreur" };
+  }
+}
+
+/** Annule une commande (conservée dans l'historique, exclue des totaux et de l'export par défaut). */
+export async function cancelPurchase(id: string, cancel = true): Promise<ActionResult> {
+  try {
+    await guard();
+    await prisma.$transaction([
+      prisma.purchase.update({ where: { id }, data: { cancelledAt: cancel ? new Date() : null } }),
+      prisma.changeLog.create({ data: { entity: "Purchase", entityId: id, action: cancel ? "CANCEL" : "RESTORE" } }),
+    ]);
+    refresh();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erreur" };
   }
 }
 

@@ -196,6 +196,44 @@ model StockCheck {
   @@index([offerId, recordedAt])
 }
 
+/// Commande confirmée depuis le panier (Buy Decisions). Jamais supprimée : une annulation est datée.
+model Purchase {
+  id          String         @id @default(cuid())
+  createdAt   DateTime       @default(now())
+  note        String?
+  /// Totaux figés au moment de la confirmation
+  totalCost   Float
+  totalProfit Float?
+  totalUnits  Int
+  cancelledAt DateTime?
+  items       PurchaseItem[]
+
+  @@index([createdAt])
+}
+
+/// Ligne d'une commande : valeurs figées au moment de l'achat (prix, frais, profit).
+model PurchaseItem {
+  id           String   @id @default(cuid())
+  purchaseId   String
+  purchase     Purchase @relation(fields: [purchaseId], references: [id])
+  productId    String?
+  asin         String
+  name         String
+  supplierName String?
+  supplierUrl  String?
+  quantity     Int
+  unitCost     Float
+  amazonPrice  Float?
+  fees         Float?
+  taxes        Float?
+  unitProfit   Float?
+  roi          Float?
+  margin       Float?
+
+  @@index([purchaseId])
+  @@index([asin])
+}
+
 /// Journal des modifications manuelles (revue, vérifications, alertes).
 model ChangeLog {
   id        String   @id @default(cuid())

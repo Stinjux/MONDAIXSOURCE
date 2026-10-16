@@ -46,7 +46,7 @@ function reader(sheets: { LEADS: string[][]; OUT_OF_STOCK: string[][] }) {
 
 async function reset() {
   await db.$executeRawUnsafe(
-    `TRUNCATE "ImportIssue", "ImportEvent", "PriceSnapshot", "StockCheck", "Occurrence", "SupplierOffer", "Product", "ChangeLog", "AppSetting", "Lead" CASCADE`,
+    `TRUNCATE "PurchaseItem", "Purchase", "ImportIssue", "ImportEvent", "PriceSnapshot", "StockCheck", "Occurrence", "SupplierOffer", "Product", "ChangeLog", "AppSetting", "Lead" CASCADE`,
   );
 }
 

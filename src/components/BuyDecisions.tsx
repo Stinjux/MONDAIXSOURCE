@@ -2,7 +2,8 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { AlertTriangle, CheckCircle2, CircleSlash, HelpCircle, Lock, PackageX, ShoppingCart, ThumbsUp } from "lucide-react";
 import { setReviewStatus } from "@/app/(app)/actions";
-import { VERDICT_LABELS, planTotals, type Verdict } from "@/lib/decision";
+import { VERDICT_LABELS, type Verdict } from "@/lib/decision";
+import { Cart, type CartState } from "./Cart";
 import { compareRows, evaluateRow, inScope, matchesVerdict } from "@/lib/decisionFilters";
 import { FilterPanel, VerdictChips, countVerdicts, readSaved, useDecisionFilters, writeSaved } from "./DecisionFilters";
 import type { DecisionRow } from "@/lib/decisionRows";
@@ -22,7 +23,7 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
   const { filters, update } = useDecisionFilters();
   const { strategy, thresholds } = filters;
   const [budget, setBudget] = useState("");
-  const [qty, setQty] = useState<Record<string, number>>({});
+  const [cart, setCartState] = useState<CartState>({});
   const [includeRejected, setIncludeRejected] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [pending, start] = useTransition();
@@ -32,12 +33,18 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
   useEffect(() => {
     const s = readSaved();
     if (typeof s.budget === "string") setBudget(s.budget);
-    if (s.qty && typeof s.qty === "object") setQty(s.qty as Record<string, number>);
+    if (s.cart && typeof s.cart === "object") setCartState(s.cart as CartState);
+    else if (s.qty && typeof s.qty === "object") {
+      // Ancien « plan d'achat » : quantités reprises dans le panier
+      setCartState(Object.fromEntries(Object.entries(s.qty as Record<string, number>).filter(([, q]) => q > 0).map(([id, q]) => [id, { qty: q }])));
+    }
     setLoaded(true);
   }, []);
   useEffect(() => {
-    if (loaded) writeSaved({ budget, qty });
-  }, [budget, qty, loaded]);
+    if (loaded) writeSaved({ budget, cart, qty: null });
+  }, [budget, cart, loaded]);
+  const setCart = (updater: (c: CartState) => CartState) => setCartState(updater);
+  const addToCart = (id: string) => setCartState((c) => ({ ...c, [id]: { ...c[id], qty: (c[id]?.qty ?? 0) + 1 } }));
 
   const evaluated = useMemo(() => rows.map((r) => evaluateRow(r, thresholds)), [rows, thresholds]);
 
@@ -50,21 +57,6 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
 
   const list = useMemo(() => pool.filter((r) => matchesVerdict(r.verdict, filters.verdict)).sort(compareRows(strategy)), [pool, filters.verdict, strategy]);
 
-  const cart = rows.filter((r) => (qty[r.productId] ?? 0) > 0);
-  const totals = planTotals(cart.map((r) => ({ cost: r.costPrice, profit: r.profit, qty: qty[r.productId] ?? 0 })));
-  const budgetValue = Number(budget.replace(",", ".")) || 0;
-  const remaining = budgetValue > 0 ? budgetValue - totals.investment : null;
-
-  const setQuantity = (id: string, value: string) => {
-    const n = Math.max(0, Math.min(9999, Math.floor(Number(value) || 0)));
-    setQty((q) => {
-      const next = { ...q };
-      if (n > 0) next[id] = n;
-      else delete next[id];
-      return next;
-    });
-  };
-
   const decide = (id: string, status: "VALIDATED" | "REJECTED") =>
     start(async () => {
       const res = await setReviewStatus(id, status);
@@ -73,54 +65,16 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid items-start gap-4 xl:grid-cols-[1fr_340px]">
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <aside className="order-first xl:sticky xl:top-4 xl:order-last">
+        <Cart rows={rows} cart={cart} setCart={setCart} budget={budget} setBudget={setBudget} tax={tax} />
+      </aside>
+      <div className="flex min-w-0 flex-col gap-4">
         <FilterPanel
           filters={filters}
           update={update}
           extraToggle={{ label: "Inclure les leads rejetés", checked: includeRejected, onChange: setIncludeRejected }}
         />
-
-        {/* Planificateur */}
-        <div className="rounded-xl border border-line bg-surface p-3">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-ink-2 uppercase"><ShoppingCart size={13} /> Plan d&apos;achat</span>
-            {cart.length > 0 && (
-              <button type="button" className="text-xs text-ink-3 hover:text-ink" onClick={() => setQty({})}>
-                Vider
-              </button>
-            )}
-          </div>
-          <label className="text-xs text-ink-2">
-            Budget disponible
-            <span className="mt-1 flex items-center gap-1.5">
-              <input className="field py-1.5 text-right tabular-nums" inputMode="decimal" placeholder="ex. 1500" value={budget} onChange={(e) => setBudget(e.target.value)} />
-              <span className="text-ink-3">$</span>
-            </span>
-          </label>
-          <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
-            <dt className="text-ink-3">Produits / unités</dt>
-            <dd className="text-right tabular-nums">{cart.length} / {totals.units}</dd>
-            <dt className="text-ink-3">Investissement</dt>
-            <dd className="text-right font-medium tabular-nums">{cad(totals.investment)}</dd>
-            <dt className="text-ink-3">Profit attendu*</dt>
-            <dd className="text-right font-medium tabular-nums text-[#5fd35f]">{cad(totals.profit)}</dd>
-            <dt className="text-ink-3">ROI du panier*</dt>
-            <dd className="text-right tabular-nums">{pct(totals.roi, 0)}</dd>
-            {remaining != null && (
-              <>
-                <dt className="text-ink-3">Budget restant</dt>
-                <dd className={cn("text-right font-semibold tabular-nums", remaining < 0 ? "text-[#f08080]" : "text-ink")}>{cad(remaining)}</dd>
-              </>
-            )}
-          </dl>
-          {remaining != null && budgetValue > 0 && (
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-3">
-              <div className={cn("h-full rounded-full", remaining < 0 ? "bg-critical" : "bg-accent")} style={{ width: `${Math.min(100, (totals.investment / budgetValue) * 100)}%` }} />
-            </div>
-          )}
-          <p className="mt-2 text-[11px] text-ink-3">Saisissez une quantité dans la liste. * Profit une fois toutes les unités vendues, selon les prix actuels.</p>
-        </div>
-      </div>
 
       {/* Liste */}
       <div className="rounded-xl border border-line bg-surface">
@@ -145,14 +99,13 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
                   <th className="text-right">Ventes/mois</th>
                   <th className="text-right">Coût</th>
                   <th className="text-right" title="Coût d'achat maximum pour atteindre vos critères de profit et de ROI">Coût max</th>
-                  <th className="text-right">Qté</th>
-                  <th className="text-right">Sous-total</th>
+                  <th className="text-center">Panier</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
                 {list.map((r, i) => {
-                  const q = qty[r.productId] ?? 0;
+                  const q = cart[r.productId]?.qty ?? 0;
                   const decision = decided[r.productId] ?? (r.reviewStatus === "VALIDATED" || r.reviewStatus === "REJECTED" ? r.reviewStatus : null);
                   return (
                     <tr key={r.productId} className={cn(q > 0 && "bg-accent/5")}>
@@ -198,17 +151,17 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
                           return <span className={ok ? "text-[#5fd35f]" : "text-[#f08080]"}>{cad(mc)}</span>;
                         })()}
                       </td>
-                      <td className="text-right">
-                        <input
-                          className="field w-16 py-1 text-right text-xs tabular-nums"
-                          inputMode="numeric"
-                          aria-label={`Quantité pour ${r.asin}`}
-                          value={q || ""}
-                          placeholder="0"
-                          onChange={(e) => setQuantity(r.productId, e.target.value)}
-                        />
+                      <td className="text-center">
+                        <button
+                          type="button"
+                          onClick={() => addToCart(r.productId)}
+                          title={q > 0 ? "Ajouter une unité" : "Ajouter au panier"}
+                          aria-label={`Ajouter ${r.asin} au panier`}
+                          className={cn("btn-ghost px-2 py-1 text-xs whitespace-nowrap", q > 0 && "border-accent/60 bg-accent/10 text-ink")}
+                        >
+                          <ShoppingCart size={13} /> {q > 0 ? `× ${q}` : "+"}
+                        </button>
                       </td>
-                      <td className="text-right tabular-nums">{q > 0 && r.costPrice != null ? cad(q * r.costPrice) : <span className="text-ink-3">—</span>}</td>
                       <td>
                         {decision ? (
                           <a href="/purchases" title="Voir dans Achat · Rejeté · À définir">
@@ -218,8 +171,8 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
                           </a>
                         ) : (
                           <span className="flex gap-1">
-                            <button type="button" disabled={pending} className="btn-ghost px-2 py-1 text-xs whitespace-nowrap hover:border-good/60 hover:text-[#5fd35f]" onClick={() => decide(r.productId, "VALIDATED")} title="Ajouter à la liste Achat">
-                              <ShoppingCart size={12} /> Acheter
+                            <button type="button" disabled={pending} className="btn-ghost px-2 py-1 text-xs whitespace-nowrap hover:border-good/60 hover:text-[#5fd35f]" onClick={() => decide(r.productId, "VALIDATED")} title="Classer dans la liste Achat (sans passer commande)">
+                              <CheckCircle2 size={12} /> Achat
                             </button>
                             <button type="button" disabled={pending} className="btn-ghost px-2 py-1 text-xs whitespace-nowrap hover:border-critical/60 hover:text-[#f08080]" onClick={() => decide(r.productId, "REJECTED")} title="Ajouter à la liste Rejeté">
                               <CircleSlash size={12} />
@@ -239,6 +192,8 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
           Coût max = prix d&apos;achat maximum pour respecter vos critères de profit et de ROI. Profit mensuel = profit unitaire × ventes estimées du produit
           (colonne F, ventes totales de l&apos;annonce, pas votre part). Hors transport vers Amazon, préparation et stockage.
         </p>
+      </div>
+      </div>
       </div>
     </div>
   );
