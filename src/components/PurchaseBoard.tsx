@@ -1,12 +1,12 @@
 "use client";
-import { useEffect, useMemo, useState, useTransition } from "react";
-import { CircleSlash, HelpCircle, Lock, PackageX, Search, ShoppingCart, SlidersHorizontal } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { ArrowLeft, CircleSlash, Expand, HelpCircle, Lock, Maximize2, PackageX, Search, ShoppingCart, Shrink, SlidersHorizontal } from "lucide-react";
 import { setReviewStatus } from "@/app/(app)/actions";
 import { VERDICT_LABELS, type Verdict } from "@/lib/decision";
 import { STRATEGIES, compareRows, evaluateRow, inScope, matchesVerdict } from "@/lib/decisionFilters";
 import type { DecisionRow } from "@/lib/decisionRows";
 import { cad, pct } from "@/lib/format";
-import { BUCKET_STATUS as TARGET, REVIEW_LABELS, bucketOf, type Bucket, type ReviewStatus } from "@/lib/labels";
+import { BUCKET_STATUS as TARGET, REVIEW_LABELS, VIEW_SLUGS, bucketFromSlug, bucketOf, type Bucket, type ReviewStatus } from "@/lib/labels";
 import { FilterPanel, VerdictChips, countVerdicts, useDecisionFilters } from "./DecisionFilters";
 import { Asin, Badge, EmptyState, Supplier, cn } from "./ui";
 
@@ -22,13 +22,53 @@ const STRATEGY_LABEL = Object.fromEntries(STRATEGIES.map((s) => [s.key, s.label]
 const VERDICT_TONE: Record<Verdict, "good" | "warning" | "critical" | "neutral"> = { BUY: "good", CONSIDER: "warning", AVOID: "critical", INCOMPLETE: "neutral" };
 
 
-export function PurchaseBoard({ rows, currentWeek }: { rows: DecisionRow[]; currentWeek: string }) {
+export function PurchaseBoard({ rows, currentWeek, initialView = null }: { rows: DecisionRow[]; currentWeek: string; initialView?: Bucket | null }) {
   const [status, setStatus] = useState<Record<string, string>>(() => Object.fromEntries(rows.map((r) => [r.productId, r.reviewStatus])));
   // Mêmes filtres que Buy Decisions (réglages partagés et synchronisés)
   const { filters, update } = useDecisionFilters();
   const [showFilters, setShowFilters] = useState(false);
   const [query, setQuery] = useState("");
-  const [mobileTab, setMobileTab] = useState<Bucket>("UNDECIDED");
+  const [mobileTab, setMobileTab] = useState<Bucket>(initialView ?? "UNDECIDED");
+  // Liste ouverte en grand (null = vue des 3 listes)
+  const [expanded, setExpanded] = useState<Bucket | null>(initialView);
+  const [fullscreen, setFullscreen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  const openView = useCallback((b: Bucket | null) => {
+    setExpanded(b);
+    if (b) setMobileTab(b);
+    const url = new URL(window.location.href);
+    if (b) url.searchParams.set("vue", VIEW_SLUGS[b]);
+    else url.searchParams.delete("vue");
+    window.history.pushState(null, "", url);
+    window.scrollTo({ top: 0 });
+  }, []);
+
+  // Bouton « précédent » du navigateur, touche Échap, sortie du plein écran
+  useEffect(() => {
+    const onPop = () => setExpanded(bucketFromSlug(new URL(window.location.href).searchParams.get("vue")));
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !document.fullscreenElement && expanded) openView(null);
+    };
+    const onFs = () => setFullscreen(document.fullscreenElement === rootRef.current);
+    window.addEventListener("popstate", onPop);
+    window.addEventListener("keydown", onKey);
+    document.addEventListener("fullscreenchange", onFs);
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("fullscreenchange", onFs);
+    };
+  }, [expanded, openView]);
+
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await rootRef.current?.requestFullscreen();
+    } catch {
+      /* plein écran refusé par le navigateur : la vue agrandie reste disponible */
+    }
+  };
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [, start] = useTransition();
@@ -92,7 +132,7 @@ export function PurchaseBoard({ rows, currentWeek }: { rows: DecisionRow[]; curr
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <div ref={rootRef} className="flex flex-col gap-4 [&:fullscreen]:overflow-y-auto [&:fullscreen]:bg-page [&:fullscreen]:p-6">
       <div className="rounded-xl border border-line bg-surface">
         <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center">
           <div className="relative flex-1">
@@ -122,26 +162,57 @@ export function PurchaseBoard({ rows, currentWeek }: { rows: DecisionRow[]; curr
             key={c.key}
             type="button"
             role="tab"
-            aria-selected={mobileTab === c.key}
-            onClick={() => setMobileTab(c.key)}
-            className={cn("rounded-lg px-2 py-2 text-xs font-medium", mobileTab === c.key ? "bg-accent-soft text-ink" : "text-ink-2")}
+            aria-selected={(expanded ?? mobileTab) === c.key}
+            onClick={() => (expanded ? openView(c.key) : setMobileTab(c.key))}
+            className={cn("rounded-lg px-2 py-2 text-xs font-medium", (expanded ?? mobileTab) === c.key ? "bg-accent-soft text-ink" : "text-ink-2")}
           >
             {c.title} <span className="text-ink-3 tabular-nums">{columns[c.key].length}</span>
           </button>
         ))}
       </div>
 
-      <div className="grid items-start gap-4 lg:grid-cols-3">
-        {COLUMNS.map((c) => {
+      {expanded && (
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" className="btn-ghost" onClick={() => openView(null)} title="Revenir aux trois listes (Échap)">
+            <ArrowLeft size={15} /> Retour aux 3 listes
+          </button>
+          <span className="hidden gap-1 sm:flex">
+            {COLUMNS.filter((c) => c.key !== expanded).map((c) => (
+              <button key={c.key} type="button" className="btn-ghost text-xs" onClick={() => openView(c.key)}>
+                <span className={c.accent}>{c.icon}</span> {c.title} <span className="text-ink-3 tabular-nums">{columns[c.key].length}</span>
+              </button>
+            ))}
+          </span>
+          <button type="button" className="btn-ghost ml-auto" onClick={toggleFullscreen} title="Afficher sans le menu ni le navigateur">
+            {fullscreen ? <Shrink size={15} /> : <Expand size={15} />} {fullscreen ? "Quitter le plein écran" : "Plein écran"}
+          </button>
+        </div>
+      )}
+
+      <div className={cn("grid items-start gap-4", !expanded && "lg:grid-cols-3")}>
+        {COLUMNS.filter((c) => !expanded || c.key === expanded).map((c) => {
           const list = columns[c.key];
           const s = summary(list);
+          const big = expanded === c.key;
           return (
-            <section key={c.key} className={cn("flex-col rounded-xl border border-line bg-surface", mobileTab === c.key ? "flex" : "hidden lg:flex")} aria-label={c.title}>
+            <section key={c.key} className={cn("flex-col rounded-xl border border-line bg-surface", big || mobileTab === c.key ? "flex" : "hidden lg:flex")} aria-label={c.title}>
               <header className="border-b border-line px-4 py-3">
-                <div className="flex items-center justify-between">
-                  <h2 className={cn("flex items-center gap-2 text-sm font-semibold", c.accent)}>
-                    {c.icon} {c.title}
-                  </h2>
+                <div className="flex items-center justify-between gap-2">
+                  {big ? (
+                    <h2 className={cn("flex items-center gap-2 text-lg font-semibold", c.accent)}>
+                      {c.icon} {c.title}
+                    </h2>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => openView(c.key)}
+                      className={cn("group flex items-center gap-2 rounded-md text-sm font-semibold hover:underline", c.accent)}
+                      title={`Ouvrir « ${c.title} » en grand`}
+                    >
+                      {c.icon} {c.title}
+                      <Maximize2 size={13} className="text-ink-3 opacity-60 transition group-hover:opacity-100" />
+                    </button>
+                  )}
                   <span className="rounded-full bg-surface-3 px-2 text-xs font-semibold tabular-nums text-ink">{s.count}</span>
                 </div>
                 <p className="mt-0.5 text-[11px] text-ink-3">{c.hint}</p>
@@ -162,9 +233,11 @@ export function PurchaseBoard({ rows, currentWeek }: { rows: DecisionRow[]; curr
                 )}
                 {c.key === "BUY" && s.count > 0 && hidden.BUY > 0 && <p className="mt-1 text-[10px] text-ink-3">* Totaux des leads affichés selon les filtres.</p>}
               </header>
-              <div className="flex max-h-[70vh] flex-col gap-2 overflow-y-auto p-2">
+              <div className={cn("p-2", big ? "grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" : "flex max-h-[70vh] flex-col gap-2 overflow-y-auto")}>
                 {list.length === 0 ? (
-                  <EmptyState title="Aucun lead" icon={<PackageX size={20} />} />
+                  <div className="col-span-full">
+                    <EmptyState title="Aucun lead" icon={<PackageX size={20} />} />
+                  </div>
                 ) : (
                   list.map((r) => {
                     const v = r.verdict;

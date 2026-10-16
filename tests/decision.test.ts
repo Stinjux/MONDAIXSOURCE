@@ -54,3 +54,11 @@ test("listes Achat · Rejeté · À définir : chaque statut va dans une seule l
   for (const [bucket, status] of Object.entries(BUCKET_STATUS)) assert.equal(bucketOf(status), bucket);
   assert.equal(REVIEW_STATUSES.map(bucketOf).length, 5);
 });
+
+test("vue agrandie : adresse lisible pour chaque liste", async () => {
+  const { VIEW_SLUGS, bucketFromSlug } = await import("../src/lib/labels");
+  for (const [bucket, slug] of Object.entries(VIEW_SLUGS)) assert.equal(bucketFromSlug(slug), bucket);
+  assert.equal(bucketFromSlug("achat"), "BUY");
+  assert.equal(bucketFromSlug("inconnu"), null);
+  assert.equal(bucketFromSlug(undefined), null);
+});

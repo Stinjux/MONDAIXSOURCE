@@ -24,6 +24,12 @@ export function bucketOf(status: string): Bucket {
   return "UNDECIDED";
 }
 
+/** Adresse lisible de chaque liste ouverte en grand (/purchases?vue=achat) */
+export const VIEW_SLUGS: Record<Bucket, string> = { BUY: "achat", REJECT: "rejete", UNDECIDED: "a-definir" };
+export function bucketFromSlug(slug: string | null | undefined): Bucket | null {
+  return (Object.keys(VIEW_SLUGS) as Bucket[]).find((k) => VIEW_SLUGS[k] === slug) ?? null;
+}
+
 export const CHECKLIST = [
   { key: "amazonPrice", label: "Prix Amazon vérifié" },
   { key: "supplierPrice", label: "Prix fournisseur vérifié" },
