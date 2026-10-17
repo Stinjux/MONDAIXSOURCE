@@ -1,11 +1,12 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { AlertTriangle, CheckCircle2, CircleSlash, HelpCircle, Lock, PackageX, Pencil, ShoppingCart, StickyNote, ThumbsUp } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, ChevronsUpDown, CheckCircle2, CircleSlash, HelpCircle, Lock, PackageX, Pencil, ShoppingCart, StickyNote, ThumbsUp } from "lucide-react";
 import { setReviewStatus } from "@/app/(app)/actions";
 import { VERDICT_LABELS, type Verdict } from "@/lib/decision";
 import { Cart, type CartState } from "./Cart";
-import { compareRows, evaluateRow, inScope, matchesVerdict } from "@/lib/decisionFilters";
+import { compareRows, evaluateRow, inScope, matchesVerdict, type DecisionFilters } from "@/lib/decisionFilters";
+import { nextSort, parseSort, sortByColumn, type ColumnSort, type SortDir, type SortValue } from "@/lib/columnSort";
 import { FilterPanel, VerdictChips, countVerdicts, readSaved, useDecisionFilters, writeSaved } from "./DecisionFilters";
 import type { DecisionRow } from "@/lib/decisionRows";
 import { cad, num, pct } from "@/lib/format";
@@ -19,6 +20,32 @@ const VERDICT_STYLE: Record<Verdict, { tone: "good" | "warning" | "critical" | "
   INCOMPLETE: { tone: "neutral", icon: <AlertTriangle size={11} /> },
 };
 
+// Colonnes triables : un clic trie, un second clic inverse le sens.
+// Premier clic : du plus grand au plus petit pour les montants et pourcentages,
+// dans l'ordre naturel pour le rang, la décision, le produit et le statut.
+type ColumnKey =
+  | "rank" | "verdict" | "name" | "score" | "roi" | "margin" | "profit" | "monthlyProfit"
+  | "estimatedSales" | "costPrice" | "maxCost" | "cart" | "status";
+
+const COLUMNS: { key: ColumnKey; label: string; align: "left" | "right" | "center"; firstDir: SortDir; title?: string }[] = [
+  { key: "rank", label: "#", align: "right", firstDir: "asc", title: "Classement selon la stratégie choisie dans les filtres" },
+  { key: "verdict", label: "Décision", align: "left", firstDir: "asc" },
+  { key: "name", label: "Produit", align: "left", firstDir: "asc" },
+  { key: "score", label: "Score", align: "right", firstDir: "desc" },
+  { key: "roi", label: "ROI", align: "right", firstDir: "desc" },
+  { key: "margin", label: "Marge", align: "right", firstDir: "desc" },
+  { key: "profit", label: "Profit/u.", align: "right", firstDir: "desc" },
+  { key: "monthlyProfit", label: "Profit mensuel", align: "right", firstDir: "desc" },
+  { key: "estimatedSales", label: "Ventes/mois", align: "right", firstDir: "desc" },
+  { key: "costPrice", label: "Coût", align: "right", firstDir: "desc" },
+  { key: "maxCost", label: "Coût max", align: "right", firstDir: "desc", title: "Coût d'achat maximum pour atteindre vos critères de profit et de ROI" },
+  { key: "cart", label: "Panier", align: "center", firstDir: "desc" },
+  { key: "status", label: "Statut", align: "left", firstDir: "asc", title: "Achat, puis Rejeté, puis sans décision" },
+];
+const COLUMN_KEYS = COLUMNS.map((c) => c.key);
+const VERDICT_RANK: Record<Verdict, number> = { BUY: 0, CONSIDER: 1, AVOID: 2, INCOMPLETE: 3 };
+const STATUS_RANK = { VALIDATED: 0, REJECTED: 1 } as const;
+
 export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: DecisionRow[]; currentWeek: string; tax?: TaxConfig }) {
   // Filtres partagés avec « Achat · Rejeté · À définir » (mêmes réglages sur les deux pages)
   const { filters, update } = useDecisionFilters();
@@ -29,11 +56,13 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
   const [loaded, setLoaded] = useState(false);
   const [pending, start] = useTransition();
   const [decided, setDecided] = useState<Record<string, "VALIDATED" | "REJECTED">>({});
+  const [sort, setSort] = useState<ColumnSort<ColumnKey>>(null);
 
   // Budget et quantités conservés dans ce navigateur
   useEffect(() => {
     const s = readSaved();
     if (typeof s.budget === "string") setBudget(s.budget);
+    setSort(parseSort(s.sort, COLUMN_KEYS));
     if (s.cart && typeof s.cart === "object") setCartState(s.cart as CartState);
     else if (s.qty && typeof s.qty === "object") {
       // Ancien « plan d'achat » : quantités reprises dans le panier
@@ -42,8 +71,8 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
     setLoaded(true);
   }, []);
   useEffect(() => {
-    if (loaded) writeSaved({ budget, cart, qty: null });
-  }, [budget, cart, loaded]);
+    if (loaded) writeSaved({ budget, cart, qty: null, sort });
+  }, [budget, cart, sort, loaded]);
   const setCart = (updater: (c: CartState) => CartState) => setCartState(updater);
   const addToCart = (id: string) => setCartState((c) => ({ ...c, [id]: { ...c[id], qty: (c[id]?.qty ?? 0) + 1 } }));
 
@@ -56,7 +85,42 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
 
   const counts = useMemo(() => countVerdicts(pool), [pool]);
 
-  const list = useMemo(() => pool.filter((r) => matchesVerdict(r.verdict, filters.verdict)).sort(compareRows(strategy)), [pool, filters.verdict, strategy]);
+  // Classement de la stratégie : c'est l'ordre par défaut, et le rang affiché dans la colonne #.
+  const ranked = useMemo(() => pool.filter((r) => matchesVerdict(r.verdict, filters.verdict)).sort(compareRows(strategy)), [pool, filters.verdict, strategy]);
+  const rank = useMemo(() => new Map(ranked.map((r, i) => [r.productId, i + 1])), [ranked]);
+  const maxCosts = useMemo(
+    () => new Map(ranked.map((r) => [r.productId, maxCost({ salePrice: r.amazonPrice, fbaFee: r.fees }, thresholds, tax)])),
+    [ranked, thresholds, tax],
+  );
+  const statusOf = (r: (typeof ranked)[number]) =>
+    decided[r.productId] ?? (r.reviewStatus === "VALIDATED" || r.reviewStatus === "REJECTED" ? r.reviewStatus : null);
+
+  const list = useMemo(() => {
+    if (!sort) return ranked;
+    const value = (r: (typeof ranked)[number]): SortValue => {
+      switch (sort.key) {
+        case "rank": return rank.get(r.productId);
+        case "verdict": return VERDICT_RANK[r.verdict];
+        case "name": return r.name;
+        case "maxCost": return maxCosts.get(r.productId);
+        case "cart": return cart[r.productId]?.qty ?? 0;
+        case "status": {
+          const d = statusOf(r);
+          return d ? STATUS_RANK[d] : null;
+        }
+        default: return r[sort.key];
+      }
+    };
+    return sortByColumn(ranked, value, sort.dir);
+  }, [ranked, sort, rank, maxCosts, cart, decided]);   // statusOf lit `decided`
+
+  // Changer de stratégie dans les filtres revient à son classement.
+  const updateFilters = (patch: Partial<DecisionFilters>) => {
+    if (patch.strategy && patch.strategy !== strategy) setSort(null);
+    update(patch);
+  };
+  // La colonne mise en évidence : celle du tri choisi, sinon celle de la stratégie.
+  const activeKey: ColumnKey = sort?.key ?? strategy;
 
   const decide = (id: string, status: "VALIDATED" | "REJECTED") =>
     start(async () => {
@@ -73,7 +137,7 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
       <div className="flex min-w-0 flex-col gap-4">
         <FilterPanel
           filters={filters}
-          update={update}
+          update={updateFilters}
           extraToggle={{ label: "Inclure les leads rejetés", checked: includeRejected, onChange: setIncludeRejected }}
         />
 
@@ -89,28 +153,39 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
             <table className="table-base">
               <thead>
                 <tr>
-                  <th className="text-right">#</th>
-                  <th>Décision</th>
-                  <th>Produit</th>
-                  <th className={cn("text-right", strategy === "score" && "text-accent")}>Score</th>
-                  <th className={cn("text-right", strategy === "roi" && "text-accent")}>ROI</th>
-                  <th className={cn("text-right", strategy === "margin" && "text-accent")}>Marge</th>
-                  <th className={cn("text-right", strategy === "profit" && "text-accent")}>Profit/u.</th>
-                  <th className={cn("text-right", strategy === "monthlyProfit" && "text-accent")}>Profit mensuel</th>
-                  <th className="text-right">Ventes/mois</th>
-                  <th className="text-right">Coût</th>
-                  <th className="text-right" title="Coût d'achat maximum pour atteindre vos critères de profit et de ROI">Coût max</th>
-                  <th className="text-center">Panier</th>
-                  <th />
+                  {COLUMNS.map((c) => {
+                    const dir = sort?.key === c.key ? sort.dir : null;
+                    const Icon = dir === "asc" ? ArrowUp : dir === "desc" ? ArrowDown : ChevronsUpDown;
+                    return (
+                      <th
+                        key={c.key}
+                        className={cn(c.align === "right" && "text-right", c.align === "center" && "text-center", activeKey === c.key && "text-accent")}
+                        aria-sort={dir === "asc" ? "ascending" : dir === "desc" ? "descending" : "none"}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setSort((s) => nextSort(s, c.key, c.firstDir))}
+                          title={`${c.title ? c.title + " — " : ""}Trier ${dir === "asc" ? "par ordre décroissant" : dir === "desc" ? "par ordre croissant" : ""}`.trim()}
+                          className={cn(
+                            "inline-flex items-center gap-1 uppercase tracking-wide hover:text-ink focus-visible:text-ink",
+                            c.align === "right" && "flex-row-reverse",
+                          )}
+                        >
+                          {c.label}
+                          <Icon size={12} aria-hidden className={cn("shrink-0", !dir && "opacity-40")} />
+                        </button>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
-                {list.map((r, i) => {
+                {list.map((r) => {
                   const q = cart[r.productId]?.qty ?? 0;
-                  const decision = decided[r.productId] ?? (r.reviewStatus === "VALIDATED" || r.reviewStatus === "REJECTED" ? r.reviewStatus : null);
+                  const decision = statusOf(r);
                   return (
                     <tr key={r.productId} className={cn(q > 0 && "bg-accent/5")}>
-                      <td className="text-right text-ink-3 tabular-nums">{i + 1}</td>
+                      <td className="text-right text-ink-3 tabular-nums">{rank.get(r.productId)}</td>
                       <td className="max-w-56 whitespace-normal">
                         <Badge tone={VERDICT_STYLE[r.verdict].tone} icon={VERDICT_STYLE[r.verdict].icon}>{VERDICT_LABELS[r.verdict]}</Badge>
                         {r.reasons.length > 0 && <div className="mt-1 text-[11px] leading-snug text-ink-3">{r.reasons.join(" · ")}</div>}
@@ -154,7 +229,7 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
                       <td className="text-right tabular-nums text-ink-2">{cad(r.costPrice)}</td>
                       <td className="text-right tabular-nums">
                         {(() => {
-                          const mc = maxCost({ salePrice: r.amazonPrice, fbaFee: r.fees }, thresholds, tax);
+                          const mc = maxCosts.get(r.productId) ?? null;
                           if (mc == null) return <span className="text-ink-3">—</span>;
                           const ok = r.costPrice != null && r.costPrice <= mc;
                           return <span className={ok ? "text-[#5fd35f]" : "text-[#f08080]"}>{cad(mc)}</span>;
