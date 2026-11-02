@@ -18,7 +18,7 @@ import type { CartState } from "./Cart";
 import { FilterPanel, VerdictChips, countVerdicts, readSaved, useDecisionFilters, writeSaved } from "./DecisionFilters";
 import { FreshnessPill } from "./Freshness";
 import { ProductImage } from "./ProductImage";
-import { Badge, EmptyState, cn } from "./ui";
+import { Badge, EmptyState, Supplier, cn } from "./ui";
 
 const ICONS: Record<Stage, React.ReactNode> = {
   NEW: <Inbox size={15} />,
@@ -318,7 +318,7 @@ function LeadCard({
             {r.name}
           </Link>
           <div className="mt-0.5 truncate text-[11px] text-ink-3">
-            <span className="font-mono">{r.asin}</span> · {r.supplierName ?? r.supplierKey}
+            <span className="font-mono">{r.asin}</span> · <Supplier name={r.supplierName} url={r.supplierUrl} fallback={r.supplierKey} product={r.name} />
             {r.offerCount > 1 && ` +${r.offerCount - 1}`}
           </div>
         </div>

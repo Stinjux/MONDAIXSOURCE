@@ -125,7 +125,7 @@ export default async function DashboardPage() {
                         </Link>
                         <Asin asin={p.asin} url={p.amazonUrl} />
                       </td>
-                      <td className="max-w-36 truncate"><Supplier name={p.best!.supplierName} url={p.best!.supplierUrl} fallback={p.best!.supplierKey} /></td>
+                      <td className="max-w-36 truncate"><Supplier name={p.best!.supplierName} url={p.best!.supplierUrl} fallback={p.best!.supplierKey} product={p.name} /></td>
                       <td className="text-right tabular-nums">{cad(p.best!.profit.profit)}</td>
                       <td className="text-right font-medium tabular-nums">{pct(p.best!.profit.roi, 0)}</td>
                       <td className="text-right tabular-nums">{cad(p.best!.profit.monthlyProfit)}</td>

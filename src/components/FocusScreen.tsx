@@ -20,7 +20,7 @@ import { cartLineValues, type CartState } from "./Cart";
 import { readSaved, useDecisionFilters, writeSaved } from "./DecisionFilters";
 import { FreshnessPill } from "./Freshness";
 import { ProductImage } from "./ProductImage";
-import { Badge, EmptyState, cn } from "./ui";
+import { Badge, EmptyState, Supplier, cn } from "./ui";
 
 export type FocusMode = "reconfirm" | "decide";
 type Outcome = "confirmed" | "rejected" | "later" | "bought";
@@ -304,7 +304,7 @@ function LeadPanel({
                   <div className="min-w-0 text-sm">
                     <span className="flex items-center gap-1 font-medium text-ink">
                       {isBest && <Star size={12} className="shrink-0 fill-accent text-accent" aria-label="Meilleure offre" />}
-                      <span className="truncate">{o.supplier}</span>
+                      <span className="min-w-0 truncate"><Supplier name={o.supplier} url={o.url} product={lead.name} /></span>
                     </span>
                     {r.unavailable && <span className="text-[11px] text-[#f08080]">En rupture</span>}
                     {o.currency !== "CAD" && costs[o.id] === initialCost(o) && <span className="text-[11px] text-warning">Coût en {o.currency}</span>}

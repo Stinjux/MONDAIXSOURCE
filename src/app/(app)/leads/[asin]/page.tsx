@@ -86,7 +86,7 @@ export default async function LeadPage({ params }: { params: Promise<{ asin: str
               <tbody>
                 {p.offers.map((o) => (
                   <tr key={o.id}>
-                    <td className="max-w-56 truncate"><Supplier name={o.supplierName} url={o.supplierUrl} fallback={o.supplierKey} /></td>
+                    <td className="max-w-56 truncate"><Supplier name={o.supplierName} url={o.supplierUrl} fallback={o.supplierKey} product={p.name} /></td>
                     <td className="text-right tabular-nums">{cad(o.verifiedCostPrice ?? o.costPrice)}{o.verifiedCostPrice != null && <Badge tone="good">vérifié</Badge>}</td>
                     <td className="text-right tabular-nums">{cad(o.amazonPrice)}</td>
                     <td className="text-right tabular-nums">{cad(o.profit.profit)}</td>

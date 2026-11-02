@@ -1,6 +1,6 @@
 // Composants d'interface sans état (utilisables côté serveur et client).
 import type { ReactNode } from "react";
-import { AlertTriangle, CheckCircle2, CircleDashed, CircleSlash, Clock, Copy, Eye, HelpCircle, Layers, Repeat, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CircleDashed, CircleSlash, Clock, Copy, ExternalLink, Eye, HelpCircle, Layers, Repeat, Search, XCircle } from "lucide-react";
 import { REVIEW_LABELS, SOURCE_LABELS, type ReviewStatus } from "@/lib/labels";
 import { STOCK_LABELS, type StockStatus } from "@/lib/stock";
 
@@ -183,14 +183,35 @@ export function Asin({ asin, url }: { asin: string; url?: string | null }) {
   );
 }
 
-export function Supplier({ name, url, fallback }: { name?: string | null; url?: string | null; fallback?: string }) {
+/**
+ * Fournisseur cliquable : ouvre la page du produit chez le fournisseur (URL de la Sheet).
+ * Sans URL (seulement un nom de magasin, Sheet OUT OF STOCK), et si `product` est donné :
+ * lien de recherche du produit chez ce magasin.
+ */
+export function Supplier({ name, url, fallback, product }: { name?: string | null; url?: string | null; fallback?: string; product?: string }) {
   if (!name && !url && fallback === "unknown") return <span className="text-warning" title="La colonne J (Supplier URL) est vide dans la Sheet">URL fournisseur manquante</span>;
-  const label = name || fallback || "—";
-  return url ? (
-    <a href={url} target="_blank" rel="noopener noreferrer" className="link">
-      {label}
-    </a>
-  ) : (
-    <span className="text-ink-2">{label}</span>
-  );
+  const label = name || fallback?.replace(/^store:/, "") || "—";
+  if (url) {
+    return (
+      <a href={url} target="_blank" rel="noopener noreferrer" className="link inline-flex max-w-full items-center gap-1 align-bottom" title={`Ouvrir chez le fournisseur : ${url}`}>
+        <span className="truncate">{label}</span>
+        <ExternalLink size={11} className="shrink-0" aria-hidden />
+      </a>
+    );
+  }
+  if (product && label !== "—") {
+    return (
+      <a
+        href={`https://www.google.com/search?q=${encodeURIComponent(`${label} ${product}`)}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex max-w-full items-center gap-1 align-bottom text-ink-2 underline-offset-2 hover:text-accent hover:underline"
+        title={`Pas d'URL dans la Sheet : rechercher « ${product} » chez ${label}`}
+      >
+        <span className="truncate">{label}</span>
+        <Search size={11} className="shrink-0" aria-hidden />
+      </a>
+    );
+  }
+  return <span className="text-ink-2">{label}</span>;
 }

@@ -195,7 +195,7 @@ export function PurchasedList({ purchases }: { purchases: PurchaseView[] }) {
                               </div>
                             </div>
                           </td>
-                          <td className="max-w-48 truncate"><Supplier name={i.supplierName} url={i.supplierUrl} fallback="—" /></td>
+                          <td className="max-w-48 truncate"><Supplier name={i.supplierName} url={i.supplierUrl} fallback="—" product={i.name} /></td>
                           <td className="text-right font-semibold tabular-nums">{i.quantity}</td>
                           <td className="text-right tabular-nums">{cad(i.unitCost)}</td>
                           <td className="text-right font-medium tabular-nums">{cad(i.unitCost * i.quantity)}</td>

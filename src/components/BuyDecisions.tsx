@@ -202,7 +202,7 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
                         </Link>
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
                           <Asin asin={r.asin} url={r.amazonUrl} />
-                          <span className="max-w-40 truncate"><Supplier name={r.supplierName} url={r.supplierUrl} fallback={r.supplierKey} /></span>
+                          <span className="max-w-40 truncate"><Supplier name={r.supplierName} url={r.supplierUrl} fallback={r.supplierKey} product={r.name} /></span>
                           {r.offerCount > 1 && <Badge tone="accent">{r.offerCount} fourn.</Badge>}
                           {r.verifiedCount > 0 && <Badge tone="good" icon={<CheckCircle2 size={10} />}>{r.verifiedCount} vérifié{r.verifiedCount > 1 ? "s" : ""}</Badge>}
                           {r.restricted && <Badge tone="serious" icon={<Lock size={10} />}>Restreint</Badge>}
