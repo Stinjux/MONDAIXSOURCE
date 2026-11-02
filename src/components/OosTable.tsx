@@ -56,7 +56,7 @@ export function OosTable({ rows }: { rows: OosRow[] }) {
   }, [rows, filter, query]);
 
   return (
-    <div className="rounded-xl border border-line bg-surface">
+    <div className="rounded-md border border-line bg-surface">
       <div className="flex flex-col gap-3 border-b border-line p-3 lg:flex-row lg:items-center">
         <div className="relative flex-1">
           <Search size={15} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-3" />

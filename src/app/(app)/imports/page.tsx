@@ -31,7 +31,7 @@ export default async function ImportsPage() {
       ) : (
         <div className="flex flex-col gap-2">
           {runs.map((r) => (
-            <details key={r.id} className="group rounded-xl border border-line bg-surface open:border-line-strong">
+            <details key={r.id} className="group rounded-md border border-line bg-surface open:border-line-strong">
               <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 [&::-webkit-details-marker]:hidden">
                 <span className="w-40 text-sm text-ink">{formatDateTime(r.startedAt)}</span>
                 <Badge tone={r.source === "LEADS" ? "accent" : "neutral"}>{SOURCE_LABELS[r.source] ?? r.source}</Badge>
@@ -44,14 +44,14 @@ export default async function ImportsPage() {
                   <span><b className="text-ink">{r.updated}</b> mis à jour</span>
                   <span><b className="text-ink">{r.unchanged}</b> inchangés</span>
                   {r.missing > 0 && <span><b className="text-warning">{r.missing}</b> retirés de la Sheet</span>}
-                  {r.errors > 0 && <span><b className="text-[#f08080]">{r.errors}</b> invalides</span>}
+                  {r.errors > 0 && <span><b className="text-critical">{r.errors}</b> invalides</span>}
                   {r.warnings > 0 && <span><b className="text-warning">{r.warnings}</b> avertissements</span>}
                 </span>
                 <span className="text-xs text-ink-3">{duration(r.startedAt, r.finishedAt)}</span>
                 <ChevronDown size={16} className="text-ink-3 transition group-open:rotate-180" />
               </summary>
               <div className="border-t border-line px-4 py-3 text-sm">
-                {r.details && <p className={`mb-2 ${r.status === "FAILED" ? "text-[#f08080]" : "text-ink-2"}`}>{r.details}</p>}
+                {r.details && <p className={`mb-2 ${r.status === "FAILED" ? "text-critical" : "text-ink-2"}`}>{r.details}</p>}
                 {r.issues.length ? (
                   <ul className="flex flex-col gap-1.5">
                     {r.issues.map((i) => (

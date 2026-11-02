@@ -90,7 +90,7 @@ export function PurchasedList({ purchases }: { purchases: PurchaseView[] }) {
 
   if (purchases.length === 0) {
     return (
-      <div className="rounded-xl border border-line bg-surface">
+      <div className="rounded-md border border-line bg-surface">
         <EmptyState title="Aucun achat confirmé" icon={<PackageCheck size={22} />}>
           Ajoutez des produits au panier dans <Link href="/decisions" className="link">Buy Decisions</Link> puis cliquez sur « Confirmer l&apos;achat ».
         </EmptyState>
@@ -107,13 +107,13 @@ export function PurchasedList({ purchases }: { purchases: PurchaseView[] }) {
         <Kpi label="Profit attendu" value={cad(profit)} hint={cost > 0 ? `ROI ${pct((profit / cost) * 100, 0)} · prix au moment de l'achat` : undefined} tone="good" />
       </div>
 
-      <div className="flex flex-col gap-3 rounded-xl border border-line bg-surface p-3 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-3 rounded-md border border-line bg-surface p-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
           <Search size={15} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-3" />
           <input className="field pl-9" placeholder="Rechercher par ASIN, produit, fournisseur ou note" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Rechercher" />
         </div>
         <label className="flex cursor-pointer items-center gap-2 text-xs text-ink-2">
-          <input type="checkbox" className="accent-[#3987e5]" checked={showCancelled} onChange={(e) => setShowCancelled(e.target.checked)} /> Afficher les achats annulés
+          <input type="checkbox" className="accent-accent" checked={showCancelled} onChange={(e) => setShowCancelled(e.target.checked)} /> Afficher les achats annulés
         </label>
         <button type="button" className="btn-primary" disabled={!visible.length} onClick={() => download(`mondaix-achats-${stamp}.csv`, toCsv(CSV_HEADER, csvRows(visible)))}>
           <Download size={15} /> Exporter en CSV
@@ -121,14 +121,14 @@ export function PurchasedList({ purchases }: { purchases: PurchaseView[] }) {
       </div>
 
       {visible.length === 0 ? (
-        <div className="rounded-xl border border-line bg-surface">
+        <div className="rounded-md border border-line bg-surface">
           <EmptyState title="Aucun achat ne correspond" />
         </div>
       ) : (
         visible.map((p) => {
           const isOpen = open.has(p.id);
           return (
-            <section key={p.id} className={cn("rounded-xl border bg-surface", p.cancelledAt ? "border-line opacity-60" : "border-line")}>
+            <section key={p.id} className={cn("rounded-md border bg-surface", p.cancelledAt ? "border-line opacity-60" : "border-line")}>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
                 <button type="button" className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => toggle(p.id)} aria-expanded={isOpen}>
                   <ChevronDown size={16} className={cn("shrink-0 text-ink-3 transition", isOpen && "rotate-180")} />
@@ -145,7 +145,7 @@ export function PurchasedList({ purchases }: { purchases: PurchaseView[] }) {
                   <span><b className="text-ink">{p.items.length}</b> produits</span>
                   <span><b className="text-ink">{p.totalUnits}</b> unités</span>
                   <span>Coût <b className="text-ink">{cad(p.totalCost)}</b></span>
-                  <span>Profit <b className="text-[#5fd35f]">{cad(p.totalProfit)}</b></span>
+                  <span>Profit <b className="text-good">{cad(p.totalProfit)}</b></span>
                 </span>
                 <span className="flex gap-1">
                   <button type="button" className="btn-ghost px-2 py-1 text-xs" onClick={() => download(`mondaix-achat-${p.createdAt.slice(0, 10)}-${p.id.slice(-8)}.csv`, toCsv(CSV_HEADER, csvRows([p])))}>
@@ -201,8 +201,8 @@ export function PurchasedList({ purchases }: { purchases: PurchaseView[] }) {
                           <td className="text-right font-medium tabular-nums">{cad(i.unitCost * i.quantity)}</td>
                           <td className="text-right tabular-nums text-ink-2">{cad(i.amazonPrice)}</td>
                           <td className="text-right tabular-nums text-ink-2">{cad(i.fees)}</td>
-                          <td className={cn("text-right tabular-nums", i.unitProfit != null && i.unitProfit < 0 && "text-[#f08080]")}>{cad(i.unitProfit)}</td>
-                          <td className="text-right font-medium tabular-nums text-[#5fd35f]">{i.unitProfit == null ? "—" : cad(i.unitProfit * i.quantity)}</td>
+                          <td className={cn("text-right tabular-nums", i.unitProfit != null && i.unitProfit < 0 && "text-critical")}>{cad(i.unitProfit)}</td>
+                          <td className="text-right font-medium tabular-nums text-good">{i.unitProfit == null ? "—" : cad(i.unitProfit * i.quantity)}</td>
                           <td className="text-right tabular-nums">{pct(i.roi, 0)}</td>
                         </tr>
                       ))}

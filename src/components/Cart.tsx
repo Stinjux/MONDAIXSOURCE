@@ -131,7 +131,7 @@ export function Cart({
     });
 
   return (
-    <div className="flex flex-col rounded-xl border border-line bg-surface">
+    <div className="flex flex-col rounded-md border border-line bg-surface">
       <div className="flex items-center justify-between border-b border-line px-3 py-2.5">
         <span className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-ink-2 uppercase">
           <ShoppingCart size={14} /> Panier {lines.length > 0 && <span className="rounded-full bg-accent px-1.5 text-[10px] text-white">{lines.length}</span>}
@@ -164,7 +164,7 @@ export function Cart({
           </button>
           <span className="text-[11px] text-ink-3">ou 🛒 dans la liste</span>
         </div>
-        {pasteMsg && <p className={cn("mt-1.5 text-[11px]", pasteMsg.ok ? "text-[#5fd35f]" : "text-warning")}>{pasteMsg.text}</p>}
+        {pasteMsg && <p className={cn("mt-1.5 text-[11px]", pasteMsg.ok ? "text-good" : "text-warning")}>{pasteMsg.text}</p>}
       </div>
 
       {/* Lignes */}
@@ -191,13 +191,13 @@ export function Cart({
                         <div className="truncate text-xs font-medium text-ink" title={row.name}>{row.name}</div>
                         <Asin asin={row.asin} url={row.amazonUrl} />
                         {row.fresh.state === "STALE" && (
-                          <Link href={`/reconfirm?asin=${row.asin}`} className="mt-0.5 flex items-center gap-1 text-[11px] text-[#f08080] hover:underline">
+                          <Link href={`/reconfirm?asin=${row.asin}`} className="mt-0.5 flex items-center gap-1 text-[11px] text-critical hover:underline">
                             <RefreshCw size={10} /> Données de plus de 30 j : reconfirmer
                           </Link>
                         )}
                       </div>
                     </div>
-                    <button type="button" aria-label={`Retirer ${row.asin}`} className="text-ink-3 hover:text-[#f08080]" onClick={() => setLine(id, { qty: 0 })}>
+                    <button type="button" aria-label={`Retirer ${row.asin}`} className="text-ink-3 hover:text-critical" onClick={() => setLine(id, { qty: 0 })}>
                       <X size={14} />
                     </button>
                   </div>
@@ -223,7 +223,7 @@ export function Cart({
                     </label>
                     <div className="text-right">
                       <div className="font-semibold text-ink tabular-nums">{cad(v.subtotal)}</div>
-                      <div className={cn("tabular-nums", v.profit != null && v.profit < 0 ? "text-[#f08080]" : "text-[#5fd35f]")}>{v.profit == null ? "profit n/d" : `+${cad(v.profit)}`}</div>
+                      <div className={cn("tabular-nums", v.profit != null && v.profit < 0 ? "text-critical" : "text-good")}>{v.profit == null ? "profit n/d" : `+${cad(v.profit)}`}</div>
                     </div>
                   </div>
                 </li>
@@ -242,7 +242,7 @@ export function Cart({
           <dt className="text-ink-3">Coût total</dt>
           <dd className="text-right font-semibold tabular-nums">{cad(totals.cost)}</dd>
           <dt className="text-ink-3">Profit attendu*</dt>
-          <dd className="text-right font-semibold tabular-nums text-[#5fd35f]">{cad(totals.profit)}</dd>
+          <dd className="text-right font-semibold tabular-nums text-good">{cad(totals.profit)}</dd>
           <dt className="text-ink-3">ROI du panier*</dt>
           <dd className="text-right tabular-nums">{pct(roi, 0)}</dd>
         </dl>
@@ -257,7 +257,7 @@ export function Cart({
           <>
             <div className="mt-2 flex justify-between text-xs">
               <span className="text-ink-3">Budget restant</span>
-              <span className={cn("font-semibold tabular-nums", remaining < 0 ? "text-[#f08080]" : "text-ink")}>{cad(remaining)}</span>
+              <span className={cn("font-semibold tabular-nums", remaining < 0 ? "text-critical" : "text-ink")}>{cad(remaining)}</span>
             </div>
             <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-3">
               <div className={cn("h-full rounded-full", remaining < 0 ? "bg-critical" : "bg-accent")} style={{ width: `${Math.min(100, (totals.cost / budgetValue) * 100)}%` }} />
@@ -272,14 +272,14 @@ export function Cart({
             </button>
             {totals.missingCost && <p className="mt-1 text-[11px] text-warning">Coût unitaire manquant ou invalide sur une ligne.</p>}
             {stale.length > 0 && (
-              <p className="mt-1 text-[11px] text-[#f08080]">
+              <p className="mt-1 text-[11px] text-critical">
                 {stale.length} produit{stale.length > 1 ? "s" : ""} à reconfirmer avant d&apos;acheter (données de plus de 30 jours).
               </p>
             )}
           </>
         )}
         {result && (
-          <p className={cn("mt-2 text-xs", result.ok ? "text-[#5fd35f]" : "text-[#f08080]")}>
+          <p className={cn("mt-2 text-xs", result.ok ? "text-good" : "text-critical")}>
             {result.text}
             {result.ok && (
               <>

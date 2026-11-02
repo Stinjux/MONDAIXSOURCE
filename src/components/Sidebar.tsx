@@ -26,10 +26,10 @@ const NAV = [
 function Brand() {
   return (
     <Link href="/" className="flex items-center gap-2.5 px-2">
-      <span className="grid size-8 place-items-center rounded-lg bg-gradient-to-br from-accent to-[#6250d6] text-sm font-bold text-white shadow-lg shadow-accent/20">M</span>
+      <span className="grid size-9 place-items-center rounded-sm border border-white/30 font-serif text-base font-semibold text-white">M</span>
       <span className="leading-tight">
-        <span className="block text-sm font-semibold tracking-[0.14em] text-ink">MONDAIX</span>
-        <span className="block text-[10px] font-medium tracking-[0.3em] text-ink-3">SOURCE · AMAZON.CA</span>
+        <span className="block font-serif text-[15px] font-semibold tracking-[0.12em] text-white">MONDAIX</span>
+        <span className="block text-[10px] font-medium tracking-[0.28em] text-nav-ink">SOURCE · AMAZON.CA</span>
       </span>
     </Link>
   );
@@ -49,18 +49,15 @@ function NavLinks({ counts, onNavigate }: { counts: Counts; onNavigate?: () => v
             onClick={onNavigate}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "group flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm transition",
-              active ? "bg-accent-soft text-ink" : "text-ink-2 hover:bg-surface-2 hover:text-ink",
+              "group flex items-center gap-3 border-l-[3px] py-2 pr-2.5 pl-2 text-sm transition",
+              active ? "border-white bg-nav-2 font-medium text-white" : "border-transparent text-nav-ink hover:bg-white/5 hover:text-white",
             )}
           >
-            <Icon size={17} className={active ? "text-accent" : "text-ink-3 group-hover:text-ink-2"} />
+            <Icon size={17} className={active ? "text-white" : "text-nav-ink/80 group-hover:text-white"} />
             <span className="flex-1 truncate">{label}</span>
             {n > 0 && (
               <span
-                className={cn(
-                  "min-w-5 rounded-full px-1.5 text-center text-[11px] leading-5 font-semibold tabular-nums",
-                  count === "backInStock" ? "bg-good/20 text-[#5fd35f]" : count === "duplicates" ? "bg-serious/20 text-serious" : "bg-warning/15 text-warning",
-                )}
+                className="min-w-5 rounded-sm bg-white/15 px-1.5 text-center text-[11px] leading-5 font-semibold tabular-nums text-white"
               >
                 {n}
               </span>
@@ -74,8 +71,8 @@ function NavLinks({ counts, onNavigate }: { counts: Counts; onNavigate?: () => v
 
 function Footer() {
   return (
-    <form action={logout} className="border-t border-line pt-3">
-      <button type="submit" className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-sm text-ink-3 transition hover:bg-surface-2 hover:text-ink">
+    <form action={logout} className="border-t border-nav-line pt-3">
+      <button type="submit" className="flex w-full items-center gap-3 px-2.5 py-2 text-sm text-nav-ink transition hover:bg-white/5 hover:text-white">
         <LogOut size={16} /> Déconnexion
       </button>
     </form>
@@ -90,7 +87,7 @@ export function Sidebar({ counts }: { counts: Counts }) {
   return (
     <>
       {/* Bureau */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col gap-6 border-r border-line bg-[#0c1220] px-3 py-5 lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col gap-6 border-r border-nav-line bg-nav px-3 py-5 lg:flex">
         <Brand />
         <div className="flex-1 overflow-y-auto">
           <NavLinks counts={counts} />
@@ -99,19 +96,19 @@ export function Sidebar({ counts }: { counts: Counts }) {
       </aside>
 
       {/* Mobile */}
-      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-line bg-[#0c1220]/95 px-4 py-3 backdrop-blur lg:hidden">
+      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-nav-line bg-nav px-4 py-3 lg:hidden">
         <Brand />
-        <button type="button" className="btn-ghost px-2.5" onClick={() => setOpen(true)} aria-label="Ouvrir le menu">
+        <button type="button" className="btn px-2.5 text-white hover:bg-white/10" onClick={() => setOpen(true)} aria-label="Ouvrir le menu">
           <Menu size={18} />
         </button>
       </div>
       {open && (
         <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setOpen(false)} />
-          <aside className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col gap-6 border-r border-line bg-[#0c1220] px-3 py-5">
+          <div className="absolute inset-0 bg-ink/50" onClick={() => setOpen(false)} />
+          <aside className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col gap-6 border-r border-nav-line bg-nav px-3 py-5">
             <div className="flex items-center justify-between">
               <Brand />
-              <button type="button" className="btn-ghost px-2.5" onClick={() => setOpen(false)} aria-label="Fermer le menu">
+              <button type="button" className="btn px-2.5 text-white hover:bg-white/10" onClick={() => setOpen(false)} aria-label="Fermer le menu">
                 <X size={18} />
               </button>
             </div>

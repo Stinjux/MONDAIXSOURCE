@@ -66,10 +66,10 @@ export function FocusScreen({
     setQueue(ids);
   }, [queue, loaded, leads, mode, filters, currentWeek, startAsin]);
 
-  if (!queue) return <div className="h-64 animate-pulse rounded-xl border border-line bg-surface" />;
+  if (!queue) return <div className="h-64 animate-pulse rounded-md border border-line bg-surface" />;
   if (queue.length === 0) {
     return (
-      <div className="rounded-xl border border-line bg-surface">
+      <div className="rounded-md border border-line bg-surface">
         {mode === "reconfirm" ? (
           <EmptyState title="Rien à reconfirmer" icon={<CheckCircle2 size={22} />}>Tous vos leads actifs ont des données de moins de 23 jours.</EmptyState>
         ) : (
@@ -87,7 +87,7 @@ export function FocusScreen({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-xl border border-line bg-surface px-4 py-3">
+      <div className="rounded-md border border-line bg-surface px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
           <span className="font-semibold text-ink tabular-nums">{finished ? "Terminé" : `Lead ${index + 1} / ${queue.length}`}</span>
           <span className="flex flex-wrap gap-1.5">
@@ -102,7 +102,7 @@ export function FocusScreen({
       </div>
 
       {finished ? (
-        <div className="rounded-xl border border-line bg-surface">
+        <div className="rounded-md border border-line bg-surface">
           <EmptyState title="File terminée" icon={<CheckCircle2 size={22} />}>
             {progress} lead{progress > 1 ? "s" : ""} traité{progress > 1 ? "s" : ""}.{" "}
             {counts.bought > 0 && (
@@ -273,7 +273,7 @@ function LeadPanel({
     <article className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
       <div className="flex min-w-0 flex-col gap-4">
         {/* Produit */}
-        <section className="rounded-xl border border-line bg-surface p-4">
+        <section className="rounded-md border border-line bg-surface p-4">
           <div className="flex gap-4">
             <ProductImage asin={lead.asin} size={112} />
             <div className="min-w-0 flex-1">
@@ -297,14 +297,14 @@ function LeadPanel({
             </div>
           </div>
           {lead.notes && (
-            <p className="mt-3 flex items-start gap-1.5 rounded-lg bg-page/60 px-3 py-2 text-xs text-ink-2">
+            <p className="mt-3 flex items-start gap-1.5 rounded-sm bg-page/60 px-3 py-2 text-xs text-ink-2">
               <StickyNote size={12} className="mt-0.5 shrink-0 text-warning" /> {lead.notes}
             </p>
           )}
         </section>
 
         {/* Valeurs à vérifier */}
-        <section className="rounded-xl border border-line bg-surface p-4">
+        <section className="rounded-md border border-line bg-surface p-4">
           <h2 className="text-sm font-semibold text-ink">Amazon</h2>
           <div className="mt-2 grid gap-3 sm:grid-cols-2">
             <MoneyField label="Prix Amazon (Buy Box)" value={sale} onChange={setSale} initial={toField(lead.row.amazonPrice)} />
@@ -316,13 +316,13 @@ function LeadPanel({
               const o = r.offer;
               const isBest = best?.offer.id === o.id && offers.length > 1;
               return (
-                <li key={o.id} className={cn("grid items-end gap-2 rounded-lg border p-2.5 sm:grid-cols-[minmax(0,1fr)_140px_auto_64px]", isBest ? "border-accent/50 bg-accent/5" : "border-line")}>
+                <li key={o.id} className={cn("grid items-end gap-2 rounded-sm border p-2.5 sm:grid-cols-[minmax(0,1fr)_140px_auto_64px]", isBest ? "border-accent/50 bg-accent/5" : "border-line")}>
                   <div className="min-w-0 text-sm">
                     <span className="flex items-center gap-1 font-medium text-ink">
                       {isBest && <Star size={12} className="shrink-0 fill-accent text-accent" aria-label="Meilleure offre" />}
                       <span className="min-w-0 truncate"><Supplier name={o.supplier} url={o.url} product={lead.name} /></span>
                     </span>
-                    {r.unavailable && <span className="text-[11px] text-[#f08080]">En rupture</span>}
+                    {r.unavailable && <span className="text-[11px] text-critical">En rupture</span>}
                     {o.currency !== "CAD" && costs[o.id] === initialCost(o) && <span className="text-[11px] text-warning">Coût en {o.currency}</span>}
                   </div>
                   <MoneyField label="Coût" value={costs[o.id]} onChange={(v) => setCosts((c) => ({ ...c, [o.id]: v }))} initial={initialCost(o)} compact />
@@ -334,15 +334,15 @@ function LeadPanel({
                         aria-pressed={avail[o.id] === a}
                         onClick={() => setAvail((s) => ({ ...s, [o.id]: s[o.id] === a ? null : a }))}
                         className={cn(
-                          "rounded-lg border px-2 py-1.5 text-xs whitespace-nowrap",
-                          avail[o.id] === a ? (a === "IN_STOCK" ? "border-good/60 bg-good/15 text-[#5fd35f]" : "border-critical/60 bg-critical/15 text-[#f08080]") : "border-line text-ink-3 hover:text-ink",
+                          "rounded-sm border px-2 py-1.5 text-xs whitespace-nowrap",
+                          avail[o.id] === a ? (a === "IN_STOCK" ? "border-good/60 bg-good/15 text-good" : "border-critical/60 bg-critical/15 text-critical") : "border-line text-ink-3 hover:text-ink",
                         )}
                       >
                         {a === "IN_STOCK" ? "En stock" : "Rupture"}
                       </button>
                     ))}
                   </div>
-                  <span className={cn("text-right text-sm font-semibold tabular-nums", r.metrics.roi != null && r.metrics.roi < thresholds.minRoi ? "text-[#f08080]" : "text-[#5fd35f]")} title="ROI avec ce fournisseur">
+                  <span className={cn("text-right text-sm font-semibold tabular-nums", r.metrics.roi != null && r.metrics.roi < thresholds.minRoi ? "text-critical" : "text-good")} title="ROI avec ce fournisseur">
                     {pct(r.metrics.roi, 0)}
                   </span>
                 </li>
@@ -355,7 +355,7 @@ function LeadPanel({
 
       {/* Résultat et actions */}
       <aside className="flex flex-col gap-4 lg:sticky lg:top-4">
-        <section className="rounded-xl border border-line bg-surface p-4">
+        <section className="rounded-md border border-line bg-surface p-4">
           <div className="flex items-center justify-between gap-2">
             <Badge tone={VERDICT_TONE[evaluated.verdict]}>{VERDICT_LABELS[evaluated.verdict]}</Badge>
             {best?.score != null && <span className="text-xs text-ink-3">Score <b className="text-base text-ink tabular-nums">{best.score}</b>/100</span>}
@@ -374,7 +374,7 @@ function LeadPanel({
           </div>
         </section>
 
-        <section className="rounded-xl border border-line bg-surface p-4">
+        <section className="rounded-md border border-line bg-surface p-4">
           {mode === "decide" && (
             <>
               <div className="flex items-center justify-between gap-2">
@@ -387,13 +387,13 @@ function LeadPanel({
               </div>
               <div className="mt-2 flex justify-between text-xs">
                 <span className="text-ink-3">Cette ligne</span>
-                <span className="tabular-nums"><b className="text-ink">{cad(thisCost)}</b> · profit <span className="text-[#5fd35f]">{cad(metrics.profit == null ? null : metrics.profit * qty)}</span></span>
+                <span className="tabular-nums"><b className="text-ink">{cad(thisCost)}</b> · profit <span className="text-good">{cad(metrics.profit == null ? null : metrics.profit * qty)}</span></span>
               </div>
               {budget != null && budget > 0 && (
                 <div className="mt-2">
                   <div className="flex justify-between text-[11px] text-ink-3">
                     <span>Budget : panier {cad(cartCost)} + {cad(thisCost)}</span>
-                    <span className={cn("tabular-nums", cartCost + thisCost > budget ? "text-[#f08080]" : "text-ink-2")}>/ {cad(budget)}</span>
+                    <span className={cn("tabular-nums", cartCost + thisCost > budget ? "text-critical" : "text-ink-2")}>/ {cad(budget)}</span>
                   </div>
                   <div className="mt-1 flex h-2 overflow-hidden rounded-full bg-surface-3">
                     <div className="h-full bg-accent" style={{ width: `${Math.min(100, (cartCost / budget) * 100)}%` }} />
@@ -401,7 +401,7 @@ function LeadPanel({
                   </div>
                 </div>
               )}
-              {stale && <p className="mt-3 rounded-lg border border-critical/40 bg-critical/10 px-2.5 py-2 text-[11px] text-[#f08080]">Données de plus de 30 jours : vérifiez les prix ci-contre, puis reconfirmez pour pouvoir acheter.</p>}
+              {stale && <p className="mt-3 rounded-sm border border-critical/40 bg-critical/10 px-2.5 py-2 text-[11px] text-critical">Données de plus de 30 jours : vérifiez les prix ci-contre, puis reconfirmez pour pouvoir acheter.</p>}
             </>
           )}
 
@@ -423,7 +423,7 @@ function LeadPanel({
                   <Eye size={14} /> À suivre <Kbd>P</Kbd>
                 </button>
               )}
-              <button type="button" className="btn-ghost justify-center hover:border-critical/60 hover:text-[#f08080]" disabled={pending} onClick={reject}>
+              <button type="button" className="btn-ghost justify-center hover:border-critical/60 hover:text-critical" disabled={pending} onClick={reject}>
                 <CircleSlash size={14} /> Rejeter <Kbd>R</Kbd>
               </button>
             </div>
@@ -432,8 +432,8 @@ function LeadPanel({
               <button type="button" className="btn-ghost px-2 py-1 text-xs" onClick={onSkip}>Passer <ArrowRight size={13} /></button>
             </div>
           </div>
-          {invalid && <p className="mt-2 text-[11px] text-[#f08080]">Un montant saisi est invalide.</p>}
-          {error && <p className="mt-2 text-[11px] text-[#f08080]">{error}</p>}
+          {invalid && <p className="mt-2 text-[11px] text-critical">Un montant saisi est invalide.</p>}
+          {error && <p className="mt-2 text-[11px] text-critical">{error}</p>}
           <p className="mt-3 flex items-center gap-1.5 text-[10px] text-ink-3">
             <Keyboard size={11} /> Entrée {mode === "reconfirm" ? "reconfirme" : "valide"} · Échap sort d&apos;un champ · R rejette{mode === "decide" ? " · P à suivre · A achète · +/− quantité" : ""} · ←/→ précédent / suivant
           </p>
@@ -444,7 +444,7 @@ function LeadPanel({
 }
 
 function Kbd({ children }: { children: React.ReactNode }) {
-  return <kbd className="ml-auto rounded border border-white/25 px-1.5 font-sans text-[10px] font-normal opacity-80">{children}</kbd>;
+  return <kbd className="ml-auto rounded-sm border border-current px-1.5 font-sans text-[10px] font-normal opacity-60">{children}</kbd>;
 }
 
 function MoneyField({ label, value, onChange, initial, compact }: { label: string; value: string; onChange: (v: string) => void; initial: string; compact?: boolean }) {
@@ -482,7 +482,7 @@ function Gauge({ label, value, before, threshold, format }: { label: string; val
         <span className="text-ink-2">{label}</span>
         <span className="tabular-nums">
           {changed && <span className="mr-1.5 text-ink-3 line-through">{format(before!)}</span>}
-          <b className={cn("text-sm", ok ? "text-[#5fd35f]" : close ? "text-warning" : value == null ? "text-ink-3" : "text-[#f08080]")}>{format(value)}</b>
+          <b className={cn("text-sm", ok ? "text-good" : close ? "text-warning" : value == null ? "text-ink-3" : "text-critical")}>{format(value)}</b>
         </span>
       </div>
       <div className="relative mt-1 h-2 rounded-full bg-surface-3" title={`Votre minimum : ${format(threshold)}`}>

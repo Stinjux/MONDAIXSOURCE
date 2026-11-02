@@ -67,7 +67,7 @@ export default async function DashboardPage() {
             <br />
             Seuls les nouveaux ASIN du pipeline LEADS comptent (doublons et OUT OF STOCK exclus).
           </p>
-          <Link href="/weekly-review" className="mt-4 block rounded-lg border border-line bg-surface-2/60 p-3 transition hover:border-line-strong">
+          <Link href="/weekly-review" className="mt-4 block rounded-sm border border-line bg-surface-2/60 p-3 transition hover:border-line-strong">
             <div className="flex items-center justify-between text-xs">
               <span className="font-medium text-ink-2">Weekly Review de dimanche</span>
               <span className="text-ink tabular-nums">

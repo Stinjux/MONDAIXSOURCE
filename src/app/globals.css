@@ -1,35 +1,42 @@
 @import "tailwindcss";
 
-/* Jetons de design — thème sombre MONDAIX */
+/* Jetons de design — thème institutionnel MONDAIX (clair, marine, sobre) */
 @theme {
-  --color-page: #0a0f1a;
-  --color-surface: #111827;
-  --color-surface-2: #172033;
-  --color-surface-3: #1f2a40;
-  --color-line: #243046;
-  --color-line-strong: #33415c;
-  --color-ink: #e8edf5;
-  --color-ink-2: #a3afc2;
-  --color-ink-3: #74819a;
-  --color-accent: #3987e5;
-  --color-accent-strong: #2a78d6;
-  --color-accent-soft: #3987e51f;
-  /* Séries de graphiques (validées CVD sur la surface sombre) */
-  --color-series-1: #3987e5;
-  --color-series-2: #d95926;
-  --color-series-3: #199e70;
-  /* Statuts (toujours accompagnés d'un libellé) */
-  --color-good: #0ca30c;
-  --color-warning: #fab219;
-  --color-serious: #ec835a;
-  --color-critical: #d03b3b;
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  --color-page: #f3f5f8;
+  --color-surface: #ffffff;
+  --color-surface-2: #f7f8fa;
+  --color-surface-3: #e8ecf1;
+  --color-line: #dde2e9;
+  --color-line-strong: #c3cbd6;
+  --color-ink: #13233a;
+  --color-ink-2: #46566c;
+  --color-ink-3: #66748a;
+  /* Bleu marine institutionnel */
+  --color-accent: #0b3d91;
+  --color-accent-strong: #082f70;
+  --color-accent-soft: #0b3d9114;
+  /* Menu latéral */
+  --color-nav: #0b1f3a;
+  --color-nav-2: #15325c;
+  --color-nav-line: #1f3a62;
+  --color-nav-ink: #b9c6d8;
+  /* Séries de graphiques (validées CVD sur la surface claire) */
+  --color-series-1: #1c5cab;
+  --color-series-2: #eb6834;
+  --color-series-3: #1baf7a;
+  /* Statuts (toujours accompagnés d'un libellé) — lisibles en texte sur fond blanc */
+  --color-good: #1b7a3d;
+  --color-warning: #9a6700;
+  --color-serious: #c2410c;
+  --color-critical: #b42318;
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-serif: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+  --font-mono: ui-monospace, "SF Mono", "IBM Plex Mono", Menlo, Consolas, monospace;
 }
 
 @layer base {
   :root {
-    color-scheme: dark;
+    color-scheme: light;
   }
   html,
   body {
@@ -39,10 +46,10 @@
   body {
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
-    font-feature-settings: "cv11", "ss01", "tnum";
+    font-feature-settings: "tnum";
   }
   ::selection {
-    background: #3987e566;
+    background: #0b3d9126;
   }
   :focus-visible {
     outline: 2px solid var(--color-accent);
@@ -51,21 +58,21 @@
   input,
   select,
   textarea {
-    color-scheme: dark;
+    color-scheme: light;
   }
 }
 
 @utility field {
-  @apply w-full rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm text-ink placeholder:text-ink-3 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/25;
+  @apply w-full rounded-sm border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-3 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/15;
 }
 @utility btn {
-  @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex items-center justify-center gap-2 rounded-sm px-3.5 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
 }
 @utility btn-primary {
-  @apply btn bg-accent text-white hover:bg-accent-strong;
+  @apply btn bg-accent text-white shadow-sm hover:bg-accent-strong;
 }
 @utility btn-ghost {
-  @apply btn border border-line bg-surface-2 text-ink-2 hover:border-line-strong hover:text-ink;
+  @apply btn border border-line-strong bg-surface text-ink-2 hover:border-ink-3 hover:bg-surface-2 hover:text-ink;
 }
 @utility link {
   @apply text-accent underline-offset-2 hover:underline;
@@ -76,12 +83,12 @@
     @apply w-full border-collapse text-left text-sm;
   }
   .table-base th {
-    @apply sticky top-0 z-10 border-b border-line bg-surface px-3 py-2.5 text-xs font-medium tracking-wide whitespace-nowrap text-ink-3 uppercase;
+    @apply sticky top-0 z-10 border-b border-line-strong bg-surface-2 px-3 py-2.5 text-[11px] font-semibold tracking-wider whitespace-nowrap text-ink-2 uppercase;
   }
   .table-base td {
-    @apply border-b border-line/60 px-3 py-2.5 align-middle whitespace-nowrap;
+    @apply border-b border-line px-3 py-2.5 align-middle whitespace-nowrap;
   }
   .table-base tbody tr {
-    @apply transition-colors hover:bg-surface-2/60;
+    @apply transition-colors hover:bg-accent-soft;
   }
 }

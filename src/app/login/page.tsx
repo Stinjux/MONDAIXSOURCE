@@ -8,16 +8,18 @@ export const dynamic = "force-dynamic";
 export default async function LoginPage() {
   if (await isAdmin()) redirect("/");
   return (
-    <main className="grid min-h-screen place-items-center bg-[radial-gradient(ellipse_at_top,#3987e526,transparent_60%)] px-4">
-      <div className="w-full max-w-sm rounded-2xl border border-line bg-surface/90 p-7 shadow-2xl shadow-black/40 backdrop-blur">
-        <div className="mb-6 flex items-center gap-3">
-          <span className="grid size-10 place-items-center rounded-xl bg-gradient-to-br from-accent to-[#6250d6] text-lg font-bold text-white">M</span>
+    <main className="grid min-h-screen place-items-center bg-page px-4">
+      <div className="w-full max-w-sm overflow-hidden rounded-md border border-line bg-surface shadow-[0_8px_24px_-12px_rgb(19_35_58/0.25)]">
+        <div className="flex items-center gap-3 bg-nav px-7 py-5">
+          <span className="grid size-10 place-items-center rounded-sm border border-white/30 font-serif text-lg font-semibold text-white">M</span>
           <div>
-            <div className="text-base font-semibold tracking-[0.14em]">MONDAIX SOURCE</div>
-            <div className="text-xs text-ink-3">Sourcing Amazon FBA · Amazon.ca</div>
+            <div className="font-serif text-base font-semibold tracking-[0.12em] text-white">MONDAIX SOURCE</div>
+            <div className="text-xs text-nav-ink">Sourcing Amazon FBA · Amazon.ca</div>
           </div>
         </div>
+        <div className="p-7">
         <LoginForm />
+        </div>
       </div>
     </main>
   );

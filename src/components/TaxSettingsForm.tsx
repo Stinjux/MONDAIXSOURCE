@@ -28,8 +28,8 @@ export function TaxSettingsForm({ initial }: { initial: TaxConfig }) {
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1.5" role="radiogroup" aria-label="Traitement des taxes">
         {(Object.keys(TAX_MODE_LABELS) as TaxMode[]).map((m) => (
-          <label key={m} className={cn("flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm", mode === m ? "border-accent/60 bg-accent/10" : "border-line")}>
-            <input type="radio" name="taxMode" className="accent-[#3987e5]" checked={mode === m} onChange={() => { setMode(m); setMsg(null); }} />
+          <label key={m} className={cn("flex cursor-pointer items-center gap-2 rounded-sm border px-3 py-2 text-sm", mode === m ? "border-accent/60 bg-accent/10" : "border-line")}>
+            <input type="radio" name="taxMode" className="accent-accent" checked={mode === m} onChange={() => { setMode(m); setMsg(null); }} />
             {TAX_MODE_LABELS[m]}
           </label>
         ))}
@@ -49,7 +49,7 @@ export function TaxSettingsForm({ initial }: { initial: TaxConfig }) {
           </span>
         </label>
       )}
-      <div className="rounded-lg bg-page/60 p-3 text-xs text-ink-2">
+      <div className="rounded-sm bg-page/60 p-3 text-xs text-ink-2">
         <div className="mb-1 font-medium text-ink">Aperçu sur l&apos;exemple SellerAmp</div>
         Vente 20,20 $ · Coût 8,13 $ · Total Fees 9,46 $ →{" "}
         <b className="text-ink">profit {cad(preview.profit)}</b>, ROI {pct(preview.roi, 2)}, marge {pct(preview.margin, 2)}
@@ -63,7 +63,7 @@ export function TaxSettingsForm({ initial }: { initial: TaxConfig }) {
         <button type="button" className="btn-primary" disabled={pending || (mode !== "NONE" && !valid)} onClick={save}>
           <Save size={15} /> {pending ? "Enregistrement…" : "Enregistrer"}
         </button>
-        {msg && <span className={cn("text-xs", msg.ok ? "text-[#5fd35f]" : "text-[#f08080]")}>{msg.text}</span>}
+        {msg && <span className={cn("text-xs", msg.ok ? "text-good" : "text-critical")}>{msg.text}</span>}
       </div>
     </div>
   );

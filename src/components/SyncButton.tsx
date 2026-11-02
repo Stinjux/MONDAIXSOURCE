@@ -30,7 +30,7 @@ export function SyncButton() {
         {pending ? "Synchronisation…" : "Synchroniser les Sheets"}
       </button>
       {message && (
-        <p role="status" className={`max-w-md text-right text-xs ${message.ok ? "text-ink-2" : "text-[#f08080]"}`}>
+        <p role="status" className={`max-w-md text-right text-xs ${message.ok ? "text-ink-2" : "text-critical"}`}>
           {message.text}
         </p>
       )}

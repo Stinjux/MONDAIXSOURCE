@@ -12,9 +12,9 @@ import { Asin, Badge, DuplicateBadges, EmptyState, OriginTag, ReviewBadge, Sourc
 
 const STATUS_STYLE: Record<ReviewStatus, string> = {
   TO_REVIEW: "data-[on=true]:border-warning/60 data-[on=true]:bg-warning/10 data-[on=true]:text-warning",
-  IN_PROGRESS: "data-[on=true]:border-accent/60 data-[on=true]:bg-accent/10 data-[on=true]:text-[#8fbcf2]",
-  VALIDATED: "data-[on=true]:border-good/60 data-[on=true]:bg-good/10 data-[on=true]:text-[#5fd35f]",
-  REJECTED: "data-[on=true]:border-critical/60 data-[on=true]:bg-critical/10 data-[on=true]:text-[#f08080]",
+  IN_PROGRESS: "data-[on=true]:border-accent/60 data-[on=true]:bg-accent/10 data-[on=true]:text-accent",
+  VALIDATED: "data-[on=true]:border-good/60 data-[on=true]:bg-good/10 data-[on=true]:text-good",
+  REJECTED: "data-[on=true]:border-critical/60 data-[on=true]:bg-critical/10 data-[on=true]:text-critical",
   FOLLOW_UP: "data-[on=true]:border-serious/60 data-[on=true]:bg-serious/10 data-[on=true]:text-serious",
 };
 
@@ -62,7 +62,7 @@ export function ReviewBoard({ items, overdue, tax = NO_TAX }: { items: ProductVi
             ))}
           </div>
         ) : (
-          <div className="rounded-xl border border-line bg-surface">
+          <div className="rounded-md border border-line bg-surface">
             <EmptyState title={items.length ? "Tous les leads de ce filtre sont traités" : "Aucun lead pour cette semaine"} icon={<CheckCircle2 size={22} />}>
               {items.length ? "Changez de filtre pour revoir les décisions." : "Les nouveaux leads uniques de LEADS apparaîtront ici après synchronisation."}
             </EmptyState>
@@ -163,7 +163,7 @@ export function ReviewCard({
 
   const best = p.best;
   return (
-    <article className={cn("rounded-xl border bg-surface transition", open ? "border-line-strong" : "border-line", overdue && "border-l-2 border-l-warning")}>
+    <article className={cn("rounded-md border bg-surface transition", open ? "border-line-strong" : "border-line", overdue && "border-l-2 border-l-warning")}>
       <button type="button" onClick={() => setOpen((o) => !o)} className="flex w-full items-center gap-3 px-4 py-3 text-left" aria-expanded={open}>
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-2">
@@ -189,7 +189,7 @@ export function ReviewCard({
         <div className="border-t border-line px-4 pt-4 pb-4">
           <div className="grid gap-4 xl:grid-cols-[1fr_1.4fr]">
             {/* Amazon */}
-            <div className="rounded-lg border border-line bg-surface-2/50 p-3">
+            <div className="rounded-sm border border-line bg-surface-2/50 p-3">
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-xs font-semibold tracking-wide text-ink-2 uppercase">Amazon.ca</h3>
                 <Asin asin={p.asin} url={p.amazonUrl} />
@@ -257,7 +257,7 @@ export function ReviewCard({
                   <label key={c.key} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-ink-2 hover:bg-surface-2">
                     <input
                       type="checkbox"
-                      className="size-4 accent-[#3987e5]"
+                      className="size-4 accent-accent"
                       checked={!!checklist[c.key]}
                       onChange={(e) => touch(setChecklist)({ ...checklist, [c.key]: e.target.checked })}
                     />
@@ -288,15 +288,15 @@ export function ReviewCard({
                   aria-checked={status === s}
                   data-on={status === s}
                   onClick={() => touch(setStatus)(s)}
-                  className={cn("rounded-lg border border-line px-3 py-1.5 text-xs text-ink-2 transition hover:border-line-strong", STATUS_STYLE[s])}
+                  className={cn("rounded-sm border border-line px-3 py-1.5 text-xs text-ink-2 transition hover:border-line-strong", STATUS_STYLE[s])}
                 >
                   {REVIEW_LABELS[s]}
                 </button>
               ))}
             </div>
             <div className="flex items-center gap-3">
-              {feedback && <span className={cn("text-xs", feedback.ok ? "text-[#5fd35f]" : "text-[#f08080]")}>{feedback.text}</span>}
-              {invalid && <span className="text-xs text-[#f08080]">Montant invalide</span>}
+              {feedback && <span className={cn("text-xs", feedback.ok ? "text-good" : "text-critical")}>{feedback.text}</span>}
+              {invalid && <span className="text-xs text-critical">Montant invalide</span>}
               <button type="button" className="btn-primary" disabled={pending || invalid || !dirty} onClick={() => save()}>
                 <Save size={15} /> {pending ? "Enregistrement…" : "Enregistrer"}
               </button>
@@ -338,7 +338,7 @@ function OfferPanel({
   const allVerified = [s, c, f].every((x) => x.origin === "verified");
 
   return (
-    <div className="rounded-lg border border-line bg-surface-2/50 p-3">
+    <div className="rounded-sm border border-line bg-surface-2/50 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate text-sm font-medium"><Supplier name={o.supplierName} url={o.supplierUrl} fallback={o.supplierKey} /></span>
@@ -363,7 +363,7 @@ function OfferPanel({
         </label>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2 rounded-md bg-page/60 p-2.5 text-xs sm:grid-cols-4">
-        <div><div className="text-ink-3">Profit</div><div className={cn("text-sm font-semibold tabular-nums", r.profit != null && r.profit < 0 && "text-[#f08080]")}>{cad(r.profit)}</div></div>
+        <div><div className="text-ink-3">Profit</div><div className={cn("text-sm font-semibold tabular-nums", r.profit != null && r.profit < 0 && "text-critical")}>{cad(r.profit)}</div></div>
         <div><div className="text-ink-3">ROI</div><div className="text-sm font-semibold tabular-nums">{pct(r.roi, 0)}</div></div>
         <div><div className="text-ink-3">Marge</div><div className="text-sm font-semibold tabular-nums">{pct(r.margin, 0)}</div></div>
         <div><div className="text-ink-3">Profit mensuel</div><div className="text-sm font-semibold tabular-nums">{cad(r.monthlyProfit)}</div></div>

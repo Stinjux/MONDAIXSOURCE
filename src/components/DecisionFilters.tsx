@@ -87,7 +87,7 @@ export function FilterPanel({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-xl border border-line bg-surface p-3">
+      <div className="rounded-md border border-line bg-surface p-3">
         <div className="mb-2 text-xs font-semibold tracking-wide text-ink-2 uppercase">Classer par</div>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5" role="radiogroup" aria-label="Classement">
           {STRATEGIES.map((s) => (
@@ -98,7 +98,7 @@ export function FilterPanel({
               aria-checked={filters.strategy === s.key}
               onClick={() => update({ strategy: s.key })}
               className={cn(
-                "rounded-lg border px-3 py-2 text-left transition",
+                "rounded-sm border px-3 py-2 text-left transition",
                 filters.strategy === s.key ? "border-accent/60 bg-accent/10" : "border-line bg-surface-2/50 hover:border-line-strong",
               )}
             >
@@ -109,7 +109,7 @@ export function FilterPanel({
         </div>
       </div>
 
-      <div className="rounded-xl border border-line bg-surface p-3">
+      <div className="rounded-md border border-line bg-surface p-3">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-xs font-semibold tracking-wide text-ink-2 uppercase">Mes critères d&apos;achat</span>
           <button type="button" className="flex items-center gap-1 text-xs text-ink-3 hover:text-ink" onClick={() => update({ thresholds: DEFAULT_THRESHOLDS })}>
@@ -124,14 +124,14 @@ export function FilterPanel({
         </div>
         <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 border-t border-line pt-3 text-xs text-ink-2">
           <label className="flex cursor-pointer items-center gap-2">
-            <input type="checkbox" className="accent-[#3987e5]" checked={filters.weekOnly} onChange={(e) => update({ weekOnly: e.target.checked })} /> Leads de cette semaine seulement
+            <input type="checkbox" className="accent-accent" checked={filters.weekOnly} onChange={(e) => update({ weekOnly: e.target.checked })} /> Leads de cette semaine seulement
           </label>
           <label className="flex cursor-pointer items-center gap-2">
-            <input type="checkbox" className="accent-[#3987e5]" checked={filters.includeUnavailable} onChange={(e) => update({ includeUnavailable: e.target.checked })} /> Inclure les ruptures
+            <input type="checkbox" className="accent-accent" checked={filters.includeUnavailable} onChange={(e) => update({ includeUnavailable: e.target.checked })} /> Inclure les ruptures
           </label>
           {extraToggle && (
             <label className="flex cursor-pointer items-center gap-2">
-              <input type="checkbox" className="accent-[#3987e5]" checked={extraToggle.checked} onChange={(e) => extraToggle.onChange(e.target.checked)} /> {extraToggle.label}
+              <input type="checkbox" className="accent-accent" checked={extraToggle.checked} onChange={(e) => extraToggle.onChange(e.target.checked)} /> {extraToggle.label}
             </label>
           )}
         </div>

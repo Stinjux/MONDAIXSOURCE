@@ -12,7 +12,7 @@ export function LoginForm() {
       </label>
       <input id="password" name="password" type="password" autoComplete="current-password" required autoFocus className="field" />
       {state?.error && (
-        <p role="alert" className="rounded-lg border border-critical/40 bg-critical/10 px-3 py-2 text-sm text-[#f08080]">
+        <p role="alert" className="rounded-sm border border-critical/40 bg-critical/10 px-3 py-2 text-sm text-critical">
           {state.error}
         </p>
       )}

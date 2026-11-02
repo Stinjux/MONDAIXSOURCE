@@ -10,10 +10,10 @@ export function cn(...classes: (string | false | null | undefined)[]) {
 
 export function PageHeader({ title, description, actions, eyebrow }: { title: string; description?: ReactNode; actions?: ReactNode; eyebrow?: ReactNode }) {
   return (
-    <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <header className="mb-6 flex flex-col gap-4 border-b border-line pb-5 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
-        {eyebrow && <div className="mb-1 text-xs font-medium tracking-wide text-accent uppercase">{eyebrow}</div>}
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">{title}</h1>
+        {eyebrow && <div className="mb-1.5 text-[11px] font-semibold tracking-[0.14em] text-ink-3 uppercase">{eyebrow}</div>}
+        <h1 className="font-serif text-[28px] leading-tight font-semibold text-ink">{title}</h1>
         {description && <p className="mt-1 max-w-3xl text-sm text-ink-2">{description}</p>}
       </div>
       {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
@@ -23,10 +23,10 @@ export function PageHeader({ title, description, actions, eyebrow }: { title: st
 
 export function Card({ children, className, title, action, padded = true }: { children: ReactNode; className?: string; title?: ReactNode; action?: ReactNode; padded?: boolean }) {
   return (
-    <section className={cn("rounded-xl border border-line bg-surface shadow-[0_1px_0_0_#ffffff08_inset]", className)}>
+    <section className={cn("rounded-md border border-line bg-surface shadow-[0_1px_2px_0_rgb(19_35_58/0.06)]", className)}>
       {(title || action) && (
         <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
-          <h2 className="text-sm font-semibold text-ink">{title}</h2>
+          <h2 className="text-[12px] font-semibold tracking-[0.08em] text-ink uppercase">{title}</h2>
           {action}
         </div>
       )}
@@ -38,12 +38,12 @@ export function Card({ children, className, title, action, padded = true }: { ch
 export function Kpi({ label, value, hint, icon, tone = "default" }: { label: string; value: ReactNode; hint?: ReactNode; icon?: ReactNode; tone?: "default" | "good" | "warning" | "critical" | "accent" }) {
   const toneClass = { default: "text-ink-3", good: "text-good", warning: "text-warning", critical: "text-critical", accent: "text-accent" }[tone];
   return (
-    <div className="rounded-xl border border-line bg-surface p-4">
+    <div className="rounded-md border border-line border-t-2 border-t-accent bg-surface p-4 shadow-[0_1px_2px_0_rgb(19_35_58/0.06)]">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium text-ink-2">{label}</span>
+        <span className="text-[11px] font-semibold tracking-[0.08em] text-ink-2 uppercase">{label}</span>
         {icon && <span className={toneClass}>{icon}</span>}
       </div>
-      <div className="mt-2 text-2xl font-semibold tracking-tight text-ink tabular-nums">{value}</div>
+      <div className="mt-2 font-serif text-[26px] leading-tight font-semibold text-ink tabular-nums">{value}</div>
       {hint && <div className="mt-1 text-xs text-ink-3">{hint}</div>}
     </div>
   );
@@ -67,17 +67,17 @@ export function Progress({ value, max, className, tone = "accent", label }: { va
 
 type BadgeTone = "neutral" | "accent" | "good" | "warning" | "serious" | "critical";
 const BADGE: Record<BadgeTone, string> = {
-  neutral: "border-line-strong/70 bg-surface-3/60 text-ink-2",
-  accent: "border-accent/40 bg-accent/10 text-[#8fbcf2]",
-  good: "border-good/40 bg-good/10 text-[#5fd35f]",
-  warning: "border-warning/40 bg-warning/10 text-warning",
-  serious: "border-serious/40 bg-serious/10 text-serious",
-  critical: "border-critical/50 bg-critical/10 text-[#f08080]",
+  neutral: "border-line-strong bg-surface-2 text-ink-2",
+  accent: "border-accent/30 bg-accent/[0.06] text-accent",
+  good: "border-good/30 bg-good/[0.07] text-good",
+  warning: "border-warning/35 bg-warning/[0.08] text-warning",
+  serious: "border-serious/30 bg-serious/[0.07] text-serious",
+  critical: "border-critical/30 bg-critical/[0.07] text-critical",
 };
 
 export function Badge({ children, tone = "neutral", icon, title }: { children: ReactNode; tone?: BadgeTone; icon?: ReactNode; title?: string }) {
   return (
-    <span title={title} className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] leading-4 font-medium whitespace-nowrap", BADGE[tone])}>
+    <span title={title} className={cn("inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[11px] leading-4 font-medium whitespace-nowrap", BADGE[tone])}>
       {icon}
       {children}
     </span>
@@ -168,7 +168,7 @@ export function EmptyState({ title, children, icon }: { title: string; children?
 export function OriginTag({ origin }: { origin: "verified" | "imported" | "missing" }) {
   if (origin === "missing") return null;
   return origin === "verified" ? (
-    <span className="ml-1 rounded bg-good/15 px-1 text-[10px] font-semibold text-[#5fd35f] uppercase">vérifié</span>
+    <span className="ml-1 rounded bg-good/15 px-1 text-[10px] font-semibold text-good uppercase">vérifié</span>
   ) : (
     <span className="ml-1 rounded bg-surface-3 px-1 text-[10px] font-semibold text-ink-3 uppercase">importé</span>
   );

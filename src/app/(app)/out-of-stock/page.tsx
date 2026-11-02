@@ -68,7 +68,7 @@ export default async function OutOfStockPage() {
       </div>
 
       {alerts.length > 0 && (
-        <Card className="mb-4 border-good/40" title={<span className="flex items-center gap-2 text-[#5fd35f]"><PackageCheck size={16} /> De retour en stock</span>} padded={false}>
+        <Card className="mb-4 border-good/40" title={<span className="flex items-center gap-2 text-good"><PackageCheck size={16} /> De retour en stock</span>} padded={false}>
           <ul className="divide-y divide-line">
             {alerts.map(({ p, o }) => (
               <li key={o.id} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">

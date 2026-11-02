@@ -154,7 +154,7 @@ export function LeadsTable({ rows, currentWeek }: { rows: LeadRow[]; currentWeek
   ] as const;
 
   return (
-    <div className="rounded-xl border border-line bg-surface">
+    <div className="rounded-md border border-line bg-surface">
       <div className="flex flex-col gap-3 border-b border-line p-3 lg:flex-row lg:items-center">
         <div className="relative flex-1">
           <Search size={15} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-3" />
@@ -201,7 +201,7 @@ export function LeadsTable({ rows, currentWeek }: { rows: LeadRow[]; currentWeek
           {filtered.length} ASIN · {filtered.reduce((n, r) => n + r.supplierCount, 0)} fournisseurs
         </span>
       </div>
-      {error && <p className="border-b border-line bg-critical/10 px-3 py-2 text-sm text-[#f08080]">{error}</p>}
+      {error && <p className="border-b border-line bg-critical/10 px-3 py-2 text-sm text-critical">{error}</p>}
 
       {filtered.length === 0 ? (
         <EmptyState title="Aucun lead ne correspond">Modifiez la recherche ou les filtres.</EmptyState>
@@ -258,7 +258,7 @@ export function LeadsTable({ rows, currentWeek }: { rows: LeadRow[]; currentWeek
                       </td>
                       <td className="text-right tabular-nums">{cad(r.salePrice)}</td>
                       <td className="text-right tabular-nums">{cad(r.costPrice)}</td>
-                      <td className={cn("text-right font-medium tabular-nums", r.profit != null && r.profit < 0 && "text-[#f08080]")} title={r.best?.calcIssue ?? undefined}>
+                      <td className={cn("text-right font-medium tabular-nums", r.profit != null && r.profit < 0 && "text-critical")} title={r.best?.calcIssue ?? undefined}>
                         {r.profit == null ? <span className="text-ink-3">n/d</span> : cad(r.profit)}
                       </td>
                       <td className="text-right tabular-nums">{pct(r.roi, 0)}</td>
@@ -319,7 +319,7 @@ export function LeadsTable({ rows, currentWeek }: { rows: LeadRow[]; currentWeek
 
 function SupplierList({ row }: { row: LeadRow }) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-line">
+    <div className="overflow-x-auto rounded-sm border border-line">
       <table className="w-full text-left text-xs">
         <thead className="text-ink-3">
           <tr className="border-b border-line">
@@ -352,7 +352,7 @@ function SupplierList({ row }: { row: LeadRow }) {
                 <td className="px-3 py-2 text-right tabular-nums">{s.currency !== "CAD" && s.costPrice != null ? `${num(s.costPrice)} ${s.currency}` : cad(s.costPrice)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{cad(s.salePrice)}</td>
                 <td className="px-3 py-2 text-right tabular-nums text-ink-2">{cad(s.fbaFee)}</td>
-                <td className={cn("px-3 py-2 text-right font-medium tabular-nums", s.profit != null && s.profit < 0 && "text-[#f08080]")} title={s.calcIssue ?? undefined}>
+                <td className={cn("px-3 py-2 text-right font-medium tabular-nums", s.profit != null && s.profit < 0 && "text-critical")} title={s.calcIssue ?? undefined}>
                   {s.calcIssue ? <span className="text-ink-3">n/d</span> : cad(s.profit)}
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums">{pct(s.roi, 0)}</td>

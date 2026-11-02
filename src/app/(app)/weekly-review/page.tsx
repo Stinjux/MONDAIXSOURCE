@@ -48,7 +48,7 @@ export default async function WeeklyReviewPage({ searchParams }: { searchParams:
       />
 
       {isSunday && week === current && items.length > decided && (
-        <div className="mb-4 flex items-center gap-3 rounded-xl border border-accent/40 bg-accent/10 px-4 py-3 text-sm">
+        <div className="mb-4 flex items-center gap-3 rounded-md border border-accent/40 bg-accent/10 px-4 py-3 text-sm">
           <BellRing size={17} className="text-accent" />
           <span>C&apos;est dimanche : {items.length - decided} lead{items.length - decided > 1 ? "s" : ""} de la semaine à revoir.</span>
         </div>

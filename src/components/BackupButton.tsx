@@ -22,7 +22,7 @@ export function BackupButton() {
       >
         <DatabaseBackup size={14} className={pending ? "animate-pulse" : ""} /> {pending ? "Sauvegarde…" : "Créer une sauvegarde maintenant"}
       </button>
-      {error && <span role="alert" className="text-xs text-[#f08080]">{error}</span>}
+      {error && <span role="alert" className="text-xs text-critical">{error}</span>}
     </span>
   );
 }

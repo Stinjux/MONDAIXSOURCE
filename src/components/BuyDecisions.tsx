@@ -143,7 +143,7 @@ export function BuyDecisions({
         />
 
       {/* Liste */}
-      <div className="rounded-xl border border-line bg-surface">
+      <div className="rounded-md border border-line bg-surface">
         <div className="flex flex-wrap items-center gap-1.5 border-b border-line px-3 py-2">
           <VerdictChips value={filters.verdict} onChange={(v) => update({ verdict: v })} counts={counts} total={pool.length} />
         </div>
@@ -236,7 +236,7 @@ export function BuyDecisions({
                       </td>
                       <td className="text-right font-medium tabular-nums">{pct(r.roi, 0)}</td>
                       <td className="text-right tabular-nums">{pct(r.margin, 0)}</td>
-                      <td className={cn("text-right tabular-nums", r.profit != null && r.profit < 0 && "text-[#f08080]")}>{cad(r.profit)}</td>
+                      <td className={cn("text-right tabular-nums", r.profit != null && r.profit < 0 && "text-critical")}>{cad(r.profit)}</td>
                       <td className="text-right font-medium tabular-nums">{cad(r.monthlyProfit)}</td>
                       <td className="text-right tabular-nums text-ink-2">{num(r.estimatedSales)}</td>
                       <td className="text-right tabular-nums text-ink-2">{cad(r.costPrice)}</td>
@@ -245,12 +245,12 @@ export function BuyDecisions({
                           const mc = maxCosts.get(r.productId) ?? null;
                           if (mc == null) return <span className="text-ink-3">—</span>;
                           const ok = r.costPrice != null && r.costPrice <= mc;
-                          return <span className={ok ? "text-[#5fd35f]" : "text-[#f08080]"}>{cad(mc)}</span>;
+                          return <span className={ok ? "text-good" : "text-critical"}>{cad(mc)}</span>;
                         })()}
                       </td>
                       <td className="text-center">
                         {r.fresh.state === "STALE" ? (
-                          <Link href={`/reconfirm?asin=${r.asin}`} className="btn-ghost px-2 py-1 text-xs whitespace-nowrap text-[#f08080] hover:border-critical/60" title="Données de plus de 30 jours : reconfirmez avant de mettre au panier">
+                          <Link href={`/reconfirm?asin=${r.asin}`} className="btn-ghost px-2 py-1 text-xs whitespace-nowrap text-critical hover:border-critical/60" title="Données de plus de 30 jours : reconfirmez avant de mettre au panier">
                             <RefreshCw size={12} /> Reconfirmer
                           </Link>
                         ) : (
@@ -278,10 +278,10 @@ export function BuyDecisions({
                           </a>
                         ) : (
                           <span className="flex gap-1">
-                            <button type="button" disabled={pending} className="btn-ghost px-2 py-1 text-xs whitespace-nowrap hover:border-good/60 hover:text-[#5fd35f]" onClick={() => decide(r.productId, "VALIDATED")} title="Classer dans la liste Achat (sans passer commande)">
+                            <button type="button" disabled={pending} className="btn-ghost px-2 py-1 text-xs whitespace-nowrap hover:border-good/60 hover:text-good" onClick={() => decide(r.productId, "VALIDATED")} title="Classer dans la liste Achat (sans passer commande)">
                               <CheckCircle2 size={12} /> Achat
                             </button>
-                            <button type="button" disabled={pending} className="btn-ghost px-2 py-1 text-xs whitespace-nowrap hover:border-critical/60 hover:text-[#f08080]" onClick={() => decide(r.productId, "REJECTED")} title="Ajouter à la liste Rejeté">
+                            <button type="button" disabled={pending} className="btn-ghost px-2 py-1 text-xs whitespace-nowrap hover:border-critical/60 hover:text-critical" onClick={() => decide(r.productId, "REJECTED")} title="Ajouter à la liste Rejeté">
                               <CircleSlash size={12} />
                             </button>
                           </span>

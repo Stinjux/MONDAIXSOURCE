@@ -97,7 +97,7 @@ export function DecisionWorkspace({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex rounded-xl border border-line bg-surface p-1" role="tablist" aria-label="Affichage">
+        <div className="inline-flex rounded-md border border-line bg-surface p-1" role="tablist" aria-label="Affichage">
           {(
             [
               { v: "focus", label: "Un par un", icon: <SquareStack size={15} /> },
@@ -110,7 +110,7 @@ export function DecisionWorkspace({
               role="tab"
               aria-selected={view === t.v}
               onClick={() => switchView(t.v)}
-              className={cn("flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition", view === t.v ? "bg-accent text-white" : "text-ink-2 hover:text-ink")}
+              className={cn("flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm font-medium transition", view === t.v ? "bg-accent text-white" : "text-ink-2 hover:text-ink")}
             >
               {t.icon} {t.label}
             </button>
@@ -142,7 +142,7 @@ export function DecisionWorkspace({
           {showFilters && (
             <div className="flex flex-col gap-3">
               <FilterPanel filters={filters} update={update} />
-              <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-line bg-surface px-3 py-2">
+              <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-line bg-surface px-3 py-2">
                 <VerdictChips value={filters.verdict} onChange={(v) => update({ verdict: v })} counts={counts.counts} total={counts.total} />
               </div>
             </div>
@@ -156,7 +156,7 @@ export function DecisionWorkspace({
       {/* Panier sur le côté */}
       {cartOpen && (
         <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label="Panier">
-          <button type="button" className="absolute inset-0 bg-black/55" aria-label="Fermer le panier" onClick={() => setCartOpen(false)} />
+          <button type="button" className="absolute inset-0 bg-ink/45" aria-label="Fermer le panier" onClick={() => setCartOpen(false)} />
           <div className="relative flex h-full w-full max-w-[420px] flex-col gap-2 overflow-y-auto border-l border-line bg-page p-3 shadow-2xl">
             <button type="button" className="btn-ghost self-end px-2 py-1 text-xs" onClick={() => setCartOpen(false)}>
               <X size={14} /> Fermer <span className="text-ink-3">(Échap)</span>

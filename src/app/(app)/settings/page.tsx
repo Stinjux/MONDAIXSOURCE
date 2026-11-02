@@ -31,9 +31,9 @@ export default async function SettingsPage() {
               <li key={v.name} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
                 <code className="font-mono text-xs text-ink">{v.name}</code>
                 {v.set ? (
-                  <span className="flex items-center gap-1.5 text-xs text-[#5fd35f]"><CheckCircle2 size={14} /> Configurée</span>
+                  <span className="flex items-center gap-1.5 text-xs text-good"><CheckCircle2 size={14} /> Configurée</span>
                 ) : v.required ? (
-                  <span className="flex items-center gap-1.5 text-xs text-[#f08080]"><XCircle size={14} /> Manquante (requise)</span>
+                  <span className="flex items-center gap-1.5 text-xs text-critical"><XCircle size={14} /> Manquante (requise)</span>
                 ) : (
                   <span className="flex items-center gap-1.5 text-xs text-ink-3"><CircleDashed size={14} /> Optionnelle — défaut utilisé</span>
                 )}
@@ -57,9 +57,9 @@ export default async function SettingsPage() {
 
           <Card title="Synchronisation automatique">
             <p className="text-sm text-ink-2">Tâche planifiée Railway (service Cron) avec les mêmes variables, commande :</p>
-            <pre className="mt-2 overflow-x-auto rounded-lg bg-page p-3 font-mono text-xs text-ink">npm run sync:cron</pre>
+            <pre className="mt-2 overflow-x-auto rounded-sm bg-page p-3 font-mono text-xs text-ink">npm run sync:cron</pre>
             <p className="mt-3 text-sm text-ink-2">Ou appel HTTP depuis un ordonnanceur externe :</p>
-            <pre className="mt-2 overflow-x-auto rounded-lg bg-page p-3 font-mono text-xs text-ink">{`curl -X POST https://<votre-app>.up.railway.app/api/sync \\
+            <pre className="mt-2 overflow-x-auto rounded-sm bg-page p-3 font-mono text-xs text-ink">{`curl -X POST https://<votre-app>.up.railway.app/api/sync \\
   -H "Authorization: Bearer $SYNC_SECRET"`}</pre>
           </Card>
 
@@ -70,7 +70,7 @@ export default async function SettingsPage() {
             </p>
           </Card>
 
-          <Card title="Protection des données et sauvegardes" action={<ShieldCheck size={16} className="text-[#5fd35f]" />}>
+          <Card title="Protection des données et sauvegardes" action={<ShieldCheck size={16} className="text-good" />}>
             <ul className="list-disc space-y-1 pl-4 text-sm text-ink-2">
               <li>Les nouvelles versions de l&apos;app ne peuvent qu&apos;<b className="text-ink">ajouter</b> des tables ou des colonnes : un changement qui effacerait ou modifierait des données existantes est refusé (vérification automatique, puis Prisma au déploiement).</li>
               <li>Une <b className="text-ink">sauvegarde complète</b> est faite avant le démarrage de chaque nouvelle version, et une fois par jour par la tâche planifiée ({DAILY_KEEP} dernières quotidiennes conservées ; celles de déploiement et manuelles sont toutes gardées).</li>
@@ -81,7 +81,7 @@ export default async function SettingsPage() {
               <BackupButton />
             </div>
             {backups.length ? (
-              <div className="mt-3 overflow-x-auto rounded-lg border border-line">
+              <div className="mt-3 overflow-x-auto rounded-sm border border-line">
                 <table className="table-base">
                   <thead>
                     <tr><th>Date</th><th>Type</th><th className="text-right">Lignes</th><th className="text-right">Taille</th><th /></tr>

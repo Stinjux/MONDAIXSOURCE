@@ -104,7 +104,7 @@ export default async function AnalyticsPage() {
                   <tr key={h.key}>
                     <td className="text-ink-2">{formatWeekRange(h.key)}{h.key === current && <span className="ml-2 text-xs text-accent">en cours</span>}</td>
                     <td className="text-right font-medium tabular-nums">{h.found}</td>
-                    <td className={`text-right tabular-nums ${h.found >= h.goal ? "text-[#5fd35f]" : ""}`}>{Math.round((h.found / h.goal) * 100)} %</td>
+                    <td className={`text-right tabular-nums ${h.found >= h.goal ? "text-good" : ""}`}>{Math.round((h.found / h.goal) * 100)} %</td>
                     <td className="text-right tabular-nums">{h.validated}</td>
                     <td className="text-right tabular-nums">{h.rejected}</td>
                     <td className="text-right tabular-nums">{h.toReview + h.inProgress}</td>
