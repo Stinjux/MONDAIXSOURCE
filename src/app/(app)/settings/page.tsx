@@ -1,15 +1,23 @@
-import { CheckCircle2, CircleDashed, XCircle } from "lucide-react";
+import { CheckCircle2, CircleDashed, Download, ShieldCheck, XCircle } from "lucide-react";
 import { Card, PageHeader } from "@/components/ui";
 import { config, envStatus } from "@/lib/config";
 import { TIME_ZONE } from "@/lib/dates";
 import { sheetConfig } from "@/lib/google";
 import { getTaxConfig } from "@/lib/settings";
 import { TaxSettingsForm } from "@/components/TaxSettingsForm";
+import { BackupButton } from "@/components/BackupButton";
+import { BACKUP_REASON_LABELS, DAILY_KEEP, backupTableExists, type BackupReason } from "@/lib/backup";
+import { formatDateTime } from "@/lib/dates";
+import { prisma } from "@/lib/prisma";
 
 export const metadata = { title: "Settings" };
 
 export default async function SettingsPage() {
   const tax = await getTaxConfig();
+  const backups = (await backupTableExists(prisma))
+    ? await prisma.dataBackup.findMany({ orderBy: { createdAt: "desc" }, take: 12, select: { id: true, createdAt: true, reason: true, tables: true, sizeBytes: true } })
+    : [];
+  const backupCount = backups.length ? await prisma.dataBackup.count() : 0;
   const env = envStatus();
   const leads = sheetConfig("LEADS");
   const oos = sheetConfig("OUT_OF_STOCK");
@@ -60,6 +68,42 @@ export default async function SettingsPage() {
               Créez une tâche planifiée Railway le dimanche (ex. <code className="font-mono text-xs">0 13 * * 0</code> = 9 h HAE / 8 h HNE, Railway utilise l&apos;UTC) avec la commande
               <code className="mx-1 font-mono text-xs">npm run reminder</code>. Le rappel est envoyé au webhook <code className="font-mono text-xs">REMINDER_WEBHOOK_URL</code> (Slack, Discord ou ntfy) s&apos;il est configuré.
             </p>
+          </Card>
+
+          <Card title="Protection des données et sauvegardes" action={<ShieldCheck size={16} className="text-[#5fd35f]" />}>
+            <ul className="list-disc space-y-1 pl-4 text-sm text-ink-2">
+              <li>Les nouvelles versions de l&apos;app ne peuvent qu&apos;<b className="text-ink">ajouter</b> des tables ou des colonnes : un changement qui effacerait ou modifierait des données existantes est refusé (vérification automatique, puis Prisma au déploiement).</li>
+              <li>Une <b className="text-ink">sauvegarde complète</b> est faite avant le démarrage de chaque nouvelle version, et une fois par jour par la tâche planifiée ({DAILY_KEEP} dernières quotidiennes conservées ; celles de déploiement et manuelles sont toutes gardées).</li>
+              <li>La synchronisation ne supprime rien, les achats confirmés gardent leurs prix et profits figés, et chaque modification manuelle est journalisée.</li>
+            </ul>
+            <div className="mt-3 flex flex-wrap items-start gap-2">
+              <a href="/api/backup" className="btn-primary text-xs"><Download size={14} /> Télécharger l&apos;état actuel</a>
+              <BackupButton />
+            </div>
+            {backups.length ? (
+              <div className="mt-3 overflow-x-auto rounded-lg border border-line">
+                <table className="table-base">
+                  <thead>
+                    <tr><th>Date</th><th>Type</th><th className="text-right">Lignes</th><th className="text-right">Taille</th><th /></tr>
+                  </thead>
+                  <tbody>
+                    {backups.map((b) => (
+                      <tr key={b.id}>
+                        <td className="whitespace-nowrap">{formatDateTime(b.createdAt)}</td>
+                        <td>{BACKUP_REASON_LABELS[b.reason as BackupReason] ?? b.reason}</td>
+                        <td className="text-right tabular-nums">{Object.values(b.tables as Record<string, number>).reduce((n, c) => n + c, 0).toLocaleString("fr-CA")}</td>
+                        <td className="text-right tabular-nums">{(b.sizeBytes / 1024).toLocaleString("fr-CA", { maximumFractionDigits: 0 })} Ko</td>
+                        <td className="text-right"><a href={`/api/backup?id=${b.id}`} className="link text-xs">Télécharger</a></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {backupCount > backups.length && <p className="px-3 py-2 text-xs text-ink-3">{backupCount} sauvegardes au total — les plus récentes sont affichées.</p>}
+              </div>
+            ) : (
+              <p className="mt-3 text-xs text-ink-3">Aucune sauvegarde enregistrée pour le moment : la première sera faite au prochain déploiement.</p>
+            )}
+            <p className="mt-2 text-xs text-ink-3">Gardez de temps en temps une copie téléchargée hors de Railway (fichier .json.gz). En cas de problème, elle se restaure dans une base vide : aucune donnée n&apos;est jamais écrasée.</p>
           </Card>
 
           <Card title="Taxes dans le calcul du profit (TPS/TVQ)">

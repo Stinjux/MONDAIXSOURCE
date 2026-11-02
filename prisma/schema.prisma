@@ -234,6 +234,21 @@ model PurchaseItem {
   @@index([asin])
 }
 
+/// Sauvegarde complète de la base (toutes les tables, JSON compressé gzip).
+/// Créée à chaque déploiement, une fois par jour (tâche planifiée) ou à la demande.
+model DataBackup {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  /// DEPLOY | DAILY | MANUAL
+  reason    String
+  /// Nombre de lignes par table
+  tables    Json
+  sizeBytes Int
+  data      Bytes
+
+  @@index([createdAt])
+}
+
 /// Journal des modifications manuelles (revue, vérifications, alertes).
 model ChangeLog {
   id        String   @id @default(cuid())

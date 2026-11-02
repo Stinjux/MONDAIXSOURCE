@@ -21,11 +21,15 @@ jobs:
       TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/mondaix_test
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Schéma sans perte de données
+        run: npm run check:schema -- ${{ github.event.pull_request.base.sha || github.event.before }}
       - run: npm run typecheck
       - run: npm test
       - run: npm run build

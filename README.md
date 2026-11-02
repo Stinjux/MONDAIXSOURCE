@@ -84,7 +84,7 @@ Les frais Amazon (commission + FBA) sont inclus via Total Fees. **Taxes (TPS/TVQ
    - `ADMIN_PASSWORD`, `SYNC_SECRET` : deux valeurs longues et différentes (`openssl rand -base64 32`)
    - `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` : `base64 -w0 service-account.json` (macOS : `base64 -i service-account.json`)
    - `LEADS_SHEET_ID`, `LEADS_SHEET_RANGE` (ex. `LEADS!A:J`), `OOS_SHEET_ID`, `OOS_SHEET_RANGE` (ex. `'OUT OF STOCK'!A:P` — guillemets simples si le nom de l'onglet contient des espaces)
-3. `railway.json` configure tout le reste : build `npm run build`, **pré-déploiement `prisma db push`** (sans `--accept-data-loss` : Prisma refuse toute modification destructive), démarrage `npm run start`, healthcheck `/api/health`.
+3. `railway.json` configure tout le reste : build `npm run build`, **pré-déploiement `npm run deploy:prepare`** (`prisma db push` sans `--accept-data-loss` : Prisma refuse toute modification destructive, puis sauvegarde complète de la base), démarrage `npm run start`, healthcheck `/api/health`.
 
 Google Cloud : activer **Google Sheets API**, créer un compte de service, télécharger sa clé JSON et **partager les deux Sheets en lecture** avec son `client_email`.
 
@@ -99,6 +99,13 @@ Une seule synchronisation s'exécute à la fois (verrou en base). Le bouton **Sy
 
 ### 3. Rappel de la Weekly Review (optionnel)
 Troisième service cron avec `railway/reminder-cron.json` (`npm run reminder`, dimanche 12:45 UTC ≈ 8 h 45 au Québec). Définir `REMINDER_WEBHOOK_URL` (Slack, Discord ou ntfy) pour recevoir le message. `GET /api/reminder` (Bearer `SYNC_SECRET`) affiche le contenu sans l'envoyer.
+
+### Protection des données existantes
+Les données déjà stockées ne sont jamais effacées ni altérées par une nouvelle version (règles détaillées dans `CLAUDE.md`) :
+- **Schéma en ajout seulement** : `npm run check:schema` (aussi lancé par la CI) refuse toute modification de `prisma/schema.prisma` qui supprimerait une table ou une colonne, changerait un type ou rendrait une colonne obligatoire. Au déploiement, `prisma db push` sans `--accept-data-loss` refuse aussi : l'ancienne version reste en ligne.
+- **Sauvegardes complètes** (toutes les tables, JSON compressé, table `DataBackup`) : avant le démarrage de chaque nouvelle version (si elle échoue, le déploiement échoue), une fois par jour par la tâche planifiée (90 dernières conservées), et à la demande dans **Settings**, où chacune se télécharge (`.json.gz`). Gardez de temps en temps une copie hors de Railway.
+- **Restauration** uniquement dans une base vide, jamais par-dessus des données : `DATABASE_URL=<nouvelle base> npx prisma db push` puis `DATABASE_URL=<nouvelle base> npm run restore -- mondaix-sauvegarde-….json.gz`, et pointer l'app vers la nouvelle base.
+- Valeurs figées : achats confirmés (prix, frais, taxes, profit), semaine de découverte des leads, historique des prix, des stocks, des imports et des modifications manuelles.
 
 ### Mise à niveau depuis la première version
 Les tables existantes `Lead` et `ImportEvent` sont conservées telles quelles. À la première synchronisation, les anciens leads (statuts de revue et dates de découverte inclus) sont migrés une seule fois vers le nouveau modèle ; la table `Lead` n'est ni modifiée ni supprimée.
@@ -131,6 +138,7 @@ Couverture : lecture des colonnes A–J / A–P, montants localisés, dates Shee
 | `POST /api/sync` | Bearer `SYNC_SECRET` ou session | Synchronise LEADS puis OUT OF STOCK |
 | `GET/POST /api/reminder` | Bearer `SYNC_SECRET` | Rappel de la Weekly Review |
 | `GET /api/data` | Bearer `ADMIN_PASSWORD` ou session | Export JSON |
+| `GET /api/backup` | Bearer `ADMIN_PASSWORD` ou session | Sauvegarde complète (état actuel, ou `?id=` d'une sauvegarde enregistrée) |
 | `GET /api/health` | public | Santé (base de données) |
 
 ### Structure

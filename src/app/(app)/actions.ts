@@ -14,6 +14,7 @@ import { setTaxConfig } from "@/lib/settings";
 import { loadProducts } from "@/lib/queries";
 import { toDecisionRows } from "@/lib/decisionRows";
 import { preliminaryProfit } from "@/lib/profit";
+import { createBackup } from "@/lib/backup";
 
 async function guard() {
   if (!(await isAdmin())) throw new Error("Session expirée : reconnectez-vous");
@@ -161,6 +162,17 @@ export async function runManualSync(): Promise<{ ok: boolean; results?: SyncResu
     return { ok: results.every((r) => r.status === "SUCCESS"), results };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Synchronisation impossible" };
+  }
+}
+
+export async function createManualBackup(): Promise<ActionResult> {
+  try {
+    await guard();
+    await createBackup(prisma, "MANUAL");
+    revalidatePath("/settings");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Sauvegarde impossible" };
   }
 }
 

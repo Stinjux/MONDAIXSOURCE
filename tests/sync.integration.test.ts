@@ -9,8 +9,10 @@ const url = process.env.TEST_DATABASE_URL;
 const skip = !url ? "TEST_DATABASE_URL non défini" : !/test/i.test(new URL(url).pathname) ? "le nom de la base doit contenir « test »" : false;
 
 type Engine = typeof import("../src/lib/sync/engine");
+type Backup = typeof import("../src/lib/backup");
 type Db = import("@prisma/client").PrismaClient;
 let engine: Engine;
+let backup: Backup;
 let db: Db;
 
 const NOW = new Date("2026-10-14T16:00:00Z"); // mercredi, semaine du 2026-10-12
@@ -46,7 +48,7 @@ function reader(sheets: { LEADS: string[][]; OUT_OF_STOCK: string[][] }) {
 
 async function reset() {
   await db.$executeRawUnsafe(
-    `TRUNCATE "PurchaseItem", "Purchase", "ImportIssue", "ImportEvent", "PriceSnapshot", "StockCheck", "Occurrence", "SupplierOffer", "Product", "ChangeLog", "AppSetting", "Lead" CASCADE`,
+    `TRUNCATE "PurchaseItem", "Purchase", "ImportIssue", "ImportEvent", "PriceSnapshot", "StockCheck", "Occurrence", "SupplierOffer", "Product", "ChangeLog", "AppSetting", "Lead", "DataBackup" CASCADE`,
   );
 }
 
@@ -58,6 +60,7 @@ before(async () => {
   process.env.DATABASE_URL = url;
   execSync("npx prisma db push --skip-generate", { env: { ...process.env, DATABASE_URL: url }, stdio: "ignore" });
   engine = await import("../src/lib/sync/engine");
+  backup = await import("../src/lib/backup");
   db = (await import("../src/lib/prisma")).prisma;
 });
 after(async () => {
@@ -210,4 +213,38 @@ test("migration de l'ancienne table Lead : statuts de revue et dates conservés"
   // La migration ne s'exécute qu'une fois
   await run({ LEADS: BASE_LEADS, OUT_OF_STOCK: BASE_OOS });
   assert.equal(await db.importRun.count({ where: { trigger: "LEGACY_MIGRATION" } }), 1);
+});
+
+test("sauvegarde : restauration identique dans une base vide, refusée sur une base remplie", { skip }, async () => {
+  await run({ LEADS: BASE_LEADS, OUT_OF_STOCK: BASE_OOS });
+  const product = await db.product.findFirstOrThrow({ where: { asin: "B0AAAAAAAA" } });
+  await db.product.update({ where: { id: product.id }, data: { reviewStatus: "VALIDATED", reviewNotes: "Lot de 3 « vérifié »", reviewChecklist: { gated: true } } });
+  await db.purchase.create({ data: { totalCost: 40, totalProfit: 12.5, totalUnits: 2, items: { create: [{ asin: product.asin, name: product.name, quantity: 2, unitCost: 20, unitProfit: 6.25 }] } } });
+
+  const saved = await backup.createBackup(db, "MANUAL", NOW);
+  const stored = await db.dataBackup.findUniqueOrThrow({ where: { id: saved.id } });
+  const dump = backup.decodeDump(stored.data);
+  assert.equal(dump.tables.Product.length, 5);
+  assert.equal(dump.tables.PurchaseItem.length, 1);
+  assert.equal((saved.tables as Record<string, number>).Occurrence, dump.tables.Occurrence.length);
+  assert.equal(dump.tables.DataBackup, undefined);
+
+  await assert.rejects(backup.restoreDatabase(db, dump), /contient déjà des données/);
+
+  await reset();
+  await backup.restoreDatabase(db, dump);
+  const after = await backup.dumpDatabase(db, NOW);
+  assert.deepEqual(after.tables, dump.tables);
+  const restored = await db.product.findUniqueOrThrow({ where: { asin: "B0AAAAAAAA" } });
+  assert.equal(restored.reviewNotes, "Lot de 3 « vérifié »");
+  assert.deepEqual(restored.reviewChecklist, { gated: true });
+  assert.equal(restored.firstSeenAt.toISOString(), product.firstSeenAt.toISOString());
+});
+
+test("sauvegarde quotidienne : une seule par jour", { skip }, async () => {
+  await run({ LEADS: BASE_LEADS, OUT_OF_STOCK: BASE_OOS });
+  assert.ok(await backup.ensureDailyBackup(db, NOW));
+  assert.equal(await backup.ensureDailyBackup(db, new Date(NOW.getTime() + 2 * 3600_000)), null);
+  assert.ok(await backup.ensureDailyBackup(db, new Date(NOW.getTime() + 25 * 3600_000)));
+  assert.equal(await db.dataBackup.count({ where: { reason: "DAILY" } }), 2);
 });
