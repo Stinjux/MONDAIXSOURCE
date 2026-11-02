@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, ChevronsUpDown, CheckCircle2, CircleSlash, HelpCircle, Lock, PackageX, Pencil, RefreshCw, ShoppingCart, StickyNote, ThumbsUp } from "lucide-react";
 import { setReviewStatus } from "@/app/(app)/actions";
 import { VERDICT_LABELS, type Verdict } from "@/lib/decision";
-import { Cart, type CartState } from "./Cart";
+import type { CartState } from "./Cart";
 import { compareRows, evaluateRow, inScope, matchesVerdict, type DecisionFilters } from "@/lib/decisionFilters";
 import { nextSort, parseSort, sortByColumn, type ColumnSort, type SortDir, type SortValue } from "@/lib/columnSort";
 import { FilterPanel, VerdictChips, countVerdicts, readSaved, useDecisionFilters, writeSaved } from "./DecisionFilters";
@@ -48,35 +48,38 @@ const COLUMN_KEYS = COLUMNS.map((c) => c.key);
 const VERDICT_RANK: Record<Verdict, number> = { BUY: 0, CONSIDER: 1, AVOID: 2, INCOMPLETE: 3 };
 const STATUS_RANK = { VALIDATED: 0, REJECTED: 1 } as const;
 
-export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: DecisionRow[]; currentWeek: string; tax?: TaxConfig }) {
+/**
+ * Vue « Liste » de Buy Decisions : tableau triable de tous les leads. Le panier appartient à la page
+ * (partagé avec la vue « Un par un ») ; cliquer sur un produit l'ouvre dans la vue « Un par un ».
+ */
+export function BuyDecisions({
+  rows, currentWeek, tax = NO_TAX, cart, setCart, onOpen,
+}: {
+  rows: DecisionRow[];
+  currentWeek: string;
+  tax?: TaxConfig;
+  cart: CartState;
+  setCart: (updater: (c: CartState) => CartState) => void;
+  onOpen?: (asin: string) => void;
+}) {
   // Filtres partagés avec le Pipeline et le Mode décision (mêmes réglages partout)
   const { filters, update } = useDecisionFilters();
   const { strategy, thresholds } = filters;
-  const [budget, setBudget] = useState("");
-  const [cart, setCartState] = useState<CartState>({});
   const [includeRejected, setIncludeRejected] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [pending, start] = useTransition();
   const [decided, setDecided] = useState<Record<string, "VALIDATED" | "REJECTED">>({});
   const [sort, setSort] = useState<ColumnSort<ColumnKey>>(null);
 
-  // Budget et quantités conservés dans ce navigateur
+  // Tri conservé dans ce navigateur
   useEffect(() => {
-    const s = readSaved();
-    if (typeof s.budget === "string") setBudget(s.budget);
-    setSort(parseSort(s.sort, COLUMN_KEYS));
-    if (s.cart && typeof s.cart === "object") setCartState(s.cart as CartState);
-    else if (s.qty && typeof s.qty === "object") {
-      // Ancien « plan d'achat » : quantités reprises dans le panier
-      setCartState(Object.fromEntries(Object.entries(s.qty as Record<string, number>).filter(([, q]) => q > 0).map(([id, q]) => [id, { qty: q }])));
-    }
+    setSort(parseSort(readSaved().sort, COLUMN_KEYS));
     setLoaded(true);
   }, []);
   useEffect(() => {
-    if (loaded) writeSaved({ budget, cart, qty: null, sort });
-  }, [budget, cart, sort, loaded]);
-  const setCart = (updater: (c: CartState) => CartState) => setCartState(updater);
-  const addToCart = (id: string) => setCartState((c) => ({ ...c, [id]: { ...c[id], qty: (c[id]?.qty ?? 0) + 1 } }));
+    if (loaded) writeSaved({ sort });
+  }, [sort, loaded]);
+  const addToCart = (id: string) => setCart((c) => ({ ...c, [id]: { ...c[id], qty: (c[id]?.qty ?? 0) + 1 } }));
 
   const evaluated = useMemo(() => rows.map((r) => evaluateRow(r, thresholds)), [rows, thresholds]);
 
@@ -132,10 +135,6 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <aside className="order-first xl:sticky xl:top-4 xl:order-last">
-        <Cart rows={rows} cart={cart} setCart={setCart} budget={budget} setBudget={setBudget} tax={tax} />
-      </aside>
       <div className="flex min-w-0 flex-col gap-4">
         <FilterPanel
           filters={filters}
@@ -197,9 +196,15 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
                         <div className="flex items-start gap-2.5">
                         <ProductImage asin={r.asin} size={40} className="mt-0.5" />
                         <div className="min-w-0">
-                        <Link href={`/leads/${r.asin}`} className="block truncate font-medium text-ink hover:text-accent hover:underline" title={`${r.name} — ouvrir la fiche (notes, prix, statut)`}>
-                          {r.name}
-                        </Link>
+                        {onOpen ? (
+                          <button type="button" onClick={() => onOpen(r.asin)} className="block max-w-full truncate text-left font-medium text-ink hover:text-accent hover:underline" title={`${r.name} — ouvrir en vue « Un par un »`}>
+                            {r.name}
+                          </button>
+                        ) : (
+                          <Link href={`/leads/${r.asin}`} className="block truncate font-medium text-ink hover:text-accent hover:underline" title={`${r.name} — ouvrir la fiche (notes, prix, statut)`}>
+                            {r.name}
+                          </Link>
+                        )}
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
                           <Asin asin={r.asin} url={r.amazonUrl} />
                           <span className="max-w-40 truncate"><Supplier name={r.supplierName} url={r.supplierUrl} fallback={r.supplierKey} product={r.name} /></span>
@@ -295,7 +300,6 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
           Coût max = prix d&apos;achat maximum pour respecter vos critères de profit et de ROI. Profit mensuel = profit unitaire × ventes estimées du produit
           (colonne F, ventes totales de l&apos;annonce, pas votre part). Hors transport vers Amazon, préparation et stockage.
         </p>
-      </div>
       </div>
       </div>
     </div>

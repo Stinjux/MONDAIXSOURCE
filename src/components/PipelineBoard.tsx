@@ -133,7 +133,7 @@ export function PipelineBoard({ rows, purchased, currentWeek, initialView = null
   const move = (r: DecisionRow, to: Stage) => {
     setMessage(null);
     if (to === "RECONFIRM" || (to === "READY" && r.fresh.state === "STALE")) return router.push(`/reconfirm?asin=${r.asin}`);
-    if (to === "BOUGHT") return setMessage({ ok: false, text: "Un achat se confirme depuis le panier (Buy Decisions ou Mode décision)." });
+    if (to === "BOUGHT") return setMessage({ ok: false, text: "Un achat se confirme depuis le panier de Buy Decisions." });
     const next = STAGE_STATUS[to];
     const previous = status[r.productId] ?? r.reviewStatus;
     if (!next || next === previous) return;
@@ -165,7 +165,7 @@ export function PipelineBoard({ rows, purchased, currentWeek, initialView = null
             <Search size={15} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-3" />
             <input className="field pl-9" placeholder="Rechercher par ASIN, produit ou fournisseur" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Rechercher" />
           </div>
-          <Link href="/decide" className="btn-primary"><Gavel size={15} /> Mode décision</Link>
+          <Link href="/decisions" className="btn-primary"><Gavel size={15} /> Décider un par un</Link>
           <Link href="/reconfirm" className="btn-ghost"><RefreshCw size={15} /> Reconfirmer ({columns.RECONFIRM.length + hidden.RECONFIRM})</Link>
           <button type="button" className="btn-ghost" aria-expanded={showFilters} onClick={() => setShowFilters((v) => !v)}>
             <SlidersHorizontal size={15} /> {showFilters ? "Masquer" : "Filtres"}
@@ -354,7 +354,7 @@ function LeadCard({
         ) : stage === "READY" ? (
           <button type="button" className="btn-ghost px-2 py-1 text-[11px]" onClick={onAddToCart}><ShoppingCart size={11} /> Panier</button>
         ) : stage === "NEW" || stage === "ANALYSIS" || stage === "BOUGHT" ? (
-          <Link href={`/decide?asin=${r.asin}`} className="btn-ghost px-2 py-1 text-[11px]"><Gavel size={11} /> {stage === "BOUGHT" ? "Racheter" : "Décider"}</Link>
+          <Link href={`/decisions?asin=${r.asin}`} className="btn-ghost px-2 py-1 text-[11px]"><Gavel size={11} /> {stage === "BOUGHT" ? "Racheter" : "Décider"}</Link>
         ) : null}
       </div>
     </article>

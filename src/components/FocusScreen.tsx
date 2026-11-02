@@ -23,6 +23,8 @@ import { ProductImage } from "./ProductImage";
 import { Badge, EmptyState, Supplier, cn } from "./ui";
 
 export type FocusMode = "reconfirm" | "decide";
+/** Panier partagé avec la page (Buy Decisions). Sans lui, l'écran lit et écrit le panier du navigateur directement. */
+export type CartApi = { cart: CartState; add: (productId: string, qty: number) => void; budget: number | null; open: () => void; paused: boolean };
 type Outcome = "confirmed" | "rejected" | "later" | "bought";
 
 const VERDICT_TONE: Record<Verdict, "good" | "warning" | "critical" | "neutral"> = { BUY: "good", CONSIDER: "warning", AVOID: "critical", INCOMPLETE: "neutral" };
@@ -32,7 +34,9 @@ const toField = (v: number | null | undefined) => (v == null ? "" : String(Math.
 /** Saisie → nombre (null si vide, undefined si invalide) */
 const parseField = (s: string): number | null | undefined => (s.trim() ? (amount(s) ?? undefined) : null);
 
-export function FocusScreen({ leads, mode, tax, currentWeek, startAsin }: { leads: FocusLead[]; mode: FocusMode; tax: TaxConfig; currentWeek: string; startAsin?: string | null }) {
+export function FocusScreen({
+  leads, mode, tax, currentWeek, startAsin, cartApi,
+}: { leads: FocusLead[]; mode: FocusMode; tax: TaxConfig; currentWeek: string; startAsin?: string | null; cartApi?: CartApi }) {
   const { filters, loaded } = useDecisionFilters();
   const byId = useMemo(() => new Map(leads.map((l) => [l.productId, l])), [leads]);
   // La file est figée à l'ouverture : un lead traité ne disparaît pas sous vos yeux
@@ -101,7 +105,11 @@ export function FocusScreen({ leads, mode, tax, currentWeek, startAsin }: { lead
         <div className="rounded-xl border border-line bg-surface">
           <EmptyState title="File terminée" icon={<CheckCircle2 size={22} />}>
             {progress} lead{progress > 1 ? "s" : ""} traité{progress > 1 ? "s" : ""}.{" "}
-            {counts.bought > 0 && <><Link href="/decisions" className="link">Voir le panier</Link> · </>}
+            {counts.bought > 0 && (
+              <>
+                {cartApi ? <button type="button" className="link" onClick={cartApi.open}>Voir le panier</button> : <Link href="/decisions" className="link">Voir le panier</Link>} ·{" "}
+              </>
+            )}
             <Link href="/pipeline" className="link">Pipeline</Link> ·{" "}
             <button type="button" className="link" onClick={() => setIndex(0)}>Revoir depuis le début</button>
           </EmptyState>
@@ -115,6 +123,7 @@ export function FocusScreen({ leads, mode, tax, currentWeek, startAsin }: { lead
           thresholds={filters.thresholds}
           outcome={done[queue[index]]}
           rows={leads}
+          cartApi={cartApi}
           onDone={(o) => {
             setDone((d) => ({ ...d, [queue[index]]: o }));
             setIndex((i) => i + 1);
@@ -128,7 +137,7 @@ export function FocusScreen({ leads, mode, tax, currentWeek, startAsin }: { lead
 }
 
 function LeadPanel({
-  lead, mode, tax, thresholds, outcome, rows, onDone, onSkip, onPrev,
+  lead, mode, tax, thresholds, outcome, rows, cartApi, onDone, onSkip, onPrev,
 }: {
   lead: FocusLead;
   mode: FocusMode;
@@ -136,6 +145,7 @@ function LeadPanel({
   thresholds: Thresholds;
   outcome?: Outcome;
   rows: FocusLead[];
+  cartApi?: CartApi;
   onDone: (o: Outcome) => void;
   onSkip: () => void;
   onPrev?: () => void;
@@ -147,16 +157,19 @@ function LeadPanel({
   const [avail, setAvail] = useState<Record<string, Availability | null>>(() => Object.fromEntries(lead.offers.map((o) => [o.id, o.verifiedAvailability])));
   const [confirmedNow, setConfirmedNow] = useState(false);
   const [qty, setQty] = useState(1);
-  const [cart, setCart] = useState<CartState>({});
-  const [budget, setBudget] = useState<number | null>(null);
+  const [localCart, setLocalCart] = useState<CartState>({});
+  const [localBudget, setLocalBudget] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
   useEffect(() => {
+    if (cartApi) return;
     const s = readSaved();
-    setCart((s.cart ?? {}) as CartState);
-    setBudget(typeof s.budget === "string" ? (amount(s.budget) ?? null) : null);
-  }, []);
+    setLocalCart((s.cart ?? {}) as CartState);
+    setLocalBudget(typeof s.budget === "string" ? (amount(s.budget) ?? null) : null);
+  }, [cartApi]);
+  const cart = cartApi?.cart ?? localCart;
+  const budget = cartApi ? cartApi.budget : localBudget;
 
   // Saisies → valeurs ; un champ inchangé n'est pas envoyé
   const parsed = {
@@ -212,10 +225,13 @@ function LeadPanel({
   const reject = () => run(() => setReviewStatus(lead.productId, "REJECTED"), () => onDone("rejected"));
   const later = () => run(() => setReviewStatus(lead.productId, "FOLLOW_UP"), () => onDone("later"));
   const buy = () => {
-    const next = { ...((readSaved().cart ?? {}) as CartState) };
-    next[lead.productId] = { ...next[lead.productId], qty: (next[lead.productId]?.qty ?? 0) + qty };
-    writeSaved({ cart: next });
-    setCart(next);
+    if (cartApi) cartApi.add(lead.productId, qty);
+    else {
+      const next = { ...((readSaved().cart ?? {}) as CartState) };
+      next[lead.productId] = { ...next[lead.productId], qty: (next[lead.productId]?.qty ?? 0) + qty };
+      writeSaved({ cart: next });
+      setLocalCart(next);
+    }
     if (lead.reviewStatus === "VALIDATED") return onDone("bought");
     run(() => setReviewStatus(lead.productId, "VALIDATED"), () => onDone("bought"));
   };
@@ -228,7 +244,7 @@ function LeadPanel({
   // Raccourcis clavier
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.metaKey || e.ctrlKey || e.altKey || cartApi?.paused) return;
       const el = e.target as HTMLElement;
       const typing = el.tagName === "INPUT" || el.tagName === "TEXTAREA";
       if (e.key === "Enter" && el.tagName !== "BUTTON" && el.tagName !== "A" && el.tagName !== "TEXTAREA") {

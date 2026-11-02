@@ -1,20 +1,30 @@
-import { BuyDecisions } from "@/components/BuyDecisions";
+import { DecisionWorkspace } from "@/components/DecisionWorkspace";
 import { PageHeader } from "@/components/ui";
 import { weekKey } from "@/lib/dates";
 import { toDecisionRows } from "@/lib/decisionRows";
-import { loadProducts } from "@/lib/queries";
+import { toFocusLeads } from "@/lib/focus";
+import { loadProducts, purchasedProducts } from "@/lib/queries";
 
 export const metadata = { title: "Buy Decisions" };
 
-export default async function DecisionsPage() {
-  const { products, tax } = await loadProducts();
+export default async function DecisionsPage({ searchParams }: { searchParams: Promise<{ asin?: string; vue?: string }> }) {
+  const now = new Date();
+  const [{ products, tax }, purchased, { asin, vue }] = await Promise.all([loadProducts(now), purchasedProducts(), searchParams]);
+  const rows = toDecisionRows(products, tax, now);
   return (
     <>
       <PageHeader
         title="Buy Decisions"
-        description="Classez vos leads par score, ROI, profit mensuel ou marge, appliquez vos critères d'achat et préparez votre commande avec un budget."
+        description="Un lead à la fois, du plus intéressant au moins intéressant selon vos critères — ou tous en liste. « Acheter » ajoute au panier ; la commande se confirme dans le panier."
       />
-      <BuyDecisions rows={toDecisionRows(products, tax)} currentWeek={weekKey(new Date())} tax={tax} />
+      <DecisionWorkspace
+        rows={rows}
+        leads={toFocusLeads(products, rows, purchased)}
+        tax={tax}
+        currentWeek={weekKey(now)}
+        startAsin={asin ?? null}
+        initialView={vue === "liste" && !asin ? "list" : "focus"}
+      />
     </>
   );
 }
