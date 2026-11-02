@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { CheckCircle2, ClipboardPaste, ShoppingCart, Trash2, X } from "lucide-react";
+import { CheckCircle2, ClipboardPaste, RefreshCw, ShoppingCart, Store, Trash2, X } from "lucide-react";
 import { confirmPurchase } from "@/app/(app)/actions";
 import { parsePastedAsins } from "@/lib/cart";
 import type { DecisionRow } from "@/lib/decisionRows";
@@ -9,6 +9,7 @@ import { cad, pct } from "@/lib/format";
 import { amount } from "@/lib/normalize";
 import { preliminaryProfit, type TaxConfig } from "@/lib/profit";
 import { Asin, cn } from "./ui";
+import { ProductImage } from "./ProductImage";
 
 /** Ligne du panier : quantité et coût unitaire saisi (vide = coût du lead). */
 export type CartLine = { qty: number; unitCost?: string };
@@ -66,6 +67,20 @@ export function Cart({
     }),
     { units: 0, cost: 0, profit: 0, missingCost: false },
   );
+  const stale = values.filter((l) => l.row.fresh.state === "STALE");
+  // Une commande par fournisseur : lignes regroupées par magasin
+  const bySupplier = new Map<string, typeof values>();
+  for (const l of values) {
+    const key = l.row.supplierName ?? l.row.supplierKey;
+    bySupplier.set(key, [...(bySupplier.get(key) ?? []), l]);
+  }
+  const groups = [...bySupplier].map(([supplier, items]) => ({
+    supplier,
+    url: items[0].row.supplierUrl,
+    items,
+    cost: items.reduce((n, l) => n + (l.v.subtotal ?? 0), 0),
+    units: items.reduce((n, l) => n + l.line.qty, 0),
+  }));
   const roi = totals.cost > 0 ? (totals.profit / totals.cost) * 100 : null;
   const budgetValue = amount(budget) ?? 0;
   const remaining = budgetValue > 0 ? budgetValue - totals.cost : null;
@@ -156,46 +171,67 @@ export function Cart({
       {lines.length === 0 ? (
         <p className="px-3 py-4 text-center text-xs text-ink-3">Panier vide. Collez des ASIN ci-dessus ou cliquez sur 🛒 à côté d&apos;un lead.</p>
       ) : (
-        <ul className="max-h-80 divide-y divide-line overflow-y-auto">
-          {values.map(({ id, line, row, v }) => (
-            <li key={id} className="px-3 py-2">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="truncate text-xs font-medium text-ink" title={row.name}>{row.name}</div>
-                  <Asin asin={row.asin} url={row.amazonUrl} />
-                </div>
-                <button type="button" aria-label={`Retirer ${row.asin}`} className="text-ink-3 hover:text-[#f08080]" onClick={() => setLine(id, { qty: 0 })}>
-                  <X size={14} />
-                </button>
-              </div>
-              <div className="mt-1.5 grid grid-cols-[64px_1fr_auto] items-end gap-2 text-[11px]">
-                <label className="text-ink-3">
-                  Qté
-                  <input
-                    className="field mt-0.5 py-1 text-right text-xs tabular-nums"
-                    inputMode="numeric"
-                    value={line.qty}
-                    onChange={(e) => setLine(id, { qty: Math.max(0, Math.min(99999, Math.floor(Number(e.target.value) || 0))) })}
-                  />
-                </label>
-                <label className="text-ink-3">
-                  Coût unitaire (CAD)
-                  <input
-                    className={cn("field mt-0.5 py-1 text-right text-xs tabular-nums", v.invalidCost && "border-critical")}
-                    inputMode="decimal"
-                    placeholder={row.costPrice != null ? String(row.costPrice).replace(".", ",") : "à saisir"}
-                    value={line.unitCost ?? ""}
-                    onChange={(e) => setLine(id, { unitCost: e.target.value })}
-                  />
-                </label>
-                <div className="text-right">
-                  <div className="font-semibold text-ink tabular-nums">{cad(v.subtotal)}</div>
-                  <div className={cn("tabular-nums", v.profit != null && v.profit < 0 ? "text-[#f08080]" : "text-[#5fd35f]")}>{v.profit == null ? "profit n/d" : `+${cad(v.profit)}`}</div>
-                </div>
-              </div>
-            </li>
+        <div className="max-h-96 overflow-y-auto">
+          {groups.map((g) => (
+            <section key={g.supplier} className="border-b border-line last:border-b-0">
+              <header className="flex items-center justify-between gap-2 bg-page/50 px-3 py-1.5 text-[11px]">
+                <span className="flex min-w-0 items-center gap-1.5 font-semibold text-ink-2">
+                  <Store size={12} className="shrink-0" />
+                  {g.url ? <a href={g.url} target="_blank" rel="noreferrer" className="truncate hover:text-accent hover:underline">{g.supplier}</a> : <span className="truncate">{g.supplier}</span>}
+                </span>
+                <span className="shrink-0 tabular-nums text-ink-3">{g.units} u. · <b className="text-ink">{cad(g.cost)}</b></span>
+              </header>
+              <ul className="divide-y divide-line">
+                {g.items.map(({ id, line, row, v }) => (
+                <li key={id} className="px-3 py-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 items-start gap-2">
+                      <ProductImage asin={row.asin} size={32} />
+                      <div className="min-w-0">
+                        <div className="truncate text-xs font-medium text-ink" title={row.name}>{row.name}</div>
+                        <Asin asin={row.asin} url={row.amazonUrl} />
+                        {row.fresh.state === "STALE" && (
+                          <Link href={`/reconfirm?asin=${row.asin}`} className="mt-0.5 flex items-center gap-1 text-[11px] text-[#f08080] hover:underline">
+                            <RefreshCw size={10} /> Données de plus de 30 j : reconfirmer
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+                    <button type="button" aria-label={`Retirer ${row.asin}`} className="text-ink-3 hover:text-[#f08080]" onClick={() => setLine(id, { qty: 0 })}>
+                      <X size={14} />
+                    </button>
+                  </div>
+                  <div className="mt-1.5 grid grid-cols-[64px_1fr_auto] items-end gap-2 text-[11px]">
+                    <label className="text-ink-3">
+                      Qté
+                      <input
+                        className="field mt-0.5 py-1 text-right text-xs tabular-nums"
+                        inputMode="numeric"
+                        value={line.qty}
+                        onChange={(e) => setLine(id, { qty: Math.max(0, Math.min(99999, Math.floor(Number(e.target.value) || 0))) })}
+                      />
+                    </label>
+                    <label className="text-ink-3">
+                      Coût unitaire (CAD)
+                      <input
+                        className={cn("field mt-0.5 py-1 text-right text-xs tabular-nums", v.invalidCost && "border-critical")}
+                        inputMode="decimal"
+                        placeholder={row.costPrice != null ? String(row.costPrice).replace(".", ",") : "à saisir"}
+                        value={line.unitCost ?? ""}
+                        onChange={(e) => setLine(id, { unitCost: e.target.value })}
+                      />
+                    </label>
+                    <div className="text-right">
+                      <div className="font-semibold text-ink tabular-nums">{cad(v.subtotal)}</div>
+                      <div className={cn("tabular-nums", v.profit != null && v.profit < 0 ? "text-[#f08080]" : "text-[#5fd35f]")}>{v.profit == null ? "profit n/d" : `+${cad(v.profit)}`}</div>
+                    </div>
+                  </div>
+                </li>
+                ))}
+              </ul>
+            </section>
           ))}
-        </ul>
+        </div>
       )}
 
       {/* Totaux + confirmation */}
@@ -231,10 +267,15 @@ export function Cart({
         {lines.length > 0 && (
           <>
             <input className="field mt-3 py-1.5 text-xs" placeholder="Note (fournisseur, n° de commande…)" maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} />
-            <button type="button" className="btn-primary mt-2 w-full" disabled={pending || totals.missingCost} onClick={confirm}>
+            <button type="button" className="btn-primary mt-2 w-full" disabled={pending || totals.missingCost || stale.length > 0} onClick={confirm}>
               <CheckCircle2 size={15} /> {pending ? "Confirmation…" : `Confirmer l'achat · ${cad(totals.cost)}`}
             </button>
             {totals.missingCost && <p className="mt-1 text-[11px] text-warning">Coût unitaire manquant ou invalide sur une ligne.</p>}
+            {stale.length > 0 && (
+              <p className="mt-1 text-[11px] text-[#f08080]">
+                {stale.length} produit{stale.length > 1 ? "s" : ""} à reconfirmer avant d&apos;acheter (données de plus de 30 jours).
+              </p>
+            )}
           </>
         )}
         {result && (

@@ -50,6 +50,9 @@ model Product {
   /// UNKNOWN | UNGATED | GATED | APPROVAL_PENDING | APPROVED
   restriction       String   @default("UNKNOWN")
   verifiedAt        DateTime?
+  /// Dernière reconfirmation complète du lead (écran « À reconfirmer »). Les données sont
+  /// à reconfirmer 30 jours après le dernier export LEADS ou cette date.
+  confirmedAt       DateTime?
 
   // --- Alertes de doublons ---
   lastDuplicateAt DateTime?

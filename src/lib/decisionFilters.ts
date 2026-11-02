@@ -1,4 +1,4 @@
-// Filtres de décision partagés par « Buy Decisions » et « Achat · Rejeté · À définir »
+// Filtres de décision partagés par « Buy Decisions », le Pipeline et le Mode décision
 // (fonctions pures, testées). Les deux pages appliquent exactement les mêmes règles.
 import { DEFAULT_THRESHOLDS, verdict, type DecisionMetrics, type Thresholds, type Verdict } from "./decision";
 

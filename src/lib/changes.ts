@@ -11,6 +11,7 @@ export const ACTION_LABELS: Record<string, string> = {
   CANCEL: "Annulation",
   RESTORE: "Rétablissement",
   UPDATE: "Mise à jour",
+  CONFIRM: "Lead reconfirmé",
 };
 
 const FIELD_LABELS: Record<string, string> = {

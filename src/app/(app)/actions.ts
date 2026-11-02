@@ -15,6 +15,7 @@ import { loadProducts } from "@/lib/queries";
 import { toDecisionRows } from "@/lib/decisionRows";
 import { preliminaryProfit } from "@/lib/profit";
 import { createBackup } from "@/lib/backup";
+import { FRESH_DAYS } from "@/lib/freshness";
 
 async function guard() {
   if (!(await isAdmin())) throw new Error("Session expirée : reconnectez-vous");
@@ -165,6 +166,64 @@ export async function runManualSync(): Promise<{ ok: boolean; results?: SyncResu
   }
 }
 
+const optMoney = money.optional();
+const reconfirmSchema = z.object({
+  productId: z.string().min(1),
+  /** Champ absent = valeur inchangée */
+  verifiedSalePrice: optMoney,
+  verifiedFbaFee: optMoney,
+  offers: z
+    .array(z.object({ id: z.string().min(1), verifiedCostPrice: optMoney, verifiedAvailability: z.enum(["IN_STOCK", "OUT_OF_STOCK"]).nullable().optional() }))
+    .max(50)
+    .default([]),
+});
+export type ReconfirmInput = z.input<typeof reconfirmSchema>;
+
+/**
+ * Reconfirme un lead (écran « À reconfirmer ») : ses données repartent pour 30 jours.
+ * Sans changement, seule la date de reconfirmation est enregistrée ; les valeurs modifiées
+ * sont stockées comme valeurs vérifiées (les valeurs importées restent intactes).
+ */
+export async function reconfirmLead(input: ReconfirmInput): Promise<ActionResult> {
+  try {
+    await guard();
+    const data = reconfirmSchema.parse(input);
+    const now = new Date();
+    const product = await prisma.product.findUnique({ where: { id: data.productId }, include: { offers: true } });
+    if (!product) return { ok: false, error: "Lead introuvable" };
+
+    const changed: Partial<Record<"verifiedSalePrice" | "verifiedFbaFee", number | null>> = {};
+    if (data.verifiedSalePrice !== undefined && data.verifiedSalePrice !== product.verifiedSalePrice) changed.verifiedSalePrice = data.verifiedSalePrice;
+    if (data.verifiedFbaFee !== undefined && data.verifiedFbaFee !== product.verifiedFbaFee) changed.verifiedFbaFee = data.verifiedFbaFee;
+    const before = Object.fromEntries((Object.keys(changed) as (keyof typeof changed)[]).map((k) => [k, product[k]]));
+
+    const ops: Prisma.PrismaPromise<unknown>[] = [
+      prisma.product.update({ where: { id: product.id }, data: { ...changed, confirmedAt: now, verifiedAt: Object.keys(changed).length ? now : undefined } }),
+      prisma.changeLog.create({ data: { entity: "Product", entityId: product.id, action: "CONFIRM", before: json({ ...before, confirmedAt: product.confirmedAt }), after: json({ ...changed, confirmedAt: now }) } }),
+    ];
+    for (const o of data.offers) {
+      const offer = product.offers.find((x) => x.id === o.id);
+      if (!offer) continue;
+      const cost = o.verifiedCostPrice !== undefined && o.verifiedCostPrice !== offer.verifiedCostPrice ? o.verifiedCostPrice : undefined;
+      const availability = o.verifiedAvailability !== undefined && o.verifiedAvailability !== offer.verifiedAvailability ? o.verifiedAvailability : undefined;
+      if (cost === undefined && availability === undefined) continue;
+      const after = { verifiedCostPrice: cost === undefined ? offer.verifiedCostPrice : cost, verifiedAvailability: availability === undefined ? offer.verifiedAvailability : availability };
+      ops.push(
+        prisma.supplierOffer.update({ where: { id: offer.id }, data: { ...after, verifiedAt: now } }),
+        prisma.changeLog.create({
+          data: { entity: "SupplierOffer", entityId: offer.id, action: "VERIFY", before: json({ verifiedCostPrice: offer.verifiedCostPrice, verifiedAvailability: offer.verifiedAvailability }), after: json(after) },
+        }),
+      );
+      if (availability) ops.push(prisma.stockCheck.create({ data: { offerId: offer.id, origin: "MANUAL", status: availability, checkedAt: now, detail: "Reconfirmation" } }));
+    }
+    await prisma.$transaction(ops);
+    refresh();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof z.ZodError ? "Données invalides" : e instanceof Error ? e.message : "Erreur" };
+  }
+}
+
 export async function createManualBackup(): Promise<ActionResult> {
   try {
     await guard();
@@ -221,6 +280,7 @@ export async function confirmPurchase(input: PurchaseInput): Promise<{ ok: true;
     for (const item of data.items) {
       const row = rows.get(item.productId);
       if (!row) return { ok: false, error: "Un produit du panier est introuvable : rechargez la page." };
+      if (row.fresh.state === "STALE") return { ok: false, error: `${row.asin} : données de plus de ${FRESH_DAYS} jours, reconfirmez-le avant d'acheter.` };
       const unitCost = item.unitCost ?? row.costPrice;
       if (unitCost == null) return { ok: false, error: `Coût unitaire manquant pour ${row.asin} : saisissez-le dans le panier.` };
       // Coût saisi = CAD ; coût du lead dans une autre devise = profit non calculé

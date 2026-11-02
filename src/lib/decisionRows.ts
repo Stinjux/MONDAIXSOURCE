@@ -2,6 +2,7 @@
 // Les valeurs vérifiées en Weekly Review remplacent les valeurs importées de la Sheet.
 import { buyScore, type DecisionMetrics } from "./decision";
 import { NO_TAX, pick, preliminaryProfit, type TaxConfig } from "./profit";
+import { freshness, type Freshness } from "./freshness";
 import type { OfferView, ProductView } from "./queries";
 
 export type DecisionRow = DecisionMetrics & {
@@ -32,6 +33,10 @@ export type DecisionRow = DecisionMetrics & {
   countsTowardGoal: boolean;
   firstSeenAt: string;
   present: boolean;
+  exportedAt: string | null;
+  confirmedAt: string | null;
+  /** Fraîcheur des données (30 jours après le dernier export ou la dernière reconfirmation) */
+  fresh: Freshness;
 };
 
 function evaluate(p: ProductView, o: OfferView, tax: TaxConfig) {
@@ -55,7 +60,7 @@ function evaluate(p: ProductView, o: OfferView, tax: TaxConfig) {
   };
 }
 
-export function toDecisionRows(products: ProductView[], tax: TaxConfig = NO_TAX): DecisionRow[] {
+export function toDecisionRows(products: ProductView[], tax: TaxConfig = NO_TAX, now = new Date()): DecisionRow[] {
   return products
     .filter((p) => p.offers.length > 0)
     .map((p) => {
@@ -88,6 +93,9 @@ export function toDecisionRows(products: ProductView[], tax: TaxConfig = NO_TAX)
         countsTowardGoal: p.countsTowardGoal,
         firstSeenAt: p.firstSeenAt,
         present: p.present,
+        exportedAt: p.exportedAt,
+        confirmedAt: p.confirmedAt,
+        fresh: freshness(p.freshSince, now),
       };
     });
 }

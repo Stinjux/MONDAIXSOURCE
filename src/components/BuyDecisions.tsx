@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { AlertTriangle, ArrowDown, ArrowUp, ChevronsUpDown, CheckCircle2, CircleSlash, HelpCircle, Lock, PackageX, Pencil, ShoppingCart, StickyNote, ThumbsUp } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, ChevronsUpDown, CheckCircle2, CircleSlash, HelpCircle, Lock, PackageX, Pencil, RefreshCw, ShoppingCart, StickyNote, ThumbsUp } from "lucide-react";
 import { setReviewStatus } from "@/app/(app)/actions";
 import { VERDICT_LABELS, type Verdict } from "@/lib/decision";
 import { Cart, type CartState } from "./Cart";
@@ -12,6 +12,8 @@ import type { DecisionRow } from "@/lib/decisionRows";
 import { cad, num, pct } from "@/lib/format";
 import { NO_TAX, maxCost, type TaxConfig } from "@/lib/profit";
 import { Asin, Badge, EmptyState, ReviewBadge, Supplier, cn } from "./ui";
+import { ProductImage } from "./ProductImage";
+import { FreshnessPill } from "./Freshness";
 
 const VERDICT_STYLE: Record<Verdict, { tone: "good" | "warning" | "critical" | "neutral"; icon: React.ReactNode }> = {
   BUY: { tone: "good", icon: <ThumbsUp size={11} /> },
@@ -47,7 +49,7 @@ const VERDICT_RANK: Record<Verdict, number> = { BUY: 0, CONSIDER: 1, AVOID: 2, I
 const STATUS_RANK = { VALIDATED: 0, REJECTED: 1 } as const;
 
 export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: DecisionRow[]; currentWeek: string; tax?: TaxConfig }) {
-  // Filtres partagés avec « Achat · Rejeté · À définir » (mêmes réglages sur les deux pages)
+  // Filtres partagés avec le Pipeline et le Mode décision (mêmes réglages partout)
   const { filters, update } = useDecisionFilters();
   const { strategy, thresholds } = filters;
   const [budget, setBudget] = useState("");
@@ -191,7 +193,10 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
                         {r.reasons.length > 0 && <div className="mt-1 text-[11px] leading-snug text-ink-3">{r.reasons.join(" · ")}</div>}
                         {r.calcIssue && <div className="mt-1 text-[11px] text-warning">{r.calcIssue}</div>}
                       </td>
-                      <td className="max-w-72">
+                      <td className="max-w-80">
+                        <div className="flex items-start gap-2.5">
+                        <ProductImage asin={r.asin} size={40} className="mt-0.5" />
+                        <div className="min-w-0">
                         <Link href={`/leads/${r.asin}`} className="block truncate font-medium text-ink hover:text-accent hover:underline" title={`${r.name} — ouvrir la fiche (notes, prix, statut)`}>
                           {r.name}
                         </Link>
@@ -201,6 +206,7 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
                           {r.offerCount > 1 && <Badge tone="accent">{r.offerCount} fourn.</Badge>}
                           {r.verifiedCount > 0 && <Badge tone="good" icon={<CheckCircle2 size={10} />}>{r.verifiedCount} vérifié{r.verifiedCount > 1 ? "s" : ""}</Badge>}
                           {r.restricted && <Badge tone="serious" icon={<Lock size={10} />}>Restreint</Badge>}
+                          {r.fresh.state !== "FRESH" && <FreshnessPill fresh={r.fresh} />}
                         </div>
                         {r.notes && (
                           <div className="mt-1 flex max-w-72 items-start gap-1 text-[11px] text-ink-2" title={r.notes}>
@@ -208,6 +214,8 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
                             <span className="truncate">{r.notes}</span>
                           </div>
                         )}
+                        </div>
+                        </div>
                       </td>
                       <td className="text-right">
                         {r.score == null ? (
@@ -236,6 +244,11 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
                         })()}
                       </td>
                       <td className="text-center">
+                        {r.fresh.state === "STALE" ? (
+                          <Link href={`/reconfirm?asin=${r.asin}`} className="btn-ghost px-2 py-1 text-xs whitespace-nowrap text-[#f08080] hover:border-critical/60" title="Données de plus de 30 jours : reconfirmez avant de mettre au panier">
+                            <RefreshCw size={12} /> Reconfirmer
+                          </Link>
+                        ) : (
                         <button
                           type="button"
                           onClick={() => addToCart(r.productId)}
@@ -245,6 +258,7 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
                         >
                           <ShoppingCart size={13} /> {q > 0 ? `× ${q}` : "+"}
                         </button>
+                        )}
                       </td>
                       <td>
                         <span className="flex items-center gap-1">
@@ -252,7 +266,7 @@ export function BuyDecisions({ rows, currentWeek, tax = NO_TAX }: { rows: Decisi
                           <Pencil size={12} />
                         </Link>
                         {decision ? (
-                          <a href="/purchases" title="Voir dans Achat · Rejeté · À définir">
+                          <a href="/pipeline" title="Voir dans le Pipeline">
                             <Badge tone={decision === "VALIDATED" ? "good" : "critical"} icon={decision === "VALIDATED" ? <ShoppingCart size={11} /> : <CircleSlash size={11} />}>
                               {decision === "VALIDATED" ? "Achat" : "Rejeté"}
                             </Badge>

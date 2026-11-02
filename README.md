@@ -48,15 +48,25 @@ Classe les leads selon 5 stratégies : **score d'achat** (40 % ROI plafonné à 
 
 ### Fiche ASIN (`/leads/<ASIN>`)
 
-Accessible en cliquant sur le nom d'un produit (Buy Decisions, All Leads, Achat · Rejeté · À définir, Acheté, Dashboard, Duplicate Alerts) ou sur ✏️ dans Buy Decisions. Permet de tout modifier — notes, statut (donc la liste Achat / Rejeté / À définir), prix Amazon et Total Fees vérifiés, coût et disponibilité par fournisseur, restrictions, checklist — et d'ajouter le produit au panier. Affiche aussi les fournisseurs, les achats passés, l'historique des modifications (en clair), l'historique des prix importés et les lignes correspondantes dans les Sheets. Les notes s'affichent en aperçu dans Buy Decisions et sur les cartes Achat · Rejeté · À définir.
+Accessible en cliquant sur le nom d'un produit (Buy Decisions, Pipeline, All Leads, Acheté, Dashboard, Duplicate Alerts) ou sur ✏️ dans Buy Decisions. Vignette, fraîcheur, liens Amazon et Keepa, boutons Reconfirmer et Décider. Permet de tout modifier — notes, statut (donc la colonne du Pipeline), prix Amazon et Total Fees vérifiés, coût et disponibilité par fournisseur, restrictions, checklist — et d'ajouter le produit au panier. Affiche aussi les fournisseurs, les achats passés, l'historique des modifications (en clair), l'historique des prix importés et les lignes correspondantes dans les Sheets. Les notes s'affichent en aperçu dans Buy Decisions.
 
 ### Acheté
 
 Historique de toutes les commandes confirmées (tables `Purchase` / `PurchaseItem`) : totaux (commandes, unités, investissement, profit attendu), recherche, détail par commande, **export CSV** (tout ou par commande, compatible Excel / Google Sheets). Une commande annulée n'est jamais supprimée : elle reste dans l'historique, marquée « Annulé », hors totaux.
 
-### Achat · Rejeté · À définir
+### Pipeline (`/pipeline`)
 
-Trois listes distinctes pour vos décisions d'achat : **Achat** (statut « Revu et validé »), **Rejeté** (« Rejeté ») et **À définir** (« À revoir », « En cours », « À suivre »). Un clic déplace un lead d'une liste à l'autre (changement journalisé) ; chaque carte affiche ROI, marge, profit, coût et l'avis calculé selon vos critères de Buy Decisions. La liste Achat totalise le coût d'une unité de chaque lead, le ROI moyen et le profit mensuel maximal. Les boutons « Acheter » et « Rejeter » existent aussi dans Buy Decisions. **Les filtres sont partagés avec Buy Decisions** (classement, critères d'achat, avis, semaine, ruptures) et mémorisés dans le navigateur : un réglage modifié sur une page s'applique à l'autre ; chaque colonne indique combien de leads sont masqués par les filtres. **Cliquer sur le titre d'une liste l'ouvre en grand** (pleine largeur, cartes sur plusieurs colonnes, adresse dédiée : `/purchases?vue=achat`, `rejete` ou `a-definir`), avec un bouton **Plein écran** ; retour par bouton, touche Échap ou « précédent » du navigateur.
+Tableau Kanban du sourcing, de l'arrivée d'un lead à l'achat : **Nouveaux** (« À revoir ») → **En analyse** (« En cours ») → **À reconfirmer** (données de 30 jours ou plus) → **Prêts à acheter** (« Revu et validé », données à jour) → **Achetés** (achat confirmé), plus **En veille** (« À suivre » ou fournisseur en rupture) et **Rejetés**. Chaque carte montre la vignette du produit, ROI, profit unitaire et mensuel, l'avis, la fraîcheur et les alertes. **Glisser-déposer** une carte (ou « Déplacer… », aussi sur mobile) change son statut de revue (journalisé) ; déposer dans « À reconfirmer » ou un lead périmé dans « Prêts à acheter » ouvre la reconfirmation ; un achat se confirme toujours depuis le panier. L'étape est calculée à l'affichage : aucune donnée n'est réécrite. Filtres partagés avec Buy Decisions (avis, semaine, tri) ; cliquer sur le titre d'une colonne l'ouvre en grand (`/pipeline?vue=prets`, etc.), avec plein écran. Les anciennes adresses `/purchases?vue=…` redirigent vers le Pipeline.
+
+### Fraîcheur et reconfirmation (`/reconfirm`)
+
+Les données d'un lead (prix Amazon, frais, coût, stock) sont **à reconfirmer 30 jours après son dernier export** dans LEADS ou sa dernière reconfirmation : pastille verte (à jour), orange (7 derniers jours), rouge (à reconfirmer). Un lead périmé ne peut pas être mis au panier ni acheté. L'écran **À reconfirmer** (compteur dans le menu) présente un lead à la fois, les plus rentables d'abord, avec liens Amazon, Keepa et fournisseurs et les valeurs pré-remplies : **« Toujours bon »** (touche Entrée) reconfirme en un clic ; une valeur modifiée est enregistrée comme vérifiée (les valeurs de la Sheet restent intactes) et l'effet sur ROI, marge et profit s'affiche avant/après. Raccourcis : Entrée, R (rejeter), ←/→, Échap pour sortir d'un champ.
+
+### Mode décision (`/decide`)
+
+Un lead à la fois, dans l'ordre de vos filtres de Buy Decisions : grande vignette, jauges ROI / marge / profit / ventes par rapport à vos critères minimums, meilleure offre fournisseur, budget restant. **Acheter** (A) ajoute la quantité choisie (+/−) au panier et place le lead dans « Prêts à acheter » ; **À suivre** (P) le met en veille ; **Rejeter** (R). Un lead périmé se reconfirme d'abord sur le même écran. Le panier regroupe les lignes **par fournisseur** (une commande par magasin, sous-total chacune).
+
+Les **vignettes produit** viennent directement des images d'Amazon à partir de l'ASIN (aucune clé API) ; une icône s'affiche si Amazon n'a pas d'image.
 
 ### OUT OF STOCK
 

@@ -1,5 +1,9 @@
 import { notFound } from "next/navigation";
-import { ExternalLink } from "lucide-react";
+import Link from "next/link";
+import { ExternalLink, Gavel, LineChart, RefreshCw } from "lucide-react";
+import { FreshnessPill } from "@/components/Freshness";
+import { ProductImage } from "@/components/ProductImage";
+import { freshness, freshnessText } from "@/lib/freshness";
 import { AddToCartButton, BackButton, LeadEditor } from "@/components/LeadActions";
 import { Badge, Card, DuplicateBadges, EmptyState, PageHeader, ReviewBadge, SourceBadges, StockBadge, Supplier } from "@/components/ui";
 import { ACTION_LABELS, describeChange } from "@/lib/changes";
@@ -25,6 +29,7 @@ export default async function LeadPage({ params }: { params: Promise<{ asin: str
     prisma.purchaseItem.findMany({ where: { asin: p.asin }, include: { purchase: true }, orderBy: { purchase: { createdAt: "desc" } } }),
   ]);
   const bought = purchases.filter((i) => !i.purchase.cancelledAt);
+  const fresh = freshness(p.freshSince, new Date());
 
   return (
     <>
@@ -33,27 +38,34 @@ export default async function LeadPage({ params }: { params: Promise<{ asin: str
         title={p.name}
         description={
           <span className="flex flex-wrap items-center gap-2">
+            <ProductImage asin={p.asin} size={56} />
             <ReviewBadge status={p.reviewStatus} />
+            <span title={freshnessText(fresh)}><FreshnessPill fresh={fresh} /></span>
             <SourceBadges sources={p.sources} />
             {p.dup.any && <DuplicateBadges dup={p.dup} compact />}
             <span className="text-ink-3">Découvert le {formatDate(p.firstSeenAt)}</span>
             <a href={p.amazonUrl || `https://www.amazon.ca/dp/${p.asin}`} target="_blank" rel="noopener noreferrer" className="link inline-flex items-center gap-1">
               Amazon.ca <ExternalLink size={12} />
             </a>
+            <a href={`https://keepa.com/#!product/6-${p.asin}`} target="_blank" rel="noopener noreferrer" className="link inline-flex items-center gap-1">
+              Keepa <LineChart size={12} />
+            </a>
           </span>
         }
         actions={
           <>
             <BackButton />
-            <AddToCartButton productId={p.id} />
+            <Link href={`/reconfirm?asin=${p.asin}`} className={fresh.state === "STALE" ? "btn-primary" : "btn-ghost"}><RefreshCw size={15} /> Reconfirmer</Link>
+            <Link href={`/decide?asin=${p.asin}`} className="btn-ghost"><Gavel size={15} /> Décider</Link>
+            {fresh.state !== "STALE" && <AddToCartButton productId={p.id} />}
           </>
         }
       />
 
       <div className="mb-2 text-xs font-semibold tracking-wide text-ink-2 uppercase">Modifier le lead</div>
       <p className="mb-3 text-xs text-ink-3">
-        Notes, statut, prix Amazon et Total Fees vérifiés, coût et disponibilité par fournisseur, restrictions et checklist. Statut : « Revu et validé » = liste
-        Achat, « Rejeté » = liste Rejeté, les autres = À définir. Les valeurs vérifiées remplacent celles de la Sheet dans tous les calculs.
+        Notes, statut, prix Amazon et Total Fees vérifiés, coût et disponibilité par fournisseur, restrictions et checklist. Le statut place le lead dans le
+        Pipeline (« Revu et validé » = Prêts à acheter). Les valeurs vérifiées remplacent celles de la Sheet dans tous les calculs. {freshnessText(fresh)}.
       </p>
       <LeadEditor product={p} tax={tax} />
 

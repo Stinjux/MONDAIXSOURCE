@@ -2,17 +2,19 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BarChart3, CalendarCheck, Copy, History, KanbanSquare, LayoutDashboard, LogOut, Menu, PackageCheck, PackageX, Settings, ShoppingCart, Table2, X } from "lucide-react";
+import { BarChart3, CalendarCheck, Copy, Gavel, History, KanbanSquare, LayoutDashboard, LogOut, Menu, PackageCheck, PackageX, RefreshCw, Settings, ShoppingCart, Table2, X } from "lucide-react";
 import { logout } from "@/app/(app)/actions";
 import { cn } from "./ui";
 
-type Counts = { duplicates: number; review: number; backInStock: number };
+type Counts = { duplicates: number; review: number; backInStock: number; reconfirm: number };
 
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/leads", label: "All Leads", icon: Table2 },
+  { href: "/pipeline", label: "Pipeline", icon: KanbanSquare },
   { href: "/decisions", label: "Buy Decisions", icon: ShoppingCart },
-  { href: "/purchases", label: "Achat · Rejeté · À définir", icon: KanbanSquare },
+  { href: "/decide", label: "Mode décision", icon: Gavel },
+  { href: "/reconfirm", label: "À reconfirmer", icon: RefreshCw, count: "reconfirm" as const },
   { href: "/purchased", label: "Acheté", icon: PackageCheck },
   { href: "/out-of-stock", label: "Out of Stock", icon: PackageX, count: "backInStock" as const },
   { href: "/duplicates", label: "Duplicate Alerts", icon: Copy, count: "duplicates" as const },

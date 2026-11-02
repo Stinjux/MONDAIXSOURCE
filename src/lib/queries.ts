@@ -9,6 +9,7 @@ import { isDecided, parseChecklist, type Checklist } from "./labels";
 import { amazonPrice, preliminaryProfit, type ProfitResult } from "./profit";
 import { getTaxConfig } from "./settings";
 import { needsRecheck } from "./stock";
+import { freshSince, freshness, lastExportDate } from "./freshness";
 
 const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
 
@@ -65,6 +66,12 @@ export type ProductView = {
   verifiedFbaFee: number | null;
   restriction: string;
   verifiedAt: string | null;
+  /** Dernier export dans la Sheet (LEADS en priorité) */
+  exportedAt: string | null;
+  /** Dernière reconfirmation complète */
+  confirmedAt: string | null;
+  /** Référence de fraîcheur : la plus récente des deux dates ci-dessus */
+  freshSince: string | null;
   lastDuplicateAt: string | null;
   duplicateAlert: boolean;
   dup: DuplicateFlags;
@@ -86,7 +93,7 @@ export async function loadProducts(now = new Date(), filter: { asin?: string } =
     include: {
       offers: { orderBy: { firstSeenAt: "asc" } },
       occurrences: {
-        select: { offerId: true, source: true, present: true, kind: true, firstImportedAt: true, lastImportedAt: true, availability: true, notes: true, sheetRoi: true, sheetProfit: true },
+        select: { offerId: true, source: true, present: true, kind: true, discoveredAt: true, firstImportedAt: true, lastImportedAt: true, availability: true, notes: true, sheetRoi: true, sheetProfit: true },
       },
     },
   });
@@ -132,6 +139,7 @@ export async function loadProducts(now = new Date(), filter: { asin?: string } =
         profit: preliminaryProfit({ ...o, salePrice: amazonPrice(o) }, tax),
       };
     });
+    const exportedAt = lastExportDate(p.occurrences, p.lastSeenAt);
     const ranked = offers.filter((o) => o.profit.roi !== null).sort((a, b) => b.profit.roi! - a.profit.roi!);
     return {
       id: p.id,
@@ -151,6 +159,9 @@ export async function loadProducts(now = new Date(), filter: { asin?: string } =
       verifiedFbaFee: p.verifiedFbaFee,
       restriction: p.restriction,
       verifiedAt: iso(p.verifiedAt),
+      exportedAt: iso(exportedAt),
+      confirmedAt: iso(p.confirmedAt),
+      freshSince: iso(freshSince(exportedAt, p.confirmedAt)),
       lastDuplicateAt: iso(p.lastDuplicateAt),
       duplicateAlert: duplicateAlertActive(p.lastDuplicateAt, p.duplicateAckAt),
       dup: duplicateFlags(p.offers.map((o) => o.id), p.occurrences),
@@ -162,6 +173,24 @@ export async function loadProducts(now = new Date(), filter: { asin?: string } =
     };
   });
   return { products: views, duplicateEvents, tax };
+}
+
+/** Dernier achat confirmé (non annulé) de chaque produit : date et unités achetées au total. */
+export async function purchasedProducts(): Promise<Map<string, { lastAt: string; units: number }>> {
+  const items = await prisma.purchaseItem.findMany({
+    where: { purchase: { cancelledAt: null } },
+    select: { productId: true, asin: true, quantity: true, purchase: { select: { createdAt: true } } },
+  });
+  const ids = new Map((await prisma.product.findMany({ where: { asin: { in: [...new Set(items.map((i) => i.asin))] } }, select: { id: true, asin: true } })).map((p) => [p.asin, p.id]));
+  const out = new Map<string, { lastAt: string; units: number }>();
+  for (const i of items) {
+    const id = i.productId ?? ids.get(i.asin);
+    if (!id) continue;
+    const prev = out.get(id);
+    const at = i.purchase.createdAt.toISOString();
+    out.set(id, { lastAt: prev && prev.lastAt > at ? prev.lastAt : at, units: (prev?.units ?? 0) + i.quantity });
+  }
+  return out;
 }
 
 export type WeekStats = {
@@ -230,15 +259,21 @@ export async function lastSuccessfulSync() {
 /** Compteurs affichés dans la navigation latérale. */
 export async function navCounts(now = new Date()) {
   const current = weekKey(now);
-  const [duplicates, review, backInStock] = await Promise.all([
+  const [duplicates, review, backInStock, active, purchased] = await Promise.all([
     prisma.product.findMany({ where: { lastDuplicateAt: { not: null } }, select: { lastDuplicateAt: true, duplicateAckAt: true } }),
     prisma.product.count({ where: { countsTowardGoal: true, goalWeek: { lte: current }, reviewStatus: { in: ["TO_REVIEW", "IN_PROGRESS"] } } }),
     prisma.supplierOffer.findMany({ where: { stockStatus: "IN_STOCK", backInStockAt: { not: null } }, select: { backInStockAt: true, backInStockAckAt: true } }),
+    // Leads à reconfirmer : mêmes règles que l'écran « À reconfirmer » (hors rejetés et achetés)
+    prisma.product.findMany({
+      where: { reviewStatus: { not: "REJECTED" } },
+      select: { id: true, lastSeenAt: true, confirmedAt: true, occurrences: { select: { source: true, discoveredAt: true } } },
+    }),
+    purchasedProducts(),
   ]);
   return {
     duplicates: duplicates.filter((p) => duplicateAlertActive(p.lastDuplicateAt, p.duplicateAckAt)).length,
     review,
     backInStock: backInStock.filter((o) => duplicateAlertActive(o.backInStockAt, o.backInStockAckAt)).length,
+    reconfirm: active.filter((p) => !purchased.has(p.id) && freshness(freshSince(lastExportDate(p.occurrences, p.lastSeenAt), p.confirmedAt), now).state === "STALE").length,
   };
 }
-

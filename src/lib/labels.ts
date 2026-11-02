@@ -15,21 +15,6 @@ export const REVIEW_LABELS: Record<ReviewStatus, string> = {
 export const DECIDED: ReviewStatus[] = ["VALIDATED", "REJECTED", "FOLLOW_UP"];
 export const isDecided = (s: string) => (DECIDED as string[]).includes(s);
 
-/** Listes de décision d'achat : Achat = « Revu et validé », Rejeté = « Rejeté », À définir = les autres statuts. */
-export type Bucket = "BUY" | "REJECT" | "UNDECIDED";
-export const BUCKET_STATUS: Record<Bucket, ReviewStatus> = { BUY: "VALIDATED", REJECT: "REJECTED", UNDECIDED: "TO_REVIEW" };
-export function bucketOf(status: string): Bucket {
-  if (status === "VALIDATED") return "BUY";
-  if (status === "REJECTED") return "REJECT";
-  return "UNDECIDED";
-}
-
-/** Adresse lisible de chaque liste ouverte en grand (/purchases?vue=achat) */
-export const VIEW_SLUGS: Record<Bucket, string> = { BUY: "achat", REJECT: "rejete", UNDECIDED: "a-definir" };
-export function bucketFromSlug(slug: string | null | undefined): Bucket | null {
-  return (Object.keys(VIEW_SLUGS) as Bucket[]).find((k) => VIEW_SLUGS[k] === slug) ?? null;
-}
-
 export const CHECKLIST = [
   { key: "amazonPrice", label: "Prix Amazon vérifié" },
   { key: "supplierPrice", label: "Prix fournisseur vérifié" },

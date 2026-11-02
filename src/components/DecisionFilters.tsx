@@ -1,5 +1,5 @@
 "use client";
-// Panneau de filtres partagé par « Buy Decisions » et « Achat · Rejeté · À définir ».
+// Panneau de filtres partagé par « Buy Decisions », le Pipeline et le Mode décision.
 // Les réglages sont mémorisés dans ce navigateur et synchronisés entre les deux pages (et les onglets ouverts).
 import { useCallback, useEffect, useState } from "react";
 import { RotateCcw } from "lucide-react";

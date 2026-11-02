@@ -7,6 +7,7 @@ import { toCsv } from "@/lib/cart";
 import { formatDateTime } from "@/lib/dates";
 import { cad, pct } from "@/lib/format";
 import { Asin, Badge, EmptyState, Kpi, Supplier, cn } from "./ui";
+import { ProductImage } from "./ProductImage";
 
 export type PurchasedItem = {
   id: string;
@@ -183,11 +184,16 @@ export function PurchasedList({ purchases }: { purchases: PurchaseView[] }) {
                     <tbody>
                       {p.items.map((i) => (
                         <tr key={i.id}>
-                          <td className="max-w-72">
-                            <Link href={`/leads/${i.asin}`} className="block truncate font-medium text-ink hover:text-accent hover:underline" title={i.name}>
-                              {i.name}
-                            </Link>
-                            <Asin asin={i.asin} />
+                          <td className="max-w-80">
+                            <div className="flex items-center gap-2">
+                              <ProductImage asin={i.asin} size={32} />
+                              <div className="min-w-0">
+                                <Link href={`/leads/${i.asin}`} className="block truncate font-medium text-ink hover:text-accent hover:underline" title={i.name}>
+                                  {i.name}
+                                </Link>
+                                <Asin asin={i.asin} />
+                              </div>
+                            </div>
                           </td>
                           <td className="max-w-48 truncate"><Supplier name={i.supplierName} url={i.supplierUrl} fallback="—" /></td>
                           <td className="text-right font-semibold tabular-nums">{i.quantity}</td>
