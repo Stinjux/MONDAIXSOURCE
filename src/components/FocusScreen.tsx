@@ -22,7 +22,7 @@ import { FreshnessPill } from "./Freshness";
 import { ProductImage } from "./ProductImage";
 import { Badge, EmptyState, Supplier, cn } from "./ui";
 
-//  - review    : Weekly Review rapide (Valider / À suivre / Rejeter), dans l'ordre donné par la page
+//  - review    : Weekly Review rapide (Valider / À suivre / Rejeter), leads et ordre choisis par la page
 export type FocusMode = "reconfirm" | "decide" | "review";
 /** Panier partagé avec la page (Buy Decisions). Sans lui, l'écran lit et écrit le panier du navigateur directement. */
 export type CartApi = { cart: CartState; add: (productId: string, qty: number) => void; budget: number | null; open: () => void; paused: boolean };
@@ -74,7 +74,7 @@ export function FocusScreen({
     return (
       <div className="rounded-md border border-line bg-surface">
         {mode === "review" ? (
-          <EmptyState title="Tout est revu" icon={<CheckCircle2 size={22} />}>Aucun lead de cette semaine (ni en retard) n&apos;attend de décision.</EmptyState>
+          <EmptyState title="Tout est revu" icon={<CheckCircle2 size={22} />}>Aucun lead de cette sélection n&apos;attend de décision.</EmptyState>
         ) : mode === "reconfirm" ? (
           <EmptyState title="Rien à reconfirmer" icon={<CheckCircle2 size={22} />}>Tous vos leads actifs ont des données de moins de 23 jours.</EmptyState>
         ) : (
