@@ -9,7 +9,8 @@ import { supplierBrand } from "./normalize";
 export type OfferRef = { id: string; supplierKey: string; supplierUrl?: string | null; supplierName?: string | null };
 export type Candidate = { supplierKey: string; supplierUrl?: string; supplierName?: string };
 
-const brandOf = (o: { supplierKey: string; supplierUrl?: string | null; supplierName?: string | null }) =>
+/** Marque du fournisseur (« walmart » pour walmart.ca/… comme pour la boutique « Walmart »). */
+export const brandOf = (o: { supplierKey: string; supplierUrl?: string | null; supplierName?: string | null }) =>
   o.supplierKey.startsWith("store:") ? o.supplierKey.slice(6) : supplierBrand(o.supplierUrl || o.supplierKey);
 
 /**

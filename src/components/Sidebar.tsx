@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BarChart3, CalendarCheck, Copy, History, KanbanSquare, LayoutDashboard, LogOut, Menu, PackageCheck, PackageX, RefreshCw, Settings, ShoppingCart, Table2, X } from "lucide-react";
+import { BarChart3, CalendarCheck, Copy, History, KanbanSquare, LayoutDashboard, LogOut, Menu, PackageCheck, PackageX, RefreshCw, Settings, ShoppingCart, Store, Table2, X } from "lucide-react";
 import { logout } from "@/app/(app)/actions";
 import { cn } from "./ui";
 
@@ -12,6 +12,7 @@ const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/leads", label: "All Leads", icon: Table2 },
   { href: "/pipeline", label: "Pipeline", icon: KanbanSquare },
+  { href: "/suppliers", label: "Fournisseurs", icon: Store },
   { href: "/decisions", label: "Buy Decisions", icon: ShoppingCart },
   { href: "/reconfirm", label: "À reconfirmer", icon: RefreshCw, count: "reconfirm" as const },
   { href: "/purchased", label: "Acheté", icon: PackageCheck },

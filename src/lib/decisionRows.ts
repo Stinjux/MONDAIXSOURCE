@@ -39,7 +39,8 @@ export type DecisionRow = DecisionMetrics & {
   fresh: Freshness;
 };
 
-function evaluate(p: ProductView, o: OfferView, tax: TaxConfig) {
+/** Rentabilité d'une offre fournisseur, valeurs vérifiées en priorité. */
+export function evaluateOffer(p: ProductView, o: OfferView, tax: TaxConfig) {
   const s = pick(p.verifiedSalePrice, o.amazonPrice);
   const c = pick(o.verifiedCostPrice, o.costPrice);
   const f = pick(p.verifiedFbaFee, o.fbaFee);
@@ -66,7 +67,7 @@ export function toDecisionRows(products: ProductView[], tax: TaxConfig = NO_TAX,
     .map((p) => {
       // Meilleure offre : disponible d'abord, puis meilleur score
       const best = p.offers
-        .map((o) => evaluate(p, o, tax))
+        .map((o) => evaluateOffer(p, o, tax))
         .sort((a, b) => Number(a.unavailable) - Number(b.unavailable) || (b.score ?? -1) - (a.score ?? -1))[0];
       return {
         ...best.metrics,
