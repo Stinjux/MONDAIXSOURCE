@@ -22,13 +22,14 @@ import { FreshnessPill } from "./Freshness";
 import { ProductImage } from "./ProductImage";
 import { Badge, EmptyState, Supplier, cn } from "./ui";
 
-export type FocusMode = "reconfirm" | "decide";
+//  - review    : Weekly Review rapide (Valider / À suivre / Rejeter), dans l'ordre donné par la page
+export type FocusMode = "reconfirm" | "decide" | "review";
 /** Panier partagé avec la page (Buy Decisions). Sans lui, l'écran lit et écrit le panier du navigateur directement. */
 export type CartApi = { cart: CartState; add: (productId: string, qty: number) => void; budget: number | null; open: () => void; paused: boolean };
-type Outcome = "confirmed" | "rejected" | "later" | "bought";
+type Outcome = "confirmed" | "validated" | "rejected" | "later" | "bought";
 
 const VERDICT_TONE: Record<Verdict, "good" | "warning" | "critical" | "neutral"> = { BUY: "good", CONSIDER: "warning", AVOID: "critical", INCOMPLETE: "neutral" };
-const OUTCOME_LABEL: Record<Outcome, string> = { confirmed: "Reconfirmé", rejected: "Rejeté", later: "À suivre", bought: "Au panier" };
+const OUTCOME_LABEL: Record<Outcome, string> = { confirmed: "Reconfirmé", validated: "Validé", rejected: "Rejeté", later: "À suivre", bought: "Au panier" };
 
 const toField = (v: number | null | undefined) => (v == null ? "" : String(Math.round(v * 100) / 100).replace(".", ","));
 /** Saisie → nombre (null si vide, undefined si invalide) */
@@ -47,7 +48,9 @@ export function FocusScreen({
   useEffect(() => {
     if (queue || !loaded) return;
     let list: FocusLead[];
-    if (mode === "reconfirm") {
+    if (mode === "review") {
+      list = leads.filter((l) => l.reviewStatus === "TO_REVIEW" || l.reviewStatus === "IN_PROGRESS");
+    } else if (mode === "reconfirm") {
       const rank = { STALE: 0, SOON: 1, FRESH: 2 };
       list = leads
         .filter((l) => l.row.fresh.state !== "FRESH" && l.reviewStatus !== "REJECTED" && !l.purchased)
@@ -70,7 +73,9 @@ export function FocusScreen({
   if (queue.length === 0) {
     return (
       <div className="rounded-md border border-line bg-surface">
-        {mode === "reconfirm" ? (
+        {mode === "review" ? (
+          <EmptyState title="Tout est revu" icon={<CheckCircle2 size={22} />}>Aucun lead de cette semaine (ni en retard) n&apos;attend de décision.</EmptyState>
+        ) : mode === "reconfirm" ? (
           <EmptyState title="Rien à reconfirmer" icon={<CheckCircle2 size={22} />}>Tous vos leads actifs ont des données de moins de 23 jours.</EmptyState>
         ) : (
           <EmptyState title="Aucun lead à décider" icon={<PackageCheck size={22} />}>
@@ -82,7 +87,7 @@ export function FocusScreen({
   }
 
   const finished = index >= queue.length;
-  const counts = Object.values(done).reduce<Record<Outcome, number>>((n, o) => ({ ...n, [o]: n[o] + 1 }), { confirmed: 0, rejected: 0, later: 0, bought: 0 });
+  const counts = Object.values(done).reduce<Record<Outcome, number>>((n, o) => ({ ...n, [o]: n[o] + 1 }), { confirmed: 0, validated: 0, rejected: 0, later: 0, bought: 0 });
   const progress = Math.min(queue.length, Object.keys(done).length);
 
   return (
@@ -110,6 +115,7 @@ export function FocusScreen({
                 {cartApi ? <button type="button" className="link" onClick={cartApi.open}>Voir le panier</button> : <Link href="/decisions" className="link">Voir le panier</Link>} ·{" "}
               </>
             )}
+            {mode === "review" && <><Link href="/weekly-review?vue=liste" className="link">Voir la liste de la semaine</Link> · </>}
             <Link href="/pipeline" className="link">Pipeline</Link> ·{" "}
             <button type="button" className="link" onClick={() => setIndex(0)}>Revoir depuis le début</button>
           </EmptyState>
@@ -195,7 +201,7 @@ function LeadPanel({
     thresholds,
   );
   const stale = lead.row.fresh.state === "STALE" && !confirmedNow;
-  const mustConfirm = mode === "reconfirm" || stale || dirty;
+  const mustConfirm = mode === "reconfirm" || (mode === "decide" && (stale || dirty));
 
   // Budget : panier actuel + cette ligne
   const rowsById = useMemo(() => new Map(rows.map((r) => [r.productId, r.row])), [rows]);
@@ -235,9 +241,22 @@ function LeadPanel({
     if (lead.reviewStatus === "VALIDATED") return onDone("bought");
     run(() => setReviewStatus(lead.productId, "VALIDATED"), () => onDone("bought"));
   };
+  // Weekly Review : valider (les valeurs modifiées sont d'abord enregistrées comme vérifiées)
+  const validate = () =>
+    run(
+      async () => {
+        if (dirty) {
+          const res = await reconfirmLead({ productId: lead.productId, ...changes });
+          if (!res.ok) return res;
+        }
+        return setReviewStatus(lead.productId, "VALIDATED");
+      },
+      () => onDone("validated"),
+    );
   const primary = () => {
     if (pending || invalid) return;
-    if (mustConfirm) confirm();
+    if (mode === "review") validate();
+    else if (mustConfirm) confirm();
     else if (mode === "decide" && best?.cost != null) buy();
   };
 
@@ -256,7 +275,8 @@ function LeadPanel({
       if (typing || pending) return;
       const k = e.key.toLowerCase();
       if (k === "r") reject();
-      else if (k === "p" && mode === "decide") later();
+      else if (k === "p" && mode !== "reconfirm") later();
+      else if (k === "v" && mode === "review" && !invalid) validate();
       else if (k === "a" && mode === "decide" && !mustConfirm) buy();
       else if (e.key === "ArrowRight") onSkip();
       else if (e.key === "ArrowLeft" && onPrev) onPrev();
@@ -406,7 +426,11 @@ function LeadPanel({
           )}
 
           <div className={cn("flex flex-col gap-2", mode === "decide" && "mt-3")}>
-            {mustConfirm ? (
+            {mode === "review" ? (
+              <button type="button" className="btn-primary w-full justify-center py-2.5" disabled={pending || invalid} onClick={validate}>
+                <CheckCircle2 size={16} /> {dirty ? "Enregistrer et valider" : "Valider"} <Kbd>Entrée</Kbd>
+              </button>
+            ) : mustConfirm ? (
               <button type="button" className="btn-primary w-full justify-center py-2.5" disabled={pending || invalid} onClick={confirm}>
                 {dirty ? <RefreshCw size={16} /> : <CheckCircle2 size={16} />}
                 {dirty ? "Enregistrer et reconfirmer" : mode === "reconfirm" ? "Toujours bon" : "Reconfirmer"}
@@ -417,8 +441,8 @@ function LeadPanel({
                 <ShoppingCart size={16} /> Acheter × {qty} <Kbd>A</Kbd>
               </button>
             )}
-            <div className={cn("grid gap-2", mode === "decide" ? "grid-cols-2" : "grid-cols-1")}>
-              {mode === "decide" && (
+            <div className={cn("grid gap-2", mode !== "reconfirm" ? "grid-cols-2" : "grid-cols-1")}>
+              {mode !== "reconfirm" && (
                 <button type="button" className="btn-ghost justify-center" disabled={pending} onClick={later} title="Mettre en veille (statut « À suivre »)">
                   <Eye size={14} /> À suivre <Kbd>P</Kbd>
                 </button>
@@ -435,7 +459,8 @@ function LeadPanel({
           {invalid && <p className="mt-2 text-[11px] text-critical">Un montant saisi est invalide.</p>}
           {error && <p className="mt-2 text-[11px] text-critical">{error}</p>}
           <p className="mt-3 flex items-center gap-1.5 text-[10px] text-ink-3">
-            <Keyboard size={11} /> Entrée {mode === "reconfirm" ? "reconfirme" : "valide"} · Échap sort d&apos;un champ · R rejette{mode === "decide" ? " · P à suivre · A achète · +/− quantité" : ""} · ←/→ précédent / suivant
+            <Keyboard size={11} /> Entrée {mode === "reconfirm" ? "reconfirme" : "valide"}{mode === "review" ? " (ou V)" : ""} · Échap sort d&apos;un champ · R rejette
+            {mode === "decide" ? " · P à suivre · A achète · +/− quantité" : mode === "review" ? " · P à suivre" : ""} · ←/→ précédent / suivant
           </p>
         </section>
       </aside>

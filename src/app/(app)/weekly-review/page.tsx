@@ -1,19 +1,22 @@
 import Link from "next/link";
-import { BellRing, ChevronLeft, ChevronRight } from "lucide-react";
+import { BellRing, ChevronLeft, ChevronRight, LayoutList, SquareStack } from "lucide-react";
+import { FocusScreen } from "@/components/FocusScreen";
 import { ReviewBoard } from "@/components/ReviewBoard";
-import { Card, Kpi, PageHeader, Progress } from "@/components/ui";
+import { Card, Kpi, PageHeader, Progress, cn } from "@/components/ui";
+import { toDecisionRows } from "@/lib/decisionRows";
+import { toFocusLeads } from "@/lib/focus";
 import { addDaysToKey, formatWeekRange, isWeekKey, localWeekdayIndex, weekKey } from "@/lib/dates";
 import { CHECKLIST, isDecided } from "@/lib/labels";
-import { loadProducts, overdueReviews } from "@/lib/queries";
+import { loadProducts, overdueReviews, purchasedProducts } from "@/lib/queries";
 
 export const metadata = { title: "Weekly Review" };
 
-export default async function WeeklyReviewPage({ searchParams }: { searchParams: Promise<{ week?: string }> }) {
+export default async function WeeklyReviewPage({ searchParams }: { searchParams: Promise<{ week?: string; vue?: string; asin?: string }> }) {
   const now = new Date();
   const current = weekKey(now);
-  const requested = (await searchParams).week;
+  const { week: requested, vue, asin } = await searchParams;
   const week = isWeekKey(requested) && requested <= current ? requested : current;
-  const { products, tax } = await loadProducts(now);
+  const [{ products, tax }, purchased] = await Promise.all([loadProducts(now), purchasedProducts()]);
   const items = products.filter((p) => p.countsTowardGoal && p.goalWeek === week).sort((a, b) => a.firstSeenAt.localeCompare(b.firstSeenAt));
   const overdue = week === current ? overdueReviews(products, now) : [];
 
@@ -21,6 +24,14 @@ export default async function WeeklyReviewPage({ searchParams }: { searchParams:
   const checks = items.reduce((n, p) => n + CHECKLIST.filter((c) => p.reviewChecklist[c.key]).length, 0);
   const totalChecks = items.length * CHECKLIST.length;
   const isSunday = localWeekdayIndex(now) === 6;
+
+  // Mode rapide (par défaut) : un lead à la fois, ceux de la semaine puis ceux en retard
+  const list = vue === "liste";
+  const weekParam = week === current ? "" : `week=${week}`;
+  const href = (v: "rapide" | "liste") => `/weekly-review?${[weekParam, v === "liste" ? "vue=liste" : ""].filter(Boolean).join("&")}`;
+  const order = [...items, ...overdue].map((p) => p.id);
+  const focusLeads = list ? [] : toFocusLeads(products, toDecisionRows(products, tax, now), purchased).filter((l) => order.includes(l.productId)).sort((a, b) => order.indexOf(a.productId) - order.indexOf(b.productId));
+  const withoutOffer = [...items, ...overdue].filter((p) => p.offers.length === 0 && !isDecided(p.reviewStatus)).length;
 
   return (
     <>
@@ -73,7 +84,38 @@ export default async function WeeklyReviewPage({ searchParams }: { searchParams:
         <Kpi label="Rejetés" value={items.filter((p) => p.reviewStatus === "REJECTED").length} tone="critical" />
       </div>
 
-      <ReviewBoard items={items} overdue={overdue} tax={tax} />
+      <div className="mb-4 inline-flex rounded-md border border-line bg-surface p-1" role="tablist" aria-label="Affichage">
+        {(
+          [
+            { v: "rapide", label: "Mode rapide", icon: <SquareStack size={15} />, on: !list },
+            { v: "liste", label: "Liste détaillée", icon: <LayoutList size={15} />, on: list },
+          ] as const
+        ).map((t) => (
+          <Link
+            key={t.v}
+            href={href(t.v)}
+            role="tab"
+            aria-selected={t.on}
+            className={cn("flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm font-medium transition", t.on ? "bg-accent text-white" : "text-ink-2 hover:text-ink")}
+          >
+            {t.icon} {t.label}
+          </Link>
+        ))}
+      </div>
+
+      {list ? (
+        <ReviewBoard items={items} overdue={overdue} tax={tax} />
+      ) : (
+        <>
+          <FocusScreen key={week} leads={focusLeads} mode="review" tax={tax} currentWeek={current} startAsin={asin ?? null} />
+          {withoutOffer > 0 && (
+            <p className="mt-3 text-xs text-ink-3">
+              {withoutOffer} lead{withoutOffer > 1 ? "s" : ""} sans fournisseur ne peu{withoutOffer > 1 ? "vent" : "t"} pas être calculé{withoutOffer > 1 ? "s" : ""} :{" "}
+              <Link href={href("liste")} className="link">voir la liste détaillée</Link>.
+            </p>
+          )}
+        </>
+      )}
     </>
   );
 }

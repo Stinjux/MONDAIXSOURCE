@@ -40,6 +40,8 @@ Chaque fournisseur, chaque occurrence, la première et la dernière date de déc
 
 ### Weekly Review
 
+**Mode rapide** (par défaut) : un lead à la fois, ceux de la semaine puis ceux en retard, avec la même disposition que Buy Decisions (vignette, liens Amazon / Keepa / fournisseur, jauges). **Valider** (Entrée ou V), **À suivre** (P) ou **Rejeter** (R) passe au lead suivant ; un prix modifié est d'abord enregistré comme valeur vérifiée (« Enregistrer et valider »). L'onglet **Liste détaillée** (`/weekly-review?vue=liste`) garde les fiches complètes (notes, checklist, restrictions).
+
 Statuts : À revoir · En cours · Revu et validé · Rejeté · À suivre. Pour chaque lead : prix Amazon et frais Amazon (Total Fees) vérifiés, coût et disponibilité vérifiés par fournisseur, restrictions Amazon, rentabilité recalculée en direct, doublons, checklist en 6 points, notes. Les leads sans décision des semaines précédentes restent affichés (« En retard »). Chaque modification est journalisée (`ChangeLog`).
 
 ### Buy Decisions (aide à l'achat)
