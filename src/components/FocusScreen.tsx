@@ -20,6 +20,7 @@ import { cartLineValues, type CartState } from "./Cart";
 import { readSaved, useDecisionFilters, writeSaved } from "./DecisionFilters";
 import { FreshnessPill } from "./Freshness";
 import { ProductImage } from "./ProductImage";
+import { storeName } from "@/lib/stores";
 import { Badge, EmptyState, Supplier, cn } from "./ui";
 
 //  - review    : Weekly Review rapide (Valider / À suivre / Rejeter), leads et ordre choisis par la page
@@ -311,7 +312,7 @@ function LeadPanel({
                 <a href={lead.amazonUrl} target="_blank" rel="noreferrer" className="btn-ghost px-2 py-1 text-xs"><ExternalLink size={12} /> Amazon.ca</a>
                 <a href={keepa} target="_blank" rel="noreferrer" className="btn-ghost px-2 py-1 text-xs"><LineChart size={12} /> Keepa</a>
                 {lead.offers.filter((o) => o.url).map((o) => (
-                  <a key={o.id} href={o.url!} target="_blank" rel="noreferrer" className="btn-ghost max-w-48 px-2 py-1 text-xs"><ExternalLink size={12} /> <span className="truncate">{o.supplier}</span></a>
+                  <a key={o.id} href={o.url!} target="_blank" rel="noreferrer" className="btn-ghost max-w-48 px-2 py-1 text-xs"><ExternalLink size={12} /> <span className="truncate">{storeName({ supplierName: o.supplier, supplierUrl: o.url })}</span></a>
                 ))}
               </div>
             </div>

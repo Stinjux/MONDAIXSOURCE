@@ -30,7 +30,7 @@ test("fournisseurs : une URL walmart.ca et la boutique « Walmart » forment un 
   const groups = groupBySupplier(products, toDecisionRows(products, undefined, now), undefined, new Map(), [
     { supplierName: "walmart.ca", supplierUrl: "https://www.walmart.ca/ip/a", quantity: 3, unitCost: 15 },
   ]);
-  assert.deepEqual(groups.map((g) => [g.key, g.name, g.products.length]), [["walmart", "Walmart", 2], ["costco", "costco.ca", 1]]);
+  assert.deepEqual(groups.map((g) => [g.key, g.name, g.products.length]), [["walmart", "Walmart", 2], ["costco", "Costco", 1]]);
   const walmart = groups[0];
   assert.equal(walmart.domain, "walmart.ca");
   assert.deepEqual(walmart.products.map((p) => [p.asin, p.stage, p.best, p.unavailable]), [
@@ -38,6 +38,8 @@ test("fournisseurs : une URL walmart.ca et la boutique « Walmart » forment un 
     ["B0BBBBBBBB", "REJECTED", true, true],
   ]);
   assert.equal(walmart.stats.rejected, 1);
+  assert.equal(walmart.stats.stages.NEW, 1);
+  assert.equal(walmart.stats.stages.REJECTED, 1);
   assert.deepEqual(walmart.stats.bought, { units: 3, spend: 45 });
   assert.equal(groups[1].products[0].best, false);
 });

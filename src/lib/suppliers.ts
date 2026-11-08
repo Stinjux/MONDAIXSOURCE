@@ -4,7 +4,8 @@ import { evaluateOffer, type DecisionRow } from "./decisionRows";
 import { brandOf } from "./duplicates";
 import type { FreshnessState } from "./freshness";
 import { supplierBrand } from "./normalize";
-import { stageOf, type Stage } from "./pipeline";
+import { STAGES, stageOf, type Stage } from "./pipeline";
+import { storeDomain, storeName } from "./stores";
 import { NO_TAX, type TaxConfig } from "./profit";
 import type { ProductView } from "./queries";
 
@@ -39,6 +40,8 @@ export type SupplierGroup = {
     unavailable: number;
     avgRoi: number | null;
     bought: { units: number; spend: number };
+    /** Nombre de produits par étape du Pipeline */
+    stages: Record<Stage, number>;
   };
 };
 
@@ -52,7 +55,6 @@ const hostOf = (url: string | null) => {
     return null;
   }
 };
-const looksLikeDomain = (s: string) => /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(s);
 
 export function groupBySupplier(
   products: ProductView[],
@@ -63,6 +65,7 @@ export function groupBySupplier(
 ): SupplierGroup[] {
   const rowById = new Map(rows.map((r) => [r.productId, r]));
   type Acc = { names: Map<string, number>; domain: string | null; products: SupplierProduct[] };
+  // Nom lisible du commerce (« Canadian Tire »), le plus fréquent parmi ses offres
   const groups = new Map<string, Acc>();
 
   for (const p of products) {
@@ -71,9 +74,9 @@ export function groupBySupplier(
       const key = o.supplierKey === "unknown" ? "unknown" : brandOf(o) || "unknown";
       const g: Acc = groups.get(key) ?? { names: new Map(), domain: null, products: [] };
       groups.set(key, g);
-      const label = o.supplierName ?? hostOf(o.supplierUrl);
-      if (label) g.names.set(label, (g.names.get(label) ?? 0) + 1);
-      g.domain ??= hostOf(o.supplierUrl);
+      const label = storeName(o);
+      g.names.set(label, (g.names.get(label) ?? 0) + 1);
+      g.domain ??= storeDomain(o) ?? hostOf(o.supplierUrl);
       const e = evaluateOffer(p, o, tax);
       g.products.push({
         productId: p.id,
@@ -102,8 +105,7 @@ export function groupBySupplier(
 
   return [...groups]
     .map(([key, g]) => {
-      // Nom affiché : le nom de boutique (« Canadian Tire ») plutôt que le domaine, sinon le plus fréquent
-      const names = [...g.names].sort((a, b) => Number(looksLikeDomain(a[0])) - Number(looksLikeDomain(b[0])) || b[1] - a[1]);
+      const names = [...g.names].sort((a, b) => b[1] - a[1]);
       const list = g.products.sort((a, b) => (b.roi ?? -Infinity) - (a.roi ?? -Infinity));
       const rois = list.filter((x) => x.stage !== "REJECTED" && x.roi != null).map((x) => x.roi as number);
       return {
@@ -119,6 +121,7 @@ export function groupBySupplier(
           unavailable: list.filter((x) => x.unavailable).length,
           avgRoi: rois.length ? rois.reduce((n, x) => n + x, 0) / rois.length : null,
           bought: bought.get(key) ?? { units: 0, spend: 0 },
+          stages: Object.fromEntries(STAGES.map((st) => [st, list.filter((x) => x.stage === st).length])) as Record<Stage, number>,
         },
       };
     })

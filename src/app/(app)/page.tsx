@@ -6,6 +6,7 @@ import { Asin, Card, DuplicateBadges, EmptyState, Kpi, PageHeader, Progress, Rev
 import { daysLeftInWeek, formatDateTime, formatWeekRange, formatWeekShort, weekBounds } from "@/lib/dates";
 import { cad, pct, plural } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
+import { storeName } from "@/lib/stores";
 import { history, lastSuccessfulSync, loadProducts, overdueReviews, weekStats } from "@/lib/queries";
 
 export const metadata = { title: "Dashboard" };
@@ -152,7 +153,7 @@ export default async function DashboardPage() {
               <Priority href="/weekly-review" tone="accent" icon={<CalendarClock size={15} />} title={`${stats.toReview + stats.inProgress} à revoir dimanche`} text={`${stats.decided} / ${stats.found} revus cette semaine`} />
             )}
             {backInStock.map(({ p, o }) => (
-              <Priority key={o.id} href="/out-of-stock" tone="good" icon={<PackageCheck size={15} />} title={`De retour en stock : ${p.name}`} text={`${o.supplierName ?? o.supplierKey} · vérifié ${formatDateTime(o.stockCheckedAt)}`} />
+              <Priority key={o.id} href="/out-of-stock" tone="good" icon={<PackageCheck size={15} />} title={`De retour en stock : ${p.name}`} text={`${storeName(o)} · vérifié ${formatDateTime(o.stockCheckedAt)}`} />
             ))}
             {dupAlerts.slice(0, 4).map((p) => (
               <li key={p.id}>

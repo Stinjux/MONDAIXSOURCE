@@ -1,8 +1,9 @@
 // Composants d'interface sans état (utilisables côté serveur et client).
 import type { ReactNode } from "react";
-import { AlertTriangle, CheckCircle2, CircleDashed, CircleSlash, Clock, Copy, ExternalLink, Eye, HelpCircle, Layers, Repeat, Search, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CircleDashed, CircleSlash, Clock, Copy, Eye, HelpCircle, Layers, Repeat, XCircle } from "lucide-react";
 import { REVIEW_LABELS, SOURCE_LABELS, type ReviewStatus } from "@/lib/labels";
 import { STOCK_LABELS, type StockStatus } from "@/lib/stock";
+import { storeName } from "@/lib/stores";
 
 export function cn(...classes: (string | false | null | undefined)[]) {
   return classes.filter(Boolean).join(" ");
@@ -184,32 +185,25 @@ export function Asin({ asin, url }: { asin: string; url?: string | null }) {
 }
 
 /**
- * Fournisseur cliquable : ouvre la page du produit chez le fournisseur (URL de la Sheet).
- * Sans URL (seulement un nom de magasin, Sheet OUT OF STOCK), et si `product` est donné :
- * lien de recherche du produit chez ce magasin.
+ * Fournisseur : seulement le nom du commerce (« Canadian Tire »), surligné en bleu et cliquable.
+ * Le lien ouvre la page du produit chez le fournisseur (URL de la Sheet). Sans URL (seulement un
+ * nom de magasin, Sheet OUT OF STOCK) et si `product` est donné : recherche du produit chez ce magasin.
  */
 export function Supplier({ name, url, fallback, product }: { name?: string | null; url?: string | null; fallback?: string; product?: string }) {
   if (!name && !url && fallback === "unknown") return <span className="text-warning" title="La colonne J (Supplier URL) est vide dans la Sheet">URL fournisseur manquante</span>;
-  const label = name || fallback?.replace(/^store:/, "") || "—";
+  const label = name || url || fallback ? storeName({ supplierName: name, supplierUrl: url, supplierKey: fallback }) : "—";
+  const chip = "inline-block max-w-full truncate rounded-sm bg-accent/[0.08] px-1.5 py-px align-middle text-[12px] leading-5 font-medium text-accent transition hover:bg-accent hover:text-white";
   if (url) {
     return (
-      <a href={url} target="_blank" rel="noopener noreferrer" className="link inline-flex max-w-full items-center gap-1 align-bottom" title={`Ouvrir chez le fournisseur : ${url}`}>
-        <span className="truncate">{label}</span>
-        <ExternalLink size={11} className="shrink-0" aria-hidden />
+      <a href={url} target="_blank" rel="noopener noreferrer" className={chip} title={`Ouvrir chez ${label}`}>
+        {label}
       </a>
     );
   }
   if (product && label !== "—") {
     return (
-      <a
-        href={`https://www.google.com/search?q=${encodeURIComponent(`${label} ${product}`)}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex max-w-full items-center gap-1 align-bottom text-ink-2 underline-offset-2 hover:text-accent hover:underline"
-        title={`Pas d'URL dans la Sheet : rechercher « ${product} » chez ${label}`}
-      >
-        <span className="truncate">{label}</span>
-        <Search size={11} className="shrink-0" aria-hidden />
+      <a href={`https://www.google.com/search?q=${encodeURIComponent(`${label} ${product}`)}`} target="_blank" rel="noopener noreferrer" className={chip} title={`Pas d'URL dans la Sheet : rechercher le produit chez ${label}`}>
+        {label}
       </a>
     );
   }

@@ -62,7 +62,7 @@ Tableau Kanban du sourcing, de l'arrivée d'un lead à l'achat : **Nouveaux** (�
 
 ### Fournisseurs (`/suppliers`)
 
-Tous les produits regroupés par fournisseur (magasin) : une URL walmart.ca et la boutique « Walmart » de la Sheet OUT OF STOCK forment un seul fournisseur. Pour chacun : produits actifs, à revoir, prêts à acheter, en rupture, ROI moyen et ce qui y a déjà été acheté (unités, montant). Ses produits s'affichent avec leur étape dans le Pipeline, le coût et le ROI chez ce fournisseur, « meilleure offre » quand c'est le fournisseur retenu dans Buy Decisions, et le lien vers la page du produit. Recherche, et option pour afficher les rejetés.
+Tous les produits regroupés par fournisseur (magasin), avec le logo du commerce (icône de son site, sinon ses initiales) et une barre de répartition par étape (à traiter, à reconfirmer, prêts, achetés, en veille) qui sert aussi de filtre. Partout dans l'app, un fournisseur s'affiche par le seul nom du commerce (« Canadian Tire »), surligné en bleu et cliquable, sans l'URL ni le « .ca ». Regroupement : une URL walmart.ca et la boutique « Walmart » de la Sheet OUT OF STOCK forment un seul fournisseur. Pour chacun : produits actifs, à revoir, prêts à acheter, en rupture, ROI moyen et ce qui y a déjà été acheté (unités, montant). Ses produits s'affichent avec leur étape dans le Pipeline, le coût et le ROI chez ce fournisseur, « meilleure offre » quand c'est le fournisseur retenu dans Buy Decisions, et le lien vers la page du produit. Recherche, et option pour afficher les rejetés.
 
 ### Fraîcheur et reconfirmation (`/reconfirm`)
 

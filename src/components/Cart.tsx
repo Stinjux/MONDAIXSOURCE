@@ -1,14 +1,16 @@
 "use client";
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { CheckCircle2, ClipboardPaste, RefreshCw, ShoppingCart, Store, Trash2, X } from "lucide-react";
+import { CheckCircle2, ClipboardPaste, RefreshCw, ShoppingCart, Trash2, X } from "lucide-react";
 import { confirmPurchase } from "@/app/(app)/actions";
 import { parsePastedAsins } from "@/lib/cart";
 import type { DecisionRow } from "@/lib/decisionRows";
 import { cad, pct } from "@/lib/format";
 import { amount } from "@/lib/normalize";
 import { preliminaryProfit, type TaxConfig } from "@/lib/profit";
-import { Asin, cn } from "./ui";
+import { Asin, Supplier, cn } from "./ui";
+import { StoreLogo } from "./StoreLogo";
+import { storeDomain, storeName } from "@/lib/stores";
 import { ProductImage } from "./ProductImage";
 
 /** Ligne du panier : quantité et coût unitaire saisi (vide = coût du lead). */
@@ -71,7 +73,7 @@ export function Cart({
   // Une commande par fournisseur : lignes regroupées par magasin
   const bySupplier = new Map<string, typeof values>();
   for (const l of values) {
-    const key = l.row.supplierName ?? l.row.supplierKey;
+    const key = storeName(l.row);
     bySupplier.set(key, [...(bySupplier.get(key) ?? []), l]);
   }
   const groups = [...bySupplier].map(([supplier, items]) => ({
@@ -175,9 +177,9 @@ export function Cart({
           {groups.map((g) => (
             <section key={g.supplier} className="border-b border-line last:border-b-0">
               <header className="flex items-center justify-between gap-2 bg-page/50 px-3 py-1.5 text-[11px]">
-                <span className="flex min-w-0 items-center gap-1.5 font-semibold text-ink-2">
-                  <Store size={12} className="shrink-0" />
-                  {g.url ? <a href={g.url} target="_blank" rel="noreferrer" className="truncate hover:text-accent hover:underline">{g.supplier}</a> : <span className="truncate">{g.supplier}</span>}
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <StoreLogo name={g.supplier} domain={storeDomain(g.items[0].row)} size={20} className="rounded-sm" />
+                  <Supplier name={g.supplier} url={g.url} />
                 </span>
                 <span className="shrink-0 tabular-nums text-ink-3">{g.units} u. · <b className="text-ink">{cad(g.cost)}</b></span>
               </header>
