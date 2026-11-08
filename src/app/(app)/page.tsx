@@ -2,22 +2,29 @@ import Link from "next/link";
 import { AlertTriangle, ArrowRight, CalendarClock, CheckCircle2, Copy, PackageCheck, Target, XCircle } from "lucide-react";
 import { WeeklyLeadsChart } from "@/components/charts";
 import { SyncButton } from "@/components/SyncButton";
-import { Asin, Card, DuplicateBadges, EmptyState, Kpi, PageHeader, Progress, ReviewBadge, Supplier } from "@/components/ui";
+import { Asin, Card, DuplicateBadges, EmptyState, Kpi, PageHeader, Progress, ReviewBadge, Supplier, cn } from "@/components/ui";
 import { daysLeftInWeek, formatDateTime, formatWeekRange, formatWeekShort, weekBounds } from "@/lib/dates";
 import { cad, pct, plural } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { storeName } from "@/lib/stores";
-import { history, lastSuccessfulSync, loadProducts, overdueReviews, weekStats } from "@/lib/queries";
+import { history, lastSuccessfulSync, loadProducts, overdueReviews, purchasedProducts, weekStats } from "@/lib/queries";
+import { DashboardGrid } from "@/components/DashboardGrid";
+import { StageBar } from "@/components/SupplierBrowser";
+import { StoreLogo } from "@/components/StoreLogo";
+import { toDecisionRows } from "@/lib/decisionRows";
+import { STAGES, STAGE_INFO, stageOf, type Stage } from "@/lib/pipeline";
+import { groupBySupplier, type SupplierGroup } from "@/lib/suppliers";
 
 export const metadata = { title: "Dashboard" };
 
 export default async function DashboardPage() {
   const now = new Date();
   const week = weekBounds(now);
-  const [{ products, duplicateEvents }, lastSync, lastRuns] = await Promise.all([
+  const [{ products, duplicateEvents, tax }, lastSync, lastRuns, purchased] = await Promise.all([
     loadProducts(now),
     lastSuccessfulSync(),
     prisma.importRun.findMany({ where: { trigger: { not: "LEGACY_MIGRATION" } }, orderBy: { startedAt: "desc" }, take: 2 }),
+    purchasedProducts(),
   ]);
 
   const stats = weekStats(products, duplicateEvents, week.key);
@@ -33,6 +40,15 @@ export default async function DashboardPage() {
   const failedRuns = lastRuns.filter((r) => r.status === "FAILED");
   const invalidRows = lastRuns.reduce((n, r) => n + r.errors, 0);
 
+  // Modules Pipeline et Fournisseurs
+  const rows = toDecisionRows(products, tax, now);
+  const stageCounts = Object.fromEntries(STAGES.map((st) => [st, 0])) as Record<Stage, number>;
+  for (const r of rows) stageCounts[stageOf({ reviewStatus: r.reviewStatus, purchased: purchased.has(r.productId), unavailable: r.unavailable, fresh: r.fresh.state })]++;
+  const topSuppliers = groupBySupplier(products, rows, tax, purchased)
+    .filter((g) => g.key !== "unknown")
+    .slice(0, 6)
+    .map((g) => ({ ...g, products: [] }));
+
   const remaining = Math.max(0, stats.goal - stats.found);
   const daysLeft = daysLeftInWeek(now);
   const ratio = stats.found / stats.goal;
@@ -46,8 +62,14 @@ export default async function DashboardPage() {
         actions={<SyncButton />}
       />
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-1">
+      <DashboardGrid
+        widgets={[
+          {
+            id: "goal",
+            title: "Objectif hebdomadaire",
+            size: "s",
+            node: (
+        <Card className="h-full">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-ink-2">Objectif hebdomadaire</span>
             <Target size={16} className="text-accent" />
@@ -79,8 +101,15 @@ export default async function DashboardPage() {
             {overdue.length > 0 && <div className="mt-2 text-xs text-warning">+ {plural(overdue.length, "lead", "leads")} en retard des semaines précédentes</div>}
           </Link>
         </Card>
-
-        <div className="grid grid-cols-2 gap-4 lg:col-span-2 lg:grid-cols-4">
+            ),
+          },
+          {
+            id: "kpis",
+            title: "Indicateurs de la semaine",
+            size: "l",
+            node: (
+              <div className="@container">
+                <div className="grid grid-cols-2 content-start gap-4 @2xl:grid-cols-4">
           <Kpi label="Qualifiés (validés)" value={stats.validated} hint="cette semaine" icon={<CheckCircle2 size={16} />} tone="good" />
           <Kpi label="Rejetés" value={stats.rejected} hint="cette semaine" icon={<XCircle size={16} />} tone="critical" />
           <Kpi
@@ -91,15 +120,33 @@ export default async function DashboardPage() {
             tone="warning"
           />
           <Kpi label="Doublons détectés" value={stats.duplicates} hint="cette semaine (non comptés)" icon={<Copy size={16} />} tone="accent" />
-          <Card className="col-span-2 lg:col-span-4" title="Leads uniques par semaine" action={<Link href="/analytics" className="link text-xs">Analytics →</Link>} padded>
+                </div>
+              </div>
+            ),
+          },
+          {
+            id: "weekly",
+            title: "Leads par semaine",
+            size: "l",
+            node: (
+          <Card className="h-full" title="Leads uniques par semaine" action={<Link href="/analytics" className="link text-xs">Analytics →</Link>} padded>
             <WeeklyLeadsChart data={hist.map((h) => ({ label: formatWeekShort(h.key), found: h.found, validated: h.validated, rejected: h.rejected, followUp: h.followUp, pending: h.toReview + h.inProgress }))} goal={stats.goal} height={190} />
           </Card>
-        </div>
-      </div>
-
-      <div className="mt-4 grid gap-4 lg:grid-cols-3">
+            ),
+          },
+          {
+            id: "pipeline",
+            title: "Pipeline",
+            size: "s",
+            node: <PipelineWidget counts={stageCounts} />,
+          },
+          {
+            id: "top",
+            title: "Plus rentables",
+            size: "l",
+            node: (
         <Card
-          className="lg:col-span-2"
+          className="h-full"
           title="Leads les plus rentables cette semaine"
           action={<Link href="/leads" className="link text-xs">Tous les leads →</Link>}
           padded={false}
@@ -141,9 +188,15 @@ export default async function DashboardPage() {
             <EmptyState title="Aucun lead rentable calculable cette semaine">Synchronisez les Sheets ou complétez Buy Box 90 j (D), Total Fees (H) et Cost Price (I) dans LEADS.</EmptyState>
           )}
         </Card>
-
-        <Card title="Priorités" padded={false}>
-          <ul className="divide-y divide-line">
+            ),
+          },
+          {
+            id: "priorities",
+            title: "Priorités",
+            size: "s",
+            node: (
+        <Card className="h-full" title="Priorités" padded={false}>
+          <ul className="max-h-[26rem] divide-y divide-line overflow-y-auto">
             {failedRuns.length > 0 && (
               <Priority href="/imports" tone="critical" icon={<AlertTriangle size={15} />} title="Dernière synchronisation en échec" text={failedRuns[0].details ?? "Voir l'historique des imports"} />
             )}
@@ -169,8 +222,78 @@ export default async function DashboardPage() {
             )}
           </ul>
         </Card>
-      </div>
+            ),
+          },
+          {
+            id: "suppliers",
+            title: "Fournisseurs",
+            size: "f",
+            node: <SuppliersWidget groups={topSuppliers} />,
+          },
+        ]}
+      />
     </>
+  );
+}
+
+const PIPELINE_ROWS: Stage[] = ["NEW", "ANALYSIS", "RECONFIRM", "READY", "BOUGHT", "WATCH"];
+
+/** Module Pipeline : nombre de leads par étape, chaque ligne ouvre la colonne correspondante. */
+function PipelineWidget({ counts }: { counts: Record<Stage, number> }) {
+  const max = Math.max(1, ...PIPELINE_ROWS.map((s) => counts[s]));
+  return (
+    <Card className="h-full" title="Pipeline" action={<Link href="/pipeline" className="link text-xs">Ouvrir →</Link>} padded={false}>
+      <ul className="py-1.5">
+        {PIPELINE_ROWS.map((s) => (
+          <li key={s}>
+            <Link href={`/pipeline?vue=${STAGE_INFO[s].slug}`} className="group flex items-center gap-3 px-4 py-2 transition hover:bg-surface-2">
+              <span className="w-28 shrink-0 truncate text-sm text-ink-2 group-hover:text-ink">{STAGE_INFO[s].title}</span>
+              <span className="h-2 flex-1 overflow-hidden rounded-[2px] bg-surface-3" aria-hidden>
+                <span className={cn("block h-full rounded-[2px]", s === "RECONFIRM" ? "bg-[#eb6834]" : s === "READY" ? "bg-[#1baf7a]" : "bg-[#1c5cab]")} style={{ width: `${(counts[s] / max) * 100}%` }} />
+              </span>
+              <span className="w-8 shrink-0 text-right text-sm font-semibold tabular-nums text-ink">{counts[s]}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
+/** Module Fournisseurs : les commerces les plus fournis, avec leur répartition par étape. */
+function SuppliersWidget({ groups }: { groups: SupplierGroup[] }) {
+  const max = Math.max(1, ...groups.map((g) => g.stats.products - g.stats.rejected));
+  return (
+    <Card className="h-full" title="Fournisseurs" action={<Link href="/suppliers" className="link text-xs">Tous les fournisseurs →</Link>} padded={false}>
+      {groups.length ? (
+        <div className="@container">
+          <ul className="grid grid-cols-1 divide-line @xl:grid-cols-2 @4xl:grid-cols-3">
+            {groups.map((g) => (
+              <li key={g.key} className="border-b border-line">
+                <Link href={`/suppliers?f=${encodeURIComponent(g.key)}`} className="flex items-center gap-3 px-4 py-3 transition hover:bg-surface-2">
+                  <StoreLogo name={g.name} domain={g.domain} size={34} />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-baseline justify-between gap-2">
+                      <span className="truncate text-sm font-semibold text-ink">{g.name}</span>
+                      <span className="text-sm font-semibold tabular-nums text-ink">{g.stats.products - g.stats.rejected}</span>
+                    </span>
+                    <span className="mt-1.5 block">
+                      <StageBar g={g} max={max} />
+                    </span>
+                    <span className="mt-1 flex justify-between text-[11px] text-ink-3">
+                      <span>{g.stats.ready > 0 ? <span className="font-medium text-good">{g.stats.ready} prêt{g.stats.ready > 1 ? "s" : ""}</span> : `${g.stats.toReview} à traiter`}</span>
+                      {g.stats.avgRoi != null && <span className="tabular-nums">ROI moy. {pct(g.stats.avgRoi, 0)}</span>}
+                    </span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <EmptyState title="Aucun fournisseur pour le moment" />
+      )}
+    </Card>
   );
 }
 

@@ -14,7 +14,7 @@ import { EmptyState, Supplier, cn } from "./ui";
 
 // Répartition par étape : 5 catégories (palette validée CVD sur fond blanc, toujours avec libellé et nombre)
 type Bucket = "todo" | "reconfirm" | "ready" | "bought" | "watch";
-const BUCKETS: { key: Bucket; label: string; color: string; stages: Stage[] }[] = [
+export const BUCKETS: { key: Bucket; label: string; color: string; stages: Stage[] }[] = [
   { key: "todo", label: "À traiter", color: "#aab3c0", stages: ["NEW", "ANALYSIS"] },
   { key: "reconfirm", label: "À reconfirmer", color: "#eb6834", stages: ["RECONFIRM"] },
   { key: "ready", label: "Prêts à acheter", color: "#1baf7a", stages: ["READY"] },
@@ -34,7 +34,7 @@ const STAGE_LABEL: Record<Stage, string> = {
 };
 
 /** Barre horizontale segmentée (2 px d'espace entre segments) ; largeur relative à `max`. */
-function StageBar({ g, max, height = 6 }: { g: SupplierGroup; max: number; height?: number }) {
+export function StageBar({ g, max, height = 6 }: { g: SupplierGroup; max: number; height?: number }) {
   const active = g.stats.products - g.stats.rejected;
   return (
     <div className="flex w-full overflow-hidden rounded-[2px] bg-surface-3/60" style={{ height }} aria-hidden>

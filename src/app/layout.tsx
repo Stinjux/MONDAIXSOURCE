@@ -4,6 +4,7 @@ import "@fontsource/ibm-plex-sans/600.css";
 import "@fontsource/ibm-plex-serif/600.css";
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
+import { UI_BOOT_SCRIPT } from "@/components/uiPrefs";
 
 export const metadata: Metadata = {
   title: { default: "MONDAIX SOURCE", template: "%s · MONDAIX SOURCE" },
@@ -15,8 +16,12 @@ export const viewport: Viewport = { themeColor: "#0b1f3a", width: "device-width"
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr-CA">
-      <body className="min-h-screen bg-page text-ink">{children}</body>
+    <html lang="fr-CA" data-sidebar="full" data-density="comfort" suppressHydrationWarning>
+      <body className="min-h-screen bg-page text-ink">
+        {/* Préférences d'affichage appliquées avant le premier rendu */}
+        <script dangerouslySetInnerHTML={{ __html: UI_BOOT_SCRIPT }} />
+        {children}
+      </body>
     </html>
   );
 }

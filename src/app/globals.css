@@ -37,6 +37,10 @@
 @layer base {
   :root {
     color-scheme: light;
+    --sidebar-w: 16rem;
+  }
+  :root[data-sidebar="rail"] {
+    --sidebar-w: 4.25rem;
   }
   html,
   body {
@@ -91,4 +95,37 @@
   .table-base tbody tr {
     @apply transition-colors hover:bg-accent-soft;
   }
+}
+
+/* Menu réduit (barre d'icônes) sur grand écran */
+@media (min-width: 1024px) {
+  :root[data-sidebar="rail"] .rail-hide {
+    display: none;
+  }
+  :root[data-sidebar="rail"] .rail-center {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  :root:not([data-sidebar="rail"]) .rail-only {
+    display: none;
+  }
+}
+@media (max-width: 1023px) {
+  .rail-only {
+    display: none;
+  }
+}
+
+/* Densité compacte : tableaux et listes plus serrés */
+:root[data-density="compact"] .table-base td {
+  padding-top: 0.3rem;
+  padding-bottom: 0.3rem;
+}
+:root[data-density="compact"] .table-base th {
+  padding-top: 0.45rem;
+  padding-bottom: 0.45rem;
+}
+:root[data-density="compact"] .density-tight {
+  gap: 0.5rem;
 }
