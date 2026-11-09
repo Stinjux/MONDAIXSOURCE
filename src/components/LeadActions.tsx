@@ -7,6 +7,7 @@ import type { ProductView } from "@/lib/queries";
 import type { TaxConfig } from "@/lib/profit";
 import { readSaved, writeSaved } from "./DecisionFilters";
 import { ReviewCard } from "./ReviewBoard";
+import type { NoteTemplates } from "@/lib/noteTemplates";
 import type { CartState } from "./Cart";
 
 /** Retour à la page précédente (ou à Buy Decisions si la fiche a été ouverte directement). */
@@ -44,6 +45,6 @@ export function AddToCartButton({ productId }: { productId: string }) {
 }
 
 /** Éditeur complet (identique à la Weekly Review), ouvert par défaut. */
-export function LeadEditor({ product, tax }: { product: ProductView; tax: TaxConfig }) {
-  return <ReviewCard product={product} tax={tax} onSaved={() => undefined} defaultOpen />;
+export function LeadEditor({ product, tax, templates }: { product: ProductView; tax: TaxConfig; templates?: NoteTemplates }) {
+  return <ReviewCard product={product} tax={tax} onSaved={() => undefined} defaultOpen templates={templates} />;
 }

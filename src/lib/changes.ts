@@ -17,6 +17,7 @@ export const ACTION_LABELS: Record<string, string> = {
 const FIELD_LABELS: Record<string, string> = {
   reviewStatus: "Statut",
   reviewNotes: "Notes",
+  reviewTags: "Motifs",
   verifiedSalePrice: "Prix Amazon vérifié",
   verifiedFbaFee: "Total Fees vérifiés",
   restriction: "Restrictions",
@@ -33,6 +34,7 @@ function show(field: string, v: unknown): string {
   if (field === "restriction") return RESTRICTION_LABELS[v as keyof typeof RESTRICTION_LABELS] ?? String(v);
   if (field === "verifiedAvailability") return v === "IN_STOCK" ? "En stock" : v === "OUT_OF_STOCK" ? "En rupture" : String(v);
   if (field.startsWith("verified") && field !== "verifiedAvailability") return money(v);
+  if (field === "reviewTags") return Array.isArray(v) && v.length ? v.join(", ") : "—";
   if (field === "reviewChecklist" && typeof v === "object") {
     const done = CHECKLIST.filter((c) => (v as Record<string, unknown>)[c.key] === true).length;
     return `${done}/${CHECKLIST.length}`;

@@ -3,7 +3,8 @@ import { Card, PageHeader } from "@/components/ui";
 import { config, envStatus } from "@/lib/config";
 import { TIME_ZONE } from "@/lib/dates";
 import { sheetConfig } from "@/lib/google";
-import { getTaxConfig } from "@/lib/settings";
+import { getNoteTemplates, getTaxConfig } from "@/lib/settings";
+import { NoteTemplatesForm } from "@/components/NoteTemplatesForm";
 import { TaxSettingsForm } from "@/components/TaxSettingsForm";
 import { BackupButton } from "@/components/BackupButton";
 import { BACKUP_REASON_LABELS, DAILY_KEEP, backupTableExists, type BackupReason } from "@/lib/backup";
@@ -13,7 +14,7 @@ import { prisma } from "@/lib/prisma";
 export const metadata = { title: "Settings" };
 
 export default async function SettingsPage() {
-  const tax = await getTaxConfig();
+  const [tax, templates] = await Promise.all([getTaxConfig(), getNoteTemplates()]);
   const backups = (await backupTableExists(prisma))
     ? await prisma.dataBackup.findMany({ orderBy: { createdAt: "desc" }, take: 12, select: { id: true, createdAt: true, reason: true, tables: true, sizeBytes: true } })
     : [];
@@ -68,6 +69,11 @@ export default async function SettingsPage() {
               Créez une tâche planifiée Railway le dimanche (ex. <code className="font-mono text-xs">0 13 * * 0</code> = 9 h HAE / 8 h HNE, Railway utilise l&apos;UTC) avec la commande
               <code className="mx-1 font-mono text-xs">npm run reminder</code>. Le rappel est envoyé au webhook <code className="font-mono text-xs">REMINDER_WEBHOOK_URL</code> (Slack, Discord ou ntfy) s&apos;il est configuré.
             </p>
+          </Card>
+
+          <Card title="Modèles de notes">
+            <p className="mb-3 text-sm text-ink-2">Motifs proposés en un clic quand vous validez, mettez à suivre ou rejetez un lead (mode rapide, Buy Decisions, fiche). Ils alimentent les « Motifs » d&apos;Analytics.</p>
+            <NoteTemplatesForm initial={templates} />
           </Card>
 
           <Card title="Protection des données et sauvegardes" action={<ShieldCheck size={16} className="text-good" />}>

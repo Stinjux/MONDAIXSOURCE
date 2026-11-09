@@ -41,6 +41,8 @@ model Product {
   /// TO_REVIEW | IN_PROGRESS | VALIDATED | REJECTED | FOLLOW_UP
   reviewStatus     String    @default("TO_REVIEW")
   reviewNotes      String?
+  /// Motifs de la décision, choisis parmi les modèles de notes (Settings) : « Bon ROI », « Faible volume »…
+  reviewTags       String[]  @default([])
   reviewChecklist  Json?
   reviewedAt       DateTime?
 

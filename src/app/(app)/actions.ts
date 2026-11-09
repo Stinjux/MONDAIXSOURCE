@@ -10,7 +10,8 @@ import { isAdmin, SESSION_COOKIE } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { syncAll, type SyncResult } from "@/lib/sync/engine";
 import { CHECKLIST, REVIEW_STATUSES, RESTRICTIONS } from "@/lib/labels";
-import { setTaxConfig } from "@/lib/settings";
+import { setNoteTemplates, setTaxConfig } from "@/lib/settings";
+import { cleanTags, type NoteTemplates } from "@/lib/noteTemplates";
 import { loadProducts } from "@/lib/queries";
 import { toDecisionRows } from "@/lib/decisionRows";
 import { preliminaryProfit } from "@/lib/profit";
@@ -29,6 +30,8 @@ const reviewSchema = z.object({
   productId: z.string().min(1),
   status: z.enum(REVIEW_STATUSES),
   notes: z.string().max(5000).nullable(),
+  /** Motifs (modèles de notes) ; absent = inchangés */
+  tags: z.array(z.string().max(40)).max(20).optional(),
   checklist: z.object(Object.fromEntries(CHECKLIST.map((c) => [c.key, z.boolean().optional()])) as Record<string, z.ZodOptional<z.ZodBoolean>>),
   verifiedSalePrice: money,
   verifiedFbaFee: money,
@@ -60,6 +63,7 @@ export async function saveReview(input: ReviewInput): Promise<ActionResult> {
     const before = {
       reviewStatus: product.reviewStatus,
       reviewNotes: product.reviewNotes,
+      reviewTags: product.reviewTags,
       reviewChecklist: product.reviewChecklist,
       verifiedSalePrice: product.verifiedSalePrice,
       verifiedFbaFee: product.verifiedFbaFee,
@@ -68,6 +72,7 @@ export async function saveReview(input: ReviewInput): Promise<ActionResult> {
     const after = {
       reviewStatus: data.status,
       reviewNotes: data.notes?.trim() || null,
+      reviewTags: data.tags ? cleanTags(data.tags) : product.reviewTags,
       reviewChecklist: data.checklist,
       verifiedSalePrice: data.verifiedSalePrice,
       verifiedFbaFee: data.verifiedFbaFee,
@@ -132,6 +137,63 @@ export async function setReviewStatus(productId: string, status: string): Promis
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Erreur" };
+  }
+}
+
+/** Note et motifs d'un lead (modèles de notes) ; journalisé, comme toute modification de revue. */
+export async function saveLeadNotes(productId: string, notes: string | null, tags: string[]): Promise<ActionResult> {
+  try {
+    await guard();
+    const nextNotes = z.string().max(5000).nullable().parse(notes)?.trim() || null;
+    const nextTags = cleanTags(tags);
+    const product = await prisma.product.findUnique({ where: { id: productId }, select: { reviewNotes: true, reviewTags: true } });
+    if (!product) return { ok: false, error: "Lead introuvable" };
+    if (product.reviewNotes === nextNotes && JSON.stringify(product.reviewTags) === JSON.stringify(nextTags)) return { ok: true };
+    await prisma.$transaction([
+      prisma.product.update({ where: { id: productId }, data: { reviewNotes: nextNotes, reviewTags: nextTags } }),
+      prisma.changeLog.create({
+        data: { entity: "Product", entityId: productId, action: "REVIEW", before: json({ reviewNotes: product.reviewNotes, reviewTags: product.reviewTags }), after: json({ reviewNotes: nextNotes, reviewTags: nextTags }) },
+      }),
+    ]);
+    refresh();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof z.ZodError ? "Note trop longue" : e instanceof Error ? e.message : "Erreur" };
+  }
+}
+
+export async function saveNoteTemplates(templates: NoteTemplates): Promise<ActionResult> {
+  try {
+    await guard();
+    await setNoteTemplates(templates);
+    refresh();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erreur" };
+  }
+}
+
+/** Change le statut de plusieurs leads (actions groupées) ; renvoie l'ancien statut de chacun pour pouvoir annuler. */
+export async function setReviewStatusMany(ids: string[], status: string): Promise<{ ok: true; changed: { id: string; before: string }[] } | { ok: false; error: string }> {
+  try {
+    await guard();
+    const parsed = z.enum(REVIEW_STATUSES).parse(status);
+    const list = z.array(z.string().min(1)).min(1).max(500).parse(ids);
+    const products = await prisma.product.findMany({ where: { id: { in: list } }, select: { id: true, reviewStatus: true } });
+    const changed = products.filter((p) => p.reviewStatus !== parsed).map((p) => ({ id: p.id, before: p.reviewStatus }));
+    if (changed.length) {
+      const now = new Date();
+      await prisma.$transaction([
+        prisma.product.updateMany({ where: { id: { in: changed.map((c) => c.id) } }, data: { reviewStatus: parsed, reviewedAt: parsed === "TO_REVIEW" ? null : now } }),
+        prisma.changeLog.createMany({
+          data: changed.map((c) => ({ entity: "Product", entityId: c.id, action: "REVIEW_STATUS", before: { reviewStatus: c.before }, after: { reviewStatus: parsed, via: "bulk" } })),
+        }),
+      ]);
+    }
+    refresh();
+    return { ok: true, changed };
+  } catch (e) {
+    return { ok: false, error: e instanceof z.ZodError ? "Sélection invalide" : e instanceof Error ? e.message : "Erreur" };
   }
 }
 

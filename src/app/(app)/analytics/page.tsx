@@ -5,6 +5,8 @@ import { formatWeekRange, formatWeekShort, localWeekdayIndex, weekKey } from "@/
 import { cad, num, pct } from "@/lib/format";
 import { supplierBrand } from "@/lib/normalize";
 import { history, loadProducts } from "@/lib/queries";
+import { countTags, tagGroup } from "@/lib/noteTemplates";
+import { getNoteTemplates } from "@/lib/settings";
 
 export const metadata = { title: "Analytics & Productivity" };
 
@@ -20,7 +22,12 @@ const ROI_BUCKETS: [string, (r: number) => boolean][] = [
 
 export default async function AnalyticsPage() {
   const now = new Date();
-  const { products, duplicateEvents } = await loadProducts(now);
+  const [{ products, duplicateEvents }, templates] = await Promise.all([loadProducts(now), getNoteTemplates()]);
+  // Motifs des décisions (modèles de notes)
+  const reasons = [
+    { title: "Motifs des rejets", items: countTags(products.filter((p) => p.reviewStatus === "REJECTED").map((p) => ({ tags: p.reviewTags }))) },
+    { title: "Motifs des validations", items: countTags(products.filter((p) => p.reviewStatus === "VALIDATED").map((p) => ({ tags: p.reviewTags }))) },
+  ];
   const hist = history(products, duplicateEvents, now, 12);
   const current = weekKey(now);
   const completed = hist.filter((h) => h.key !== current);
@@ -142,6 +149,34 @@ export default async function AnalyticsPage() {
             {!supplierRows.length && <p className="px-4 py-6 text-center text-sm text-ink-3">Aucune donnée.</p>}
           </div>
         </Card>
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        {reasons.map((r) => {
+          const max = Math.max(1, ...r.items.map((x) => x.count));
+          return (
+            <Card key={r.title} title={r.title} padded={false}>
+              {r.items.length ? (
+                <ul className="py-1.5">
+                  {r.items.slice(0, 10).map((x) => {
+                    const g = tagGroup(x.tag, templates);
+                    return (
+                      <li key={x.tag} className="flex items-center gap-3 px-4 py-1.5">
+                        <span className="w-44 shrink-0 truncate text-sm text-ink-2" title={x.tag}>{x.tag}</span>
+                        <span className="h-2 flex-1 overflow-hidden rounded-[2px] bg-surface-3" aria-hidden>
+                          <span className={`block h-full rounded-[2px] ${g === "positive" ? "bg-good" : g === "negative" ? "bg-critical" : g === "check" ? "bg-warning" : "bg-ink-3"}`} style={{ width: `${(x.count / max) * 100}%` }} />
+                        </span>
+                        <span className="w-8 shrink-0 text-right text-sm font-semibold tabular-nums">{x.count}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <p className="px-4 py-6 text-center text-sm text-ink-3">Aucun motif pour le moment : choisissez-les en validant ou en rejetant un lead.</p>
+              )}
+            </Card>
+          );
+        })}
       </div>
     </>
   );

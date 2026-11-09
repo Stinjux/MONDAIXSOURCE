@@ -28,6 +28,7 @@ export type FocusLead = {
   name: string;
   amazonUrl: string;
   notes: string | null;
+  tags: string[];
   reviewStatus: string;
   restricted: boolean;
   verifiedSalePrice: number | null;
@@ -57,6 +58,7 @@ export function toFocusLeads(products: ProductView[], rows: DecisionRow[], purch
         name: p.name,
         amazonUrl: p.amazonUrl ?? `https://www.amazon.ca/dp/${p.asin}`,
         notes: p.reviewNotes,
+        tags: p.reviewTags,
         reviewStatus: p.reviewStatus,
         restricted: row.restricted,
         verifiedSalePrice: p.verifiedSalePrice,

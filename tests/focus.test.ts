@@ -9,7 +9,7 @@ const offer = (id: string, cost: number, extra: Partial<FocusLead["offers"][numb
   sheetUnavailable: false, currency: "CAD", estimatedSales: 50, ...extra,
 });
 const lead = (offers: FocusLead["offers"]): FocusLead => ({
-  productId: "p1", asin: "B0AAAAAAAA", name: "Produit", amazonUrl: "https://www.amazon.ca/dp/B0AAAAAAAA", notes: null, reviewStatus: "TO_REVIEW",
+  productId: "p1", asin: "B0AAAAAAAA", name: "Produit", amazonUrl: "https://www.amazon.ca/dp/B0AAAAAAAA", notes: null, tags: [], reviewStatus: "TO_REVIEW",
   restricted: false, verifiedSalePrice: null, verifiedFbaFee: null, offers,
   row: { amazonPrice: 40, fees: 12, costPrice: 15 } as DecisionRow, purchased: null,
 });

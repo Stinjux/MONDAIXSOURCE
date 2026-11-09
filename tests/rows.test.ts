@@ -18,7 +18,7 @@ test("un ASIN = une ligne, avec tous ses fournisseurs et la meilleure offre en t
   const costco = offer("o2", "Costco", 15);
   const product = {
     id: "p1", asin: "B0AAAAAAAA", name: "Produit A", amazonUrl: null, firstSeenAt: "2026-10-12T16:00:00Z", lastSeenAt: "2026-10-13T16:00:00Z",
-    firstSource: "LEADS", countsTowardGoal: true, goalWeek: "2026-10-12", reviewStatus: "TO_REVIEW", reviewNotes: null, reviewChecklist: {},
+    firstSource: "LEADS", countsTowardGoal: true, goalWeek: "2026-10-12", reviewStatus: "TO_REVIEW", reviewNotes: null, reviewTags: [], reviewChecklist: {},
     reviewedAt: null, verifiedSalePrice: null, verifiedFbaFee: null, restriction: "UNKNOWN", verifiedAt: null, exportedAt: "2026-10-13T16:00:00Z", confirmedAt: null, freshSince: "2026-10-13T16:00:00Z",
     lastDuplicateAt: null, duplicateAlert: false,
     dup: { exactOfferIds: [], crossSheet: false, crossSheetOfferIds: [], multiSupplier: true, any: true },

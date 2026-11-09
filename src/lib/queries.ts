@@ -60,6 +60,7 @@ export type ProductView = {
   goalWeek: string | null;
   reviewStatus: string;
   reviewNotes: string | null;
+  reviewTags: string[];
   reviewChecklist: Checklist;
   reviewedAt: string | null;
   verifiedSalePrice: number | null;
@@ -153,6 +154,7 @@ export async function loadProducts(now = new Date(), filter: { asin?: string } =
       goalWeek: p.goalWeek,
       reviewStatus: p.reviewStatus,
       reviewNotes: p.reviewNotes,
+      reviewTags: p.reviewTags,
       reviewChecklist: parseChecklist(p.reviewChecklist),
       reviewedAt: iso(p.reviewedAt),
       verifiedSalePrice: p.verifiedSalePrice,

@@ -15,7 +15,7 @@ const offer = (id: string, key: string, name: string, url: string | null, cost: 
 });
 const product = (id: string, asin: string, offers: OfferView[], reviewStatus = "TO_REVIEW"): ProductView => ({
   id, asin, name: `Produit ${id}`, amazonUrl: null, firstSeenAt: "2026-11-02T16:00:00Z", lastSeenAt: "2026-11-02T16:00:00Z", firstSource: "LEADS",
-  countsTowardGoal: true, goalWeek: "2026-11-02", reviewStatus, reviewNotes: null, reviewChecklist: {}, reviewedAt: null, verifiedSalePrice: null,
+  countsTowardGoal: true, goalWeek: "2026-11-02", reviewStatus, reviewNotes: null, reviewTags: [], reviewChecklist: {}, reviewedAt: null, verifiedSalePrice: null,
   verifiedFbaFee: null, restriction: "UNKNOWN", verifiedAt: null, exportedAt: "2026-11-02T16:00:00Z", confirmedAt: null, freshSince: "2026-11-02T16:00:00Z",
   lastDuplicateAt: null, duplicateAlert: false, dup: { exactOfferIds: [], crossSheet: false, crossSheetOfferIds: [], multiSupplier: offers.length > 1, any: offers.length > 1 },
   occurrences: offers.length, sources: ["LEADS"], present: true, offers, best: offers[0],

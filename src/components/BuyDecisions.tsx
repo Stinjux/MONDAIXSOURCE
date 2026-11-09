@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, ChevronsUpDown, CheckCircle2, CircleSlash, HelpCircle, Lock, PackageX, Pencil, RefreshCw, ShoppingCart, StickyNote, ThumbsUp } from "lucide-react";
-import { setReviewStatus } from "@/app/(app)/actions";
+import { setReviewStatus, setReviewStatusMany } from "@/app/(app)/actions";
 import { VERDICT_LABELS, type Verdict } from "@/lib/decision";
 import type { CartState } from "./Cart";
 import { compareRows, evaluateRow, inScope, matchesVerdict, type DecisionFilters } from "@/lib/decisionFilters";
@@ -13,6 +13,8 @@ import { cad, num, pct } from "@/lib/format";
 import { NO_TAX, maxCost, type TaxConfig } from "@/lib/profit";
 import { Asin, Badge, EmptyState, ReviewBadge, Supplier, cn } from "./ui";
 import { ProductImage } from "./ProductImage";
+import { TagChips } from "./NotePicker";
+import type { NoteTemplates } from "@/lib/noteTemplates";
 import { FreshnessPill } from "./Freshness";
 
 const VERDICT_STYLE: Record<Verdict, { tone: "good" | "warning" | "critical" | "neutral"; icon: React.ReactNode }> = {
@@ -53,7 +55,7 @@ const STATUS_RANK = { VALIDATED: 0, REJECTED: 1 } as const;
  * (partagé avec la vue « Un par un ») ; cliquer sur un produit l'ouvre dans la vue « Un par un ».
  */
 export function BuyDecisions({
-  rows, currentWeek, tax = NO_TAX, cart, setCart, onOpen,
+  rows, currentWeek, tax = NO_TAX, cart, setCart, onOpen, templates,
 }: {
   rows: DecisionRow[];
   currentWeek: string;
@@ -61,6 +63,7 @@ export function BuyDecisions({
   cart: CartState;
   setCart: (updater: (c: CartState) => CartState) => void;
   onOpen?: (asin: string) => void;
+  templates?: NoteTemplates;
 }) {
   // Filtres partagés avec le Pipeline et le Mode décision (mêmes réglages partout)
   const { filters, update } = useDecisionFilters();
@@ -133,6 +136,81 @@ export function BuyDecisions({
       if (res.ok) setDecided((s) => ({ ...s, [id]: status }));
     });
 
+  // Sélection multiple et actions groupées (annulables)
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulk, setBulk] = useState<{ text: string; undo?: () => Promise<void> } | null>(null);
+  useEffect(() => {
+    if (!bulk) return;
+    const t = setTimeout(() => setBulk(null), 9000);
+    return () => clearTimeout(t);
+  }, [bulk]);
+  const visibleIds = list.map((r) => r.productId);
+  const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
+  const toggleOne = (id: string) =>
+    setSelected((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(visibleIds));
+  const optimistic = (ids: string[], status: string) =>
+    setDecided((s) => {
+      const n = { ...s };
+      for (const id of ids) {
+        if (status === "VALIDATED" || status === "REJECTED") n[id] = status;
+        else delete n[id];
+      }
+      return n;
+    });
+  const bulkStatus = (status: "VALIDATED" | "FOLLOW_UP" | "REJECTED", label: string) =>
+    start(async () => {
+      const ids = [...selected];
+      const res = await setReviewStatusMany(ids, status);
+      if (!res.ok) return setBulk({ text: res.error });
+      optimistic(ids, status);
+      setSelected(new Set());
+      const groups = new Map<string, string[]>();
+      for (const c of res.changed) groups.set(c.before, [...(groups.get(c.before) ?? []), c.id]);
+      setBulk({
+        text: `${label} : ${res.changed.length} lead${res.changed.length > 1 ? "s" : ""}`,
+        undo: res.changed.length
+          ? async () => {
+              for (const [before, list] of groups) {
+                await setReviewStatusMany(list, before);
+                optimistic(list, before);
+              }
+            }
+          : undefined,
+      });
+    });
+  const bulkCart = () => {
+    const rows = list.filter((r) => selected.has(r.productId));
+    const ok = rows.filter((r) => r.fresh.state !== "STALE");
+    setCart((c) => {
+      const n = { ...c };
+      for (const r of ok) n[r.productId] = { ...n[r.productId], qty: (n[r.productId]?.qty ?? 0) + 1 };
+      return n;
+    });
+    setSelected(new Set());
+    const skipped = rows.length - ok.length;
+    setBulk({
+      text: `Au panier : ${ok.length} lead${ok.length > 1 ? "s" : ""}${skipped ? ` · ${skipped} à reconfirmer d'abord` : ""}`,
+      undo: ok.length
+        ? async () =>
+            setCart((c) => {
+              const n = { ...c };
+              for (const r of ok) {
+                const q = (n[r.productId]?.qty ?? 0) - 1;
+                if (q > 0) n[r.productId] = { ...n[r.productId], qty: q };
+                else delete n[r.productId];
+              }
+              return n;
+            })
+        : undefined,
+    });
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex min-w-0 flex-col gap-4">
@@ -147,6 +225,28 @@ export function BuyDecisions({
         <div className="flex flex-wrap items-center gap-1.5 border-b border-line px-3 py-2">
           <VerdictChips value={filters.verdict} onChange={(v) => update({ verdict: v })} counts={counts} total={pool.length} />
         </div>
+        {selected.size > 0 && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-accent/30 bg-accent-soft px-3 py-2" role="toolbar" aria-label="Actions sur la sélection">
+            <span className="mr-1 text-sm font-semibold text-accent tabular-nums">
+              {selected.size} sélectionné{selected.size > 1 ? "s" : ""}
+            </span>
+            <button type="button" className="btn-ghost px-2.5 py-1 text-xs" disabled={pending} onClick={bulkCart}>
+              <ShoppingCart size={12} /> Au panier
+            </button>
+            <button type="button" className="btn-ghost px-2.5 py-1 text-xs hover:border-good/60 hover:text-good" disabled={pending} onClick={() => bulkStatus("VALIDATED", "Achat")}>
+              <CheckCircle2 size={12} /> Achat
+            </button>
+            <button type="button" className="btn-ghost px-2.5 py-1 text-xs" disabled={pending} onClick={() => bulkStatus("FOLLOW_UP", "À suivre")}>
+              <HelpCircle size={12} /> À suivre
+            </button>
+            <button type="button" className="btn-ghost px-2.5 py-1 text-xs hover:border-critical/60 hover:text-critical" disabled={pending} onClick={() => bulkStatus("REJECTED", "Rejetés")}>
+              <CircleSlash size={12} /> Rejeter
+            </button>
+            <button type="button" className="ml-auto text-xs text-ink-2 hover:text-ink hover:underline" onClick={() => setSelected(new Set())}>
+              Tout désélectionner
+            </button>
+          </div>
+        )}
         {list.length === 0 ? (
           <EmptyState title="Aucun lead dans cette catégorie" icon={<PackageX size={22} />}>Ajustez vos critères ou les filtres.</EmptyState>
         ) : (
@@ -154,6 +254,18 @@ export function BuyDecisions({
             <table className="table-base">
               <thead>
                 <tr>
+                  <th className="w-8">
+                    <input
+                      type="checkbox"
+                      className="accent-accent"
+                      aria-label="Tout sélectionner"
+                      checked={allSelected}
+                      ref={(el) => {
+                        if (el) el.indeterminate = selected.size > 0 && !allSelected;
+                      }}
+                      onChange={toggleAll}
+                    />
+                  </th>
                   {COLUMNS.map((c) => {
                     const dir = sort?.key === c.key ? sort.dir : null;
                     const Icon = dir === "asc" ? ArrowUp : dir === "desc" ? ArrowDown : ChevronsUpDown;
@@ -185,7 +297,10 @@ export function BuyDecisions({
                   const q = cart[r.productId]?.qty ?? 0;
                   const decision = statusOf(r);
                   return (
-                    <tr key={r.productId} className={cn(q > 0 && "bg-accent/5")}>
+                    <tr key={r.productId} className={cn(q > 0 && "bg-accent/5", selected.has(r.productId) && "bg-accent-soft")}>
+                      <td>
+                        <input type="checkbox" className="accent-accent" aria-label={`Sélectionner ${r.asin}`} checked={selected.has(r.productId)} onChange={() => toggleOne(r.productId)} />
+                      </td>
                       <td className="text-right text-ink-3 tabular-nums">{rank.get(r.productId)}</td>
                       <td className="max-w-56 whitespace-normal">
                         <Badge tone={VERDICT_STYLE[r.verdict].tone} icon={VERDICT_STYLE[r.verdict].icon}>{VERDICT_LABELS[r.verdict]}</Badge>
@@ -213,6 +328,11 @@ export function BuyDecisions({
                           {r.restricted && <Badge tone="serious" icon={<Lock size={10} />}>Restreint</Badge>}
                           {r.fresh.state !== "FRESH" && <FreshnessPill fresh={r.fresh} />}
                         </div>
+                        {r.tags.length > 0 && (
+                          <div className="mt-1">
+                            <TagChips tags={r.tags} templates={templates} />
+                          </div>
+                        )}
                         {r.notes && (
                           <div className="mt-1 flex max-w-72 items-start gap-1 text-[11px] text-ink-2" title={r.notes}>
                             <StickyNote size={11} className="mt-0.5 shrink-0 text-warning" />
@@ -302,6 +422,25 @@ export function BuyDecisions({
         </p>
       </div>
       </div>
+      {bulk && (
+        <div className="fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-md bg-nav px-4 py-2.5 text-sm text-white shadow-[0_12px_32px_-12px_rgb(11_31_58/0.6)]" role="status">
+          <span>{bulk.text}</span>
+          {bulk.undo && (
+            <button
+              type="button"
+              className="rounded-sm bg-white/15 px-2.5 py-1 text-xs font-semibold hover:bg-white/25"
+              onClick={() =>
+                start(async () => {
+                  await bulk.undo?.();
+                  setBulk(null);
+                })
+              }
+            >
+              Annuler
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

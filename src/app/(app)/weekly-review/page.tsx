@@ -8,6 +8,7 @@ import { toFocusLeads } from "@/lib/focus";
 import { addDaysToKey, formatWeekRange, isWeekKey, localWeekdayIndex, weekKey } from "@/lib/dates";
 import { CHECKLIST, isDecided } from "@/lib/labels";
 import { loadProducts, overdueReviews, purchasedProducts } from "@/lib/queries";
+import { getNoteTemplates } from "@/lib/settings";
 
 export const metadata = { title: "Weekly Review" };
 
@@ -16,7 +17,7 @@ export default async function WeeklyReviewPage({ searchParams }: { searchParams:
   const current = weekKey(now);
   const { week: requested, vue, portee, asin } = await searchParams;
   const week = isWeekKey(requested) && requested <= current ? requested : current;
-  const [{ products, tax }, purchased] = await Promise.all([loadProducts(now), purchasedProducts()]);
+  const [{ products, tax }, purchased, templates] = await Promise.all([loadProducts(now), purchasedProducts(), getNoteTemplates()]);
   const items = products.filter((p) => p.countsTowardGoal && p.goalWeek === week).sort((a, b) => a.firstSeenAt.localeCompare(b.firstSeenAt));
   const overdue = week === current ? overdueReviews(products, now) : [];
 
@@ -136,10 +137,10 @@ export default async function WeeklyReviewPage({ searchParams }: { searchParams:
       </div>
 
       {list ? (
-        <ReviewBoard items={items} overdue={overdue} tax={tax} />
+        <ReviewBoard items={items} overdue={overdue} tax={tax} templates={templates} />
       ) : (
         <>
-          <FocusScreen key={`${week}-${all}`} leads={focusLeads} mode="review" tax={tax} currentWeek={current} startAsin={asin ?? null} />
+          <FocusScreen key={`${week}-${all}`} leads={focusLeads} mode="review" tax={tax} currentWeek={current} startAsin={asin ?? null} templates={templates} />
           {withoutOffer > 0 && (
             <p className="mt-3 text-xs text-ink-3">
               {withoutOffer} lead{withoutOffer > 1 ? "s" : ""} sans fournisseur ne peu{withoutOffer > 1 ? "vent" : "t"} pas être calculé{withoutOffer > 1 ? "s" : ""} :{" "}

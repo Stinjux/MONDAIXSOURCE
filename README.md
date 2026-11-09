@@ -44,6 +44,14 @@ Chaque fournisseur, chaque occurrence, la première et la dernière date de déc
 
 Statuts : À revoir · En cours · Revu et validé · Rejeté · À suivre. Pour chaque lead : prix Amazon et frais Amazon (Total Fees) vérifiés, coût et disponibilité vérifiés par fournisseur, restrictions Amazon, rentabilité recalculée en direct, doublons, checklist en 6 points, notes. Les leads sans décision des semaines précédentes restent affichés (« En retard »). Chaque modification est journalisée (`ChangeLog`).
 
+### Modèles de notes, Annuler, actions groupées
+
+- **Modèles de notes** : en validant, mettant à suivre ou rejetant un lead (mode rapide de la Weekly Review, Buy Decisions, reconfirmation, fiche du lead), des motifs en un clic — **Pour** (Bon ROI, Fort volume de ventes…), **Contre** (ROI trop bas, Faible volume, Trop de vendeurs…), **À vérifier** (Fournisseur à vérifier…) — plus une note libre. Les motifs sont enregistrés à part (colonne `reviewTags`), affichés dans la liste Buy Decisions et comptés dans Analytics (« Motifs des rejets / des validations »). La liste se modifie dans **Settings → Modèles de notes** ; retirer un modèle ne touche pas les leads qui l'utilisent.
+- **Annuler** : après une décision en mode un par un, un bandeau « Annuler » (ou Ctrl+Z / ⌘Z) remet le lead dans son statut précédent et y revient.
+- **Actions groupées** dans la liste Buy Decisions : cocher des leads (ou tous), puis Au panier, Achat, À suivre ou Rejeter en une fois, annulable.
+- **Panier, budget et critères d'achat enregistrés en base** (`AppSetting prefs.shared`) : retrouvés sur tous vos appareils. À l'ouverture, la version la plus récente (base ou navigateur) est appliquée ; un ancien panier du navigateur est fusionné, jamais perdu. La disposition du Dashboard, le menu réduit et l'affichage compact restent propres à chaque appareil.
+- **Chargement et erreurs** : squelette pendant le chargement d'une page ; si le serveur ou la base ne répond pas, un message clair et « Réessayer ».
+
 ### Interface : modules, recherche ⌘K, menu réductible
 
 - **Dashboard modulaire** : « Personnaliser » permet de déplacer chaque module (glisser par sa poignée), de choisir sa largeur (⅓, ½, ⅔, pleine) ou de le masquer, puis de le rajouter ; « Disposition par défaut » remet tout en place. Modules : objectif hebdomadaire, indicateurs de la semaine, leads par semaine, Pipeline (leads par étape, chaque ligne ouvre la colonne), plus rentables, priorités, fournisseurs (logos et répartition par étape).

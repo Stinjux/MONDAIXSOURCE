@@ -11,13 +11,14 @@ import { formatDate, formatDateTime } from "@/lib/dates";
 import { cad, num, pct } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { loadProducts } from "@/lib/queries";
+import { getNoteTemplates } from "@/lib/settings";
 import { SOURCE_LABELS } from "@/lib/labels";
 
 export const metadata = { title: "Fiche ASIN" };
 
 export default async function LeadPage({ params }: { params: Promise<{ asin: string }> }) {
   const asin = decodeURIComponent((await params).asin).trim().toUpperCase();
-  const { products, tax } = await loadProducts(new Date(), { asin });
+  const [{ products, tax }, templates] = await Promise.all([loadProducts(new Date(), { asin }), getNoteTemplates()]);
   const p = products[0];
   if (!p) notFound();
   const offerIds = p.offers.map((o) => o.id);
@@ -67,7 +68,7 @@ export default async function LeadPage({ params }: { params: Promise<{ asin: str
         Notes, statut, prix Amazon et Total Fees vérifiés, coût et disponibilité par fournisseur, restrictions et checklist. Le statut place le lead dans le
         Pipeline (« Revu et validé » = Prêts à acheter). Les valeurs vérifiées remplacent celles de la Sheet dans tous les calculs. {freshnessText(fresh)}.
       </p>
-      <LeadEditor product={p} tax={tax} />
+      <LeadEditor product={p} tax={tax} templates={templates} />
 
       <div className="mt-6 grid gap-4 xl:grid-cols-2">
         <Card title={`Fournisseurs (${p.offers.length})`} padded={false}>

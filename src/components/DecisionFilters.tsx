@@ -1,13 +1,15 @@
 "use client";
 // Panneau de filtres partagé par « Buy Decisions », le Pipeline et le Mode décision.
-// Les réglages sont mémorisés dans ce navigateur et synchronisés entre les deux pages (et les onglets ouverts).
+// Les réglages sont mémorisés dans ce navigateur, synchronisés entre les pages et les onglets ouverts,
+// et enregistrés en base pour être retrouvés sur tous vos appareils.
 import { useCallback, useEffect, useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { DEFAULT_THRESHOLDS, VERDICT_LABELS, type Thresholds, type Verdict } from "@/lib/decision";
 import { DEFAULT_FILTERS, STRATEGIES, parseFilters, type DecisionFilters, type VerdictFilter } from "@/lib/decisionFilters";
+import { PREFS_STORAGE_KEY } from "@/lib/prefsBoot";
 import { cn } from "./ui";
 
-const STORAGE_KEY = "mondaix.buyDecisions.v1";
+const STORAGE_KEY = PREFS_STORAGE_KEY;
 const EVENT = "mondaix:decision-filters";
 
 export function readSaved(): Record<string, unknown> {
@@ -19,14 +21,28 @@ export function readSaved(): Record<string, unknown> {
   }
 }
 
-/** Écrit seulement les champs fournis (n'efface pas budget / quantités / autres filtres). */
+/** Écrit seulement les champs fournis (n'efface pas budget / quantités / autres filtres), puis les envoie à la base. */
 export function writeSaved(patch: Record<string, unknown>) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...readSaved(), ...patch }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...readSaved(), ...patch, updatedAt: Date.now() }));
     window.dispatchEvent(new Event(EVENT));
+    schedulePush();
   } catch {
     /* stockage indisponible : réglages non conservés */
   }
+}
+
+// Envoi à la base (réglages partagés entre appareils), regroupé après une courte pause
+let pushTimer: ReturnType<typeof setTimeout> | null = null;
+function schedulePush() {
+  if (pushTimer) clearTimeout(pushTimer);
+  pushTimer = setTimeout(pushSaved, 800);
+}
+export function pushSaved() {
+  pushTimer = null;
+  fetch("/api/prefs", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ data: readSaved() }), keepalive: true }).catch(() => {
+    /* hors ligne : la version du navigateur sera envoyée à la prochaine ouverture */
+  });
 }
 
 export function useDecisionFilters() {

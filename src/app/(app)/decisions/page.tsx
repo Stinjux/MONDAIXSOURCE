@@ -4,12 +4,13 @@ import { weekKey } from "@/lib/dates";
 import { toDecisionRows } from "@/lib/decisionRows";
 import { toFocusLeads } from "@/lib/focus";
 import { loadProducts, purchasedProducts } from "@/lib/queries";
+import { getNoteTemplates } from "@/lib/settings";
 
 export const metadata = { title: "Buy Decisions" };
 
 export default async function DecisionsPage({ searchParams }: { searchParams: Promise<{ asin?: string; vue?: string }> }) {
   const now = new Date();
-  const [{ products, tax }, purchased, { asin, vue }] = await Promise.all([loadProducts(now), purchasedProducts(), searchParams]);
+  const [{ products, tax }, purchased, { asin, vue }, templates] = await Promise.all([loadProducts(now), purchasedProducts(), searchParams, getNoteTemplates()]);
   const rows = toDecisionRows(products, tax, now);
   return (
     <>
@@ -21,6 +22,7 @@ export default async function DecisionsPage({ searchParams }: { searchParams: Pr
         rows={rows}
         leads={toFocusLeads(products, rows, purchased)}
         tax={tax}
+        templates={templates}
         currentWeek={weekKey(now)}
         startAsin={asin ?? null}
         initialView={vue === "liste" && !asin ? "list" : "focus"}

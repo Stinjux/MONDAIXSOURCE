@@ -1,4 +1,6 @@
 "use client";
+import type { NoteTemplates } from "@/lib/noteTemplates";
+import { NotePicker } from "./NotePicker";
 import { useMemo, useState, useTransition } from "react";
 import { CheckCircle2, ChevronDown, Save } from "lucide-react";
 import { saveReview, type ReviewInput } from "@/app/(app)/actions";
@@ -20,7 +22,7 @@ const STATUS_STYLE: Record<ReviewStatus, string> = {
 
 type Filter = "ALL" | "PENDING" | ReviewStatus;
 
-export function ReviewBoard({ items, overdue, tax = NO_TAX }: { items: ProductView[]; overdue: ProductView[]; tax?: TaxConfig }) {
+export function ReviewBoard({ items, overdue, tax = NO_TAX, templates }: { items: ProductView[]; overdue: ProductView[]; tax?: TaxConfig; templates?: NoteTemplates }) {
   const [filter, setFilter] = useState<Filter>("PENDING");
   // Une fiche qui vient d'être enregistrée reste affichée jusqu'au prochain changement de filtre.
   const [pinned, setPinned] = useState<Set<string>>(new Set());
@@ -58,7 +60,7 @@ export function ReviewBoard({ items, overdue, tax = NO_TAX }: { items: ProductVi
         {visible(items).length ? (
           <div className="flex flex-col gap-2">
             {visible(items).map((p) => (
-              <ReviewCard key={p.id} product={p} onSaved={onSaved} tax={tax} />
+              <ReviewCard key={p.id} product={p} onSaved={onSaved} tax={tax} templates={templates} />
             ))}
           </div>
         ) : (
@@ -76,7 +78,7 @@ export function ReviewBoard({ items, overdue, tax = NO_TAX }: { items: ProductVi
           </summary>
           <div className="flex flex-col gap-2">
             {visible(overdue).map((p) => (
-              <ReviewCard key={p.id} product={p} overdue onSaved={onSaved} tax={tax} />
+              <ReviewCard key={p.id} product={p} overdue onSaved={onSaved} tax={tax} templates={templates} />
             ))}
           </div>
         </details>
@@ -105,16 +107,19 @@ export function ReviewCard({
   onSaved,
   tax,
   defaultOpen = false,
+  templates,
 }: {
   product: ProductView;
   overdue?: boolean;
   onSaved: (id: string) => void;
   tax: TaxConfig;
   defaultOpen?: boolean;
+  templates?: NoteTemplates;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const [status, setStatus] = useState(p.reviewStatus as ReviewStatus);
   const [notes, setNotes] = useState(p.reviewNotes ?? "");
+  const [tags, setTags] = useState<string[]>(p.reviewTags);
   const [checklist, setChecklist] = useState<Checklist>(p.reviewChecklist);
   const sheetAmazon = p.best?.amazonPrice ?? null;
   const sheetFee = p.best?.fbaFee ?? null;
@@ -145,6 +150,7 @@ export function ReviewCard({
         productId: p.id,
         status: nextStatus,
         notes: notes || null,
+        tags,
         checklist,
         verifiedSalePrice: verifiedSale,
         verifiedFbaFee: verifiedFee,
@@ -266,16 +272,23 @@ export function ReviewCard({
                 ))}
               </div>
             </fieldset>
-            <label className="text-xs font-semibold tracking-wide text-ink-2 uppercase">
-              Notes
-              <textarea
-                className="field mt-2 min-h-24 font-normal tracking-normal normal-case"
-                placeholder="Observations, fournisseur retenu, quantité à acheter…"
-                value={notes}
-                maxLength={5000}
-                onChange={(e) => touch(setNotes)(e.target.value)}
-              />
-            </label>
+            {templates ? (
+              <div>
+                <div className="mb-2 text-xs font-semibold tracking-wide text-ink-2 uppercase">Notes et motifs</div>
+                <NotePicker templates={templates} tags={tags} onTags={touch(setTags)} notes={notes} onNotes={touch(setNotes)} />
+              </div>
+            ) : (
+              <label className="text-xs font-semibold tracking-wide text-ink-2 uppercase">
+                Notes
+                <textarea
+                  className="field mt-2 min-h-24 font-normal tracking-normal normal-case"
+                  placeholder="Observations, fournisseur retenu, quantité à acheter…"
+                  value={notes}
+                  maxLength={5000}
+                  onChange={(e) => touch(setNotes)(e.target.value)}
+                />
+              </label>
+            )}
           </div>
 
           <div className="mt-4 flex flex-col gap-3 border-t border-line pt-4 lg:flex-row lg:items-center lg:justify-between">

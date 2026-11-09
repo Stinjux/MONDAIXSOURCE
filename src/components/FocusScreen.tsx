@@ -7,7 +7,9 @@ import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import {
   ArrowLeft, ArrowRight, CheckCircle2, CircleSlash, ExternalLink, Eye, Keyboard, LineChart, Lock, Minus, PackageCheck, Plus, RefreshCw, ShoppingCart, Star, StickyNote,
 } from "lucide-react";
-import { reconfirmLead, setReviewStatus } from "@/app/(app)/actions";
+import { reconfirmLead, saveLeadNotes, setReviewStatus } from "@/app/(app)/actions";
+import type { NoteTemplates } from "@/lib/noteTemplates";
+import { NotePicker } from "./NotePicker";
 import { VERDICT_LABELS, type Thresholds, type Verdict } from "@/lib/decision";
 import { compareRows, evaluateRow, inScope, matchesVerdict } from "@/lib/decisionFilters";
 import { changedValues, evaluateFocus, hasChanges, type Availability, type FocusEdits, type FocusLead } from "@/lib/focus";
@@ -36,15 +38,59 @@ const toField = (v: number | null | undefined) => (v == null ? "" : String(Math.
 /** Saisie → nombre (null si vide, undefined si invalide) */
 const parseField = (s: string): number | null | undefined => (s.trim() ? (amount(s) ?? undefined) : null);
 
+type Undo = { label: string; name: string; index: number; productId: string; undo: () => Promise<{ ok: boolean; error?: string }> };
+
 export function FocusScreen({
-  leads, mode, tax, currentWeek, startAsin, cartApi,
-}: { leads: FocusLead[]; mode: FocusMode; tax: TaxConfig; currentWeek: string; startAsin?: string | null; cartApi?: CartApi }) {
+  leads, mode, tax, currentWeek, startAsin, cartApi, templates,
+}: { leads: FocusLead[]; mode: FocusMode; tax: TaxConfig; currentWeek: string; startAsin?: string | null; cartApi?: CartApi; templates?: NoteTemplates }) {
   const { filters, loaded } = useDecisionFilters();
-  const byId = useMemo(() => new Map(leads.map((l) => [l.productId, l])), [leads]);
+  const latest = useMemo(() => new Map(leads.map((l) => [l.productId, l])), [leads]);
+  // Copie des leads de la file : un lead décidé peut disparaître des données de la page
+  // (ex. Weekly Review « en attente ») ; on peut quand même y revenir (Précédent, Annuler).
+  const [snapshot, setSnapshot] = useState<Map<string, FocusLead>>(new Map());
+  const byId = useMemo(() => {
+    const m = new Map(snapshot);
+    for (const [id, l] of latest) m.set(id, l);
+    return m;
+  }, [latest, snapshot]);
   // La file est figée à l'ouverture : un lead traité ne disparaît pas sous vos yeux
   const [queue, setQueue] = useState<string[] | null>(null);
   const [index, setIndex] = useState(0);
   const [done, setDone] = useState<Record<string, Outcome>>({});
+  // Dernière décision, annulable pendant quelques secondes
+  const [last, setLast] = useState<Undo | null>(null);
+  const [undoing, setUndoing] = useState(false);
+  useEffect(() => {
+    if (!last) return;
+    const t = setTimeout(() => setLast(null), 9000);
+    return () => clearTimeout(t);
+  }, [last]);
+  const undoLast = useCallback(async () => {
+    if (!last || undoing) return;
+    setUndoing(true);
+    const res = await last.undo();
+    setUndoing(false);
+    if (!res.ok) return;
+    setDone((d) => {
+      const n = { ...d };
+      delete n[last.productId];
+      return n;
+    });
+    setIndex(last.index);
+    setLast(null);
+  }, [last, undoing]);
+  // Ctrl+Z / ⌘Z : annuler la dernière décision
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement;
+      if (e.key.toLowerCase() === "z" && (e.metaKey || e.ctrlKey) && last && el.tagName !== "INPUT" && el.tagName !== "TEXTAREA") {
+        e.preventDefault();
+        undoLast();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [last, undoLast]);
 
   useEffect(() => {
     if (queue || !loaded) return;
@@ -67,6 +113,7 @@ export function FocusScreen({
     const ids = list.map((l) => l.productId);
     const start = startAsin ? leads.find((l) => l.asin === startAsin.toUpperCase()) : undefined;
     if (start) ids.splice(0, ids.length, start.productId, ...ids.filter((id) => id !== start.productId));
+    setSnapshot(new Map(leads.filter((l) => ids.includes(l.productId)).map((l) => [l.productId, l])));
     setQueue(ids);
   }, [queue, loaded, leads, mode, filters, currentWeek, startAsin]);
 
@@ -131,20 +178,33 @@ export function FocusScreen({
           outcome={done[queue[index]]}
           rows={leads}
           cartApi={cartApi}
-          onDone={(o) => {
-            setDone((d) => ({ ...d, [queue[index]]: o }));
+          templates={templates}
+          onDone={(o, undo) => {
+            const id = queue[index];
+            setDone((d) => ({ ...d, [id]: o }));
+            setLast(undo ? { label: OUTCOME_LABEL[o], name: byId.get(id)?.name ?? "", index, productId: id, undo } : null);
             setIndex((i) => i + 1);
           }}
           onSkip={() => setIndex((i) => i + 1)}
           onPrev={index > 0 ? () => setIndex((i) => i - 1) : undefined}
         />
       )}
+      {last && (
+        <div className="fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-md bg-nav px-4 py-2.5 text-sm text-white shadow-[0_12px_32px_-12px_rgb(11_31_58/0.6)]" role="status">
+          <span className="max-w-[50vw] truncate">
+            <b>{last.label}</b> · {last.name}
+          </span>
+          <button type="button" className="rounded-sm bg-white/15 px-2.5 py-1 text-xs font-semibold hover:bg-white/25 disabled:opacity-60" onClick={undoLast} disabled={undoing}>
+            {undoing ? "Annulation…" : "Annuler"} <span className="font-normal opacity-70">Ctrl+Z</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
 function LeadPanel({
-  lead, mode, tax, thresholds, outcome, rows, cartApi, onDone, onSkip, onPrev,
+  lead, mode, tax, thresholds, outcome, rows, cartApi, templates, onDone, onSkip, onPrev,
 }: {
   lead: FocusLead;
   mode: FocusMode;
@@ -153,7 +213,8 @@ function LeadPanel({
   outcome?: Outcome;
   rows: FocusLead[];
   cartApi?: CartApi;
-  onDone: (o: Outcome) => void;
+  templates?: NoteTemplates;
+  onDone: (o: Outcome, undo?: () => Promise<{ ok: boolean; error?: string }>) => void;
   onSkip: () => void;
   onPrev?: () => void;
 }) {
@@ -168,6 +229,9 @@ function LeadPanel({
   const [localBudget, setLocalBudget] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const [notes, setNotes] = useState(lead.notes ?? "");
+  const [tags, setTags] = useState<string[]>(lead.tags);
+  const notesDirty = notes.trim() !== (lead.notes ?? "").trim() || JSON.stringify(tags) !== JSON.stringify(lead.tags);
 
   useEffect(() => {
     if (cartApi) return;
@@ -224,23 +288,40 @@ function LeadPanel({
     [],
   );
 
+  // La note et les motifs modifiés sont enregistrés avec la décision
+  const withNotes = async (fn: () => Promise<{ ok: boolean; error?: string }>) => {
+    if (notesDirty) {
+      const res = await saveLeadNotes(lead.productId, notes || null, tags);
+      if (!res.ok) return res;
+    }
+    return fn();
+  };
+  const restoreStatus = () => setReviewStatus(lead.productId, lead.reviewStatus);
+  const addToCart = (n: number) => {
+    if (cartApi) return cartApi.add(lead.productId, n);
+    const next = { ...((readSaved().cart ?? {}) as CartState) };
+    const q = (next[lead.productId]?.qty ?? 0) + n;
+    if (q > 0) next[lead.productId] = { ...next[lead.productId], qty: q };
+    else delete next[lead.productId];
+    writeSaved({ cart: next });
+    setLocalCart(next);
+  };
+
   const confirm = () =>
     run(
-      () => reconfirmLead({ productId: lead.productId, ...changes }),
+      () => withNotes(() => reconfirmLead({ productId: lead.productId, ...changes })),
       () => (mode === "reconfirm" ? onDone("confirmed") : setConfirmedNow(true)),
     );
-  const reject = () => run(() => setReviewStatus(lead.productId, "REJECTED"), () => onDone("rejected"));
-  const later = () => run(() => setReviewStatus(lead.productId, "FOLLOW_UP"), () => onDone("later"));
+  const reject = () => run(() => withNotes(() => setReviewStatus(lead.productId, "REJECTED")), () => onDone("rejected", restoreStatus));
+  const later = () => run(() => withNotes(() => setReviewStatus(lead.productId, "FOLLOW_UP")), () => onDone("later", restoreStatus));
   const buy = () => {
-    if (cartApi) cartApi.add(lead.productId, qty);
-    else {
-      const next = { ...((readSaved().cart ?? {}) as CartState) };
-      next[lead.productId] = { ...next[lead.productId], qty: (next[lead.productId]?.qty ?? 0) + qty };
-      writeSaved({ cart: next });
-      setLocalCart(next);
-    }
-    if (lead.reviewStatus === "VALIDATED") return onDone("bought");
-    run(() => setReviewStatus(lead.productId, "VALIDATED"), () => onDone("bought"));
+    const n = qty;
+    const undo = async () => {
+      addToCart(-n);
+      return lead.reviewStatus === "VALIDATED" ? { ok: true } : restoreStatus();
+    };
+    addToCart(n);
+    run(() => withNotes(() => (lead.reviewStatus === "VALIDATED" ? Promise.resolve({ ok: true }) : setReviewStatus(lead.productId, "VALIDATED"))), () => onDone("bought", undo));
   };
   // Weekly Review : valider (les valeurs modifiées sont d'abord enregistrées comme vérifiées)
   const validate = () =>
@@ -250,9 +331,9 @@ function LeadPanel({
           const res = await reconfirmLead({ productId: lead.productId, ...changes });
           if (!res.ok) return res;
         }
-        return setReviewStatus(lead.productId, "VALIDATED");
+        return withNotes(() => setReviewStatus(lead.productId, "VALIDATED"));
       },
-      () => onDone("validated"),
+      () => onDone("validated", restoreStatus),
     );
   const primary = () => {
     if (pending || invalid) return;
@@ -317,7 +398,7 @@ function LeadPanel({
               </div>
             </div>
           </div>
-          {lead.notes && (
+          {!templates && lead.notes && (
             <p className="mt-3 flex items-start gap-1.5 rounded-sm bg-page/60 px-3 py-2 text-xs text-ink-2">
               <StickyNote size={12} className="mt-0.5 shrink-0 text-warning" /> {lead.notes}
             </p>
@@ -372,6 +453,16 @@ function LeadPanel({
           </ul>
           <p className="mt-2 text-[11px] text-ink-3">Modifiez seulement ce qui a changé : les nouvelles valeurs sont enregistrées comme vérifiées, les valeurs de la Sheet restent intactes.</p>
         </section>
+
+        {templates && (
+          <section className="rounded-md border border-line bg-surface p-4">
+            <div className="mb-2.5 flex items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-ink">Notes et motifs</h2>
+              {notesDirty && <span className="text-[11px] text-accent">Enregistrés avec votre décision</span>}
+            </div>
+            <NotePicker templates={templates} tags={tags} onTags={setTags} notes={notes} onNotes={setNotes} />
+          </section>
+        )}
       </div>
 
       {/* Résultat et actions */}

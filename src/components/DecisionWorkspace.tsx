@@ -12,6 +12,7 @@ import { FocusScreen } from "./FocusScreen";
 import { evaluateRow, inScope } from "@/lib/decisionFilters";
 import type { DecisionRow } from "@/lib/decisionRows";
 import type { FocusLead } from "@/lib/focus";
+import type { NoteTemplates } from "@/lib/noteTemplates";
 import { cad } from "@/lib/format";
 import { amount } from "@/lib/normalize";
 import type { TaxConfig } from "@/lib/profit";
@@ -20,8 +21,8 @@ import { cn } from "./ui";
 type View = "focus" | "list";
 
 export function DecisionWorkspace({
-  rows, leads, tax, currentWeek, startAsin = null, initialView = "focus",
-}: { rows: DecisionRow[]; leads: FocusLead[]; tax: TaxConfig; currentWeek: string; startAsin?: string | null; initialView?: View }) {
+  rows, leads, tax, currentWeek, startAsin = null, initialView = "focus", templates,
+}: { rows: DecisionRow[]; leads: FocusLead[]; tax: TaxConfig; currentWeek: string; startAsin?: string | null; initialView?: View; templates?: NoteTemplates }) {
   const { filters, update } = useDecisionFilters();
   const [view, setView] = useState<View>(initialView);
   const [start, setStart] = useState<{ asin: string | null; n: number }>({ asin: startAsin, n: 0 });
@@ -147,10 +148,10 @@ export function DecisionWorkspace({
               </div>
             </div>
           )}
-          <FocusScreen key={queueKey} leads={leads} mode="decide" tax={tax} currentWeek={currentWeek} startAsin={start.asin} cartApi={cartApi} />
+          <FocusScreen key={queueKey} leads={leads} mode="decide" tax={tax} currentWeek={currentWeek} startAsin={start.asin} cartApi={cartApi} templates={templates} />
         </>
       ) : (
-        <BuyDecisions rows={rows} currentWeek={currentWeek} tax={tax} cart={cart} setCart={setCart} onOpen={(asin) => switchView("focus", asin)} />
+        <BuyDecisions rows={rows} currentWeek={currentWeek} tax={tax} cart={cart} setCart={setCart} onOpen={(asin) => switchView("focus", asin)} templates={templates} />
       )}
 
       {/* Panier sur le côté */}
