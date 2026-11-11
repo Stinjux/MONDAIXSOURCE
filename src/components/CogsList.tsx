@@ -20,7 +20,7 @@ function download(filename: string, content: string) {
   URL.revokeObjectURL(url);
 }
 
-export function CogsList({ products }: { products: Row[] }) {
+export function CogsList({ products, dashboard }: { products: Row[]; dashboard?: React.ReactNode }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [missingOnly, setMissingOnly] = useState(false);
@@ -60,6 +60,8 @@ export function CogsList({ products }: { products: Row[] }) {
       <div>
         <ManualPurchaseForm label="Nouvel achat" />
       </div>
+      {dashboard}
+      <h2 className="mt-2 border-b border-line pb-2 text-[12px] font-semibold tracking-[0.1em] text-ink-2 uppercase">Tous les achats, par produit</h2>
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Kpi label="Coût total des achats" value={cad(total)} hint="commandes non annulées" />
         <Kpi label="Unités commandées" value={units.toLocaleString("fr-CA")} hint={`${products.filter((p) => p.units > 0).length} produits`} />

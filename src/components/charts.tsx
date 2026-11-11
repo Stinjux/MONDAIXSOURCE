@@ -99,3 +99,36 @@ export function SimpleBarChart({ data, name, unit, height = 220 }: { data: { lab
     </ResponsiveContainer>
   );
 }
+
+/** COGS par période : une barre par période ; un clic sélectionne la période (montants en $ CA). */
+export function CogsBarChart({ data, selected, onSelect, height = 240 }: { data: { key: string; label: string; value: number }[]; selected: string; onSelect: (key: string) => void; height?: number }) {
+  const money = (v: unknown) => (typeof v === "number" ? v.toLocaleString("fr-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 }) : String(v));
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <BarChart data={data} margin={{ top: 8, right: 8, left: 4, bottom: 0 }} barCategoryGap="22%">
+        <CartesianGrid vertical={false} stroke={C.grid} strokeDasharray="3 4" />
+        <XAxis dataKey="label" {...axisProps} interval={0} />
+        <YAxis {...axisProps} width={64} tickFormatter={money} />
+        <Tooltip
+          cursor={{ fill: "#13233a0a" }}
+          content={(p) =>
+            p.active && p.payload?.length ? (
+              <div className="rounded-sm border border-line-strong bg-surface px-3 py-2 text-xs shadow-lg">
+                <div className="mb-1 font-medium text-ink">{String(p.label)}</div>
+                <div className="flex items-center gap-2 text-ink-2">
+                  <span className="size-2 rounded-sm" style={{ background: C.s1 }} />
+                  COGS <b className="ml-auto text-ink tabular-nums">{money(p.payload[0].value)}</b>
+                </div>
+              </div>
+            ) : null
+          }
+        />
+        <Bar dataKey="value" name="COGS" radius={[4, 4, 0, 0]} maxBarSize={48} cursor="pointer" onClick={(d: { payload?: { key?: string } }) => d.payload?.key && onSelect(d.payload.key)}>
+          {data.map((d) => (
+            <Cell key={d.key} fill={C.s1} fillOpacity={d.key === selected ? 1 : 0.45} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
