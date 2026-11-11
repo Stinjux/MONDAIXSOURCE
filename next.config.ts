@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Conversion HEIC (décodeur volumineux) : chargé tel quel côté serveur, sans être empaqueté
+  serverExternalPackages: ["heic-convert", "heic-decode", "libheif-js"],
   async headers() {
     return [
       {

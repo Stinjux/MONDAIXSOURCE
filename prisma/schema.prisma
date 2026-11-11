@@ -211,6 +211,8 @@ model Purchase {
   totalProfit Float?
   totalUnits  Int
   cancelledAt DateTime?
+  /// CART (panier de Buy Decisions) | MANUAL (achat saisi dans la section COGS)
+  source      String         @default("CART")
   items       PurchaseItem[]
 
   @@index([createdAt])
@@ -252,6 +254,40 @@ model DataBackup {
   data      Bytes
 
   @@index([createdAt])
+}
+
+/// Facture, reçu ou autre document lié à un produit (section COGS).
+/// Jamais supprimé : un document retiré est archivé (archivedAt). Le contenu est dans DocumentBlob.
+model ProductDocument {
+  id         String    @id @default(cuid())
+  asin       String
+  productId  String?
+  /// Commande associée (facultatif)
+  purchaseId String?
+  /// INVOICE | RECEIPT | OTHER
+  kind       String    @default("INVOICE")
+  filename   String
+  mimeType   String
+  size       Int
+  /// Empreinte du contenu (clé de DocumentBlob)
+  sha256     String
+  hasPreview Boolean   @default(false)
+  note       String?
+  uploadedAt DateTime  @default(now())
+  archivedAt DateTime?
+
+  @@index([asin])
+  @@index([sha256])
+}
+
+/// Contenu des documents, une seule copie par contenu identique, jamais modifié ni supprimé.
+/// Exclu des sauvegardes répétées (copie à part : Settings / COGS → télécharger les documents).
+model DocumentBlob {
+  sha256    String   @id
+  data      Bytes
+  /// Aperçu JPEG (photo HEIC convertie pour les navigateurs)
+  preview   Bytes?
+  createdAt DateTime @default(now())
 }
 
 /// Journal des modifications manuelles (revue, vérifications, alertes).

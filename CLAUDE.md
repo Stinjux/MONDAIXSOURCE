@@ -28,6 +28,13 @@ déjà stockées.**
   `ImportRun` / `ImportIssue` ne sont jamais modifiés ni supprimés.
 - La synchronisation ne supprime rien : une ligne retirée d'une Sheet passe à `present = false`.
 
+## Documents (COGS)
+
+- `ProductDocument` : jamais supprimé, un document retiré est archivé (`archivedAt`).
+- `DocumentBlob` : contenu des fichiers, une copie par empreinte SHA-256, jamais modifié ni supprimé.
+  Exclu des sauvegardes répétées (trop volumineux) : copie à part par l'export zip (COGS).
+- Formats acceptés reconnus par leur contenu (PDF, JPEG, PNG, WebP, GIF, HEIC/HEIF), 20 Mo au plus.
+
 ## Sauvegardes
 
 - `npm run deploy:prepare` (pré-déploiement Railway) applique le schéma puis crée une

@@ -12,6 +12,7 @@ import { syncAll, type SyncResult } from "@/lib/sync/engine";
 import { CHECKLIST, REVIEW_STATUSES, RESTRICTIONS } from "@/lib/labels";
 import { setNoteTemplates, setTaxConfig } from "@/lib/settings";
 import { cleanTags, type NoteTemplates } from "@/lib/noteTemplates";
+import { DOC_KINDS } from "@/lib/documents";
 import { loadProducts } from "@/lib/queries";
 import { toDecisionRows } from "@/lib/decisionRows";
 import { preliminaryProfit } from "@/lib/profit";
@@ -194,6 +195,87 @@ export async function setReviewStatusMany(ids: string[], status: string): Promis
     return { ok: true, changed };
   } catch (e) {
     return { ok: false, error: e instanceof z.ZodError ? "Sélection invalide" : e instanceof Error ? e.message : "Erreur" };
+  }
+}
+
+// --- Section COGS : documents et achats saisis à la main ---
+
+const refreshCogs = () => revalidatePath("/cogs", "layout");
+
+/** Archive (ou rétablit) un document : il n'est jamais supprimé. */
+export async function archiveDocument(id: string, archived = true): Promise<ActionResult> {
+  try {
+    await guard();
+    const doc = await prisma.productDocument.findUnique({ where: { id }, select: { archivedAt: true } });
+    if (!doc) return { ok: false, error: "Document introuvable" };
+    const archivedAt = archived ? new Date() : null;
+    await prisma.$transaction([
+      prisma.productDocument.update({ where: { id }, data: { archivedAt } }),
+      prisma.changeLog.create({ data: { entity: "ProductDocument", entityId: id, action: archived ? "CANCEL" : "RESTORE", before: json({ archivedAt: doc.archivedAt }), after: json({ archivedAt }) } }),
+    ]);
+    refreshCogs();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erreur" };
+  }
+}
+
+const docUpdateSchema = z.object({ kind: z.enum(DOC_KINDS).optional(), purchaseId: z.string().min(1).nullable().optional(), note: z.string().max(500).nullable().optional() });
+
+export async function updateDocument(id: string, patch: z.input<typeof docUpdateSchema>): Promise<ActionResult> {
+  try {
+    await guard();
+    const data = docUpdateSchema.parse(patch);
+    const doc = await prisma.productDocument.findUnique({ where: { id }, select: { kind: true, purchaseId: true, note: true } });
+    if (!doc) return { ok: false, error: "Document introuvable" };
+    await prisma.$transaction([
+      prisma.productDocument.update({ where: { id }, data: { ...data, note: data.note === undefined ? undefined : data.note?.trim() || null } }),
+      prisma.changeLog.create({ data: { entity: "ProductDocument", entityId: id, action: "UPDATE", before: json(doc), after: json(data) } }),
+    ]);
+    refreshCogs();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof z.ZodError ? "Données invalides" : e instanceof Error ? e.message : "Erreur" };
+  }
+}
+
+const manualPurchaseSchema = z.object({
+  asin: z.string().regex(/^[A-Z0-9]{10}$/i),
+  orderedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  quantity: z.number().int().min(1).max(100_000),
+  unitCost: z.number().finite().min(0).max(1_000_000),
+  supplierName: z.string().max(120).nullable(),
+  note: z.string().max(500).nullable(),
+});
+
+/** Achat saisi à la main (hors panier) : enregistré comme une commande, marquée « MANUAL ». */
+export async function addManualPurchase(input: z.input<typeof manualPurchaseSchema>): Promise<ActionResult> {
+  try {
+    await guard();
+    const data = manualPurchaseSchema.parse(input);
+    const asin = data.asin.toUpperCase();
+    const product = await prisma.product.findUnique({ where: { asin }, select: { id: true, name: true } });
+    const known = await prisma.purchaseItem.findFirst({ where: { asin }, select: { name: true } });
+    const name = product?.name ?? known?.name;
+    if (!name) return { ok: false, error: "ASIN inconnu dans MONDAIX" };
+    const orderedAt = new Date(`${data.orderedAt}T12:00:00`);
+    const totalCost = Math.round(data.quantity * data.unitCost * 100) / 100;
+    const created = await prisma.purchase.create({
+      data: {
+        createdAt: orderedAt,
+        source: "MANUAL",
+        note: data.note?.trim() || null,
+        totalCost,
+        totalUnits: data.quantity,
+        items: { create: [{ productId: product?.id ?? null, asin, name, supplierName: data.supplierName?.trim() || null, quantity: data.quantity, unitCost: data.unitCost }] },
+      },
+    });
+    await prisma.changeLog.create({ data: { entity: "Purchase", entityId: created.id, action: "CREATE", after: json({ source: "MANUAL", asin, quantity: data.quantity, unitCost: data.unitCost, totalCost }) } });
+    refreshCogs();
+    refresh();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof z.ZodError ? "Achat invalide : vérifiez la date, la quantité et le coût" : e instanceof Error ? e.message : "Erreur" };
   }
 }
 

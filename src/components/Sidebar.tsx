@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  BarChart3, CalendarCheck, ChevronsLeft, ChevronsRight, Copy, History, KanbanSquare, LayoutDashboard, LogOut, Menu, PackageCheck, PackageX, RefreshCw, Rows3, Rows4,
+  BarChart3, CalendarCheck, ChevronsLeft, ChevronsRight, Copy, History, KanbanSquare, LayoutDashboard, LogOut, Menu, PackageCheck, PackageX, Receipt, RefreshCw, Rows3, Rows4,
   Search, Settings, ShoppingCart, Store, Table2, X,
 } from "lucide-react";
 import { logout } from "@/app/(app)/actions";
@@ -35,9 +35,15 @@ export const NAV_SECTIONS: { title: string; items: Item[] }[] = [
     ],
   },
   {
+    title: "Inventaire",
+    items: [
+      { href: "/cogs", label: "COGS & factures", icon: Receipt },
+      { href: "/purchased", label: "Acheté", icon: PackageCheck },
+    ],
+  },
+  {
     title: "Suivi",
     items: [
-      { href: "/purchased", label: "Acheté", icon: PackageCheck },
       { href: "/analytics", label: "Analytics", icon: BarChart3 },
       { href: "/imports", label: "Import History", icon: History },
       { href: "/settings", label: "Settings", icon: Settings },

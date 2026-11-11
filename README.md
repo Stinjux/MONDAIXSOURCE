@@ -44,6 +44,13 @@ Chaque fournisseur, chaque occurrence, la première et la dernière date de déc
 
 Statuts : À revoir · En cours · Revu et validé · Rejeté · À suivre. Pour chaque lead : prix Amazon et frais Amazon (Total Fees) vérifiés, coût et disponibilité vérifiés par fournisseur, restrictions Amazon, rentabilité recalculée en direct, doublons, checklist en 6 points, notes. Les leads sans décision des semaines précédentes restent affichés (« En retard »). Chaque modification est journalisée (`ChangeLog`).
 
+### COGS & factures (`/cogs`, section Inventaire)
+
+- **Liste par produit** : unités commandées, coût moyen par unité (et écart min–max), coût total, nombre de commandes, dernière commande, fournisseurs, nombre de documents. Alerte « Aucune facture » pour un produit acheté sans document, filtre « Sans facture seulement », export **COGS (CSV)** et **Tous les documents (.zip)**.
+- **Fiche COGS d'un produit** (`/cogs/<ASIN>`) : chaque commande (date, fournisseur, unités, coût par unité, total, pièces jointes ; commandes annulées grisées et exclues des totaux), et **« Ajouter un achat fait hors du panier »** (date, unités, coût, fournisseur, note ; marqué « Saisie »).
+- **Factures et documents** : zone de **glisser-déposer** (ou clic) pour PDF, images (JPG, PNG, WebP, GIF) et photos iPhone **HEIC/HEIF** (aperçu JPEG généré automatiquement), 20 Mo par fichier. Le format est vérifié d'après le contenu du fichier, pas son nom. Chaque document a un type (facture, reçu, autre) et peut être rattaché à une commande ; il s'ouvre, se télécharge, ou s'**archive** (jamais supprimé).
+- Stockage en base : `ProductDocument` (fiche) et `DocumentBlob` (contenu, une seule copie par contenu identique). Le contenu n'est pas recopié dans chaque sauvegarde automatique : téléchargez régulièrement le .zip et gardez-le hors de Railway.
+
 ### Modèles de notes, Annuler, actions groupées
 
 - **Modèles de notes** : en validant, mettant à suivre ou rejetant un lead (mode rapide de la Weekly Review, Buy Decisions, reconfirmation, fiche du lead), des motifs en un clic — **Pour** (Bon ROI, Fort volume de ventes…), **Contre** (ROI trop bas, Faible volume, Trop de vendeurs…), **À vérifier** (Fournisseur à vérifier…) — plus une note libre. Les motifs sont enregistrés à part (colonne `reviewTags`), affichés dans la liste Buy Decisions et comptés dans Analytics (« Motifs des rejets / des validations »). La liste se modifie dans **Settings → Modèles de notes** ; retirer un modèle ne touche pas les leads qui l'utilisent.

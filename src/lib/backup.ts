@@ -9,6 +9,9 @@ export type BackupReason = "DEPLOY" | "DAILY" | "MANUAL";
 export const BACKUP_REASON_LABELS: Record<BackupReason, string> = { DEPLOY: "Déploiement", DAILY: "Quotidienne", MANUAL: "Manuelle" };
 
 const BACKUP_TABLE = "DataBackup";
+// Contenu des documents (factures) : stocké une seule fois, jamais modifié ni supprimé, donc pas
+// recopié dans chaque sauvegarde ; copie à part par l'export zip de la section COGS.
+const UNSNAPSHOTTED = ["DocumentBlob"];
 /** Sauvegardes quotidiennes conservées (les sauvegardes de déploiement et manuelles sont toutes gardées). */
 export const DAILY_KEEP = 90;
 const DAY_MS = 24 * 3600 * 1000;
@@ -24,7 +27,7 @@ async function tableNames(db: Pick<PrismaClient, "$queryRaw">): Promise<string[]
     SELECT table_name FROM information_schema.tables
     WHERE table_schema = current_schema() AND table_type = 'BASE TABLE'
     ORDER BY table_name`;
-  return rows.map((r) => r.table_name).filter((t) => t !== BACKUP_TABLE && !t.startsWith("_prisma"));
+  return rows.map((r) => r.table_name).filter((t) => t !== BACKUP_TABLE && !UNSNAPSHOTTED.includes(t) && !t.startsWith("_prisma"));
 }
 
 export async function backupTableExists(db: Pick<PrismaClient, "$queryRaw">): Promise<boolean> {
