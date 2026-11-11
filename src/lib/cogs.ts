@@ -1,5 +1,5 @@
-// COGS (coût des marchandises achetées) par produit, à partir des commandes confirmées
-// (panier de Buy Decisions) et des achats saisis à la main. Fonctions pures, testées.
+// COGS (coût des marchandises achetées) par produit, à partir des achats réels saisis dans la
+// section COGS (le panier potentiel de Buy Decisions n'en fait pas partie). Fonctions pures, testées.
 import { storeName } from "./stores";
 
 export type CogsLine = {
@@ -13,6 +13,7 @@ export type CogsLine = {
   orderedAt: string;
   cancelled: boolean;
   source: string;
+  orderNumber?: string | null;
   note: string | null;
 };
 

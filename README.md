@@ -46,8 +46,9 @@ Statuts : À revoir · En cours · Revu et validé · Rejeté · À suivre. Pour
 
 ### COGS & factures (`/cogs`, section Inventaire)
 
+- **Achats réels seulement**, saisis ici de A à Z (« Nouvel achat » : lien Amazon ou ASIN, nom du produit s'il est inconnu de MONDAIX, date, unités, coût par unité, fournisseur — nom ou lien —, n° de commande, note) ; le panier potentiel de Buy Decisions n'est pas compté. Après l'enregistrement, la fiche du produit s'ouvre pour déposer la facture.
 - **Liste par produit** : unités commandées, coût moyen par unité (et écart min–max), coût total, nombre de commandes, dernière commande, fournisseurs, nombre de documents. Alerte « Aucune facture » pour un produit acheté sans document, filtre « Sans facture seulement », export **COGS (CSV)** et **Tous les documents (.zip)**.
-- **Fiche COGS d'un produit** (`/cogs/<ASIN>`) : chaque commande (date, fournisseur, unités, coût par unité, total, pièces jointes ; commandes annulées grisées et exclues des totaux), et **« Ajouter un achat fait hors du panier »** (date, unités, coût, fournisseur, note ; marqué « Saisie »).
+- **Fiche COGS d'un produit** (`/cogs/<ASIN>`) : chaque commande (date, fournisseur, unités, coût par unité, total, pièces jointes ; commandes annulées grisées et exclues des totaux), et **« Ajouter un achat »** (date, unités, coût, fournisseur, n° de commande, note).
 - **Factures et documents** : zone de **glisser-déposer** (ou clic) pour PDF, images (JPG, PNG, WebP, GIF) et photos iPhone **HEIC/HEIF** (aperçu JPEG généré automatiquement), 20 Mo par fichier. Le format est vérifié d'après le contenu du fichier, pas son nom. Chaque document a un type (facture, reçu, autre) et peut être rattaché à une commande ; il s'ouvre, se télécharge, ou s'**archive** (jamais supprimé).
 - Stockage en base : `ProductDocument` (fiche) et `DocumentBlob` (contenu, une seule copie par contenu identique). Le contenu n'est pas recopié dans chaque sauvegarde automatique : téléchargez régulièrement le .zip et gardez-le hors de Railway.
 
@@ -74,9 +75,9 @@ Classe les leads selon 5 stratégies : **score d'achat** (40 % ROI plafonné à 
 
 Accessible en cliquant sur le nom d'un produit (Buy Decisions, Pipeline, All Leads, Acheté, Dashboard, Duplicate Alerts) ou sur ✏️ dans Buy Decisions. Vignette, fraîcheur, liens Amazon et Keepa, boutons Reconfirmer et Décider. Permet de tout modifier — notes, statut (donc la colonne du Pipeline), prix Amazon et Total Fees vérifiés, coût et disponibilité par fournisseur, restrictions, checklist — et d'ajouter le produit au panier. Affiche aussi les fournisseurs, les achats passés, l'historique des modifications (en clair), l'historique des prix importés et les lignes correspondantes dans les Sheets. Les notes s'affichent en aperçu dans Buy Decisions.
 
-### Acheté
+### Panier potentiel (`/purchased`, anciennement « Acheté »)
 
-Historique de toutes les commandes confirmées (tables `Purchase` / `PurchaseItem`) : totaux (commandes, unités, investissement, profit attendu), recherche, détail par commande, **export CSV** (tout ou par commande, compatible Excel / Google Sheets). Une commande annulée n'est jamais supprimée : elle reste dans l'historique, marquée « Annulé », hors totaux.
+Les paniers confirmés dans Buy Decisions, c'est-à-dire les achats **envisagés** (`Purchase.source = CART`) ; ils ne comptent pas dans les COGS. Totaux (paniers, unités et montant envisagés, profit attendu), recherche, détail par commande, **export CSV** (tout ou par commande, compatible Excel / Google Sheets). Une commande annulée n'est jamais supprimée : elle reste dans l'historique, marquée « Annulé », hors totaux.
 
 ### Pipeline (`/pipeline`)
 

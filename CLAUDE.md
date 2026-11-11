@@ -22,6 +22,8 @@ déjà stockées.**
 
 - `Purchase` / `PurchaseItem` : prix, frais, taxes et profit figés à la confirmation. Ne jamais
   les recalculer ; une annulation se fait avec `cancelledAt`.
+- `Purchase.source` : `CART` = panier potentiel (Buy Decisions, page « Panier potentiel »),
+  `MANUAL` = achat réel saisi dans COGS. **Seuls les achats `MANUAL` comptent dans les COGS.**
 - `Product.goalWeek` et `countsTowardGoal` sont figés à la création (objectif hebdomadaire).
 - Valeurs importées (Sheets) et valeurs vérifiées (préfixe `verified`) restent séparées.
 - Historique : `ChangeLog` (modifications manuelles), `PriceSnapshot`, `StockCheck`,

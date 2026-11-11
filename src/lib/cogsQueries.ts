@@ -4,9 +4,10 @@ import { prisma } from "./prisma";
 import { cogsByProduct, type CogsLine } from "./cogs";
 
 export async function loadCogsLines(asin?: string): Promise<CogsLine[]> {
+  // Seuls les achats réels saisis dans COGS comptent (le panier potentiel n'en fait pas partie)
   const items = await prisma.purchaseItem.findMany({
-    where: asin ? { asin } : undefined,
-    include: { purchase: { select: { id: true, createdAt: true, cancelledAt: true, source: true, note: true } } },
+    where: { purchase: { source: "MANUAL" }, ...(asin ? { asin } : {}) },
+    include: { purchase: { select: { id: true, createdAt: true, cancelledAt: true, source: true, note: true, orderNumber: true } } },
     orderBy: { purchase: { createdAt: "desc" } },
   });
   return items.map((i) => ({
@@ -20,6 +21,7 @@ export async function loadCogsLines(asin?: string): Promise<CogsLine[]> {
     orderedAt: i.purchase.createdAt.toISOString(),
     cancelled: !!i.purchase.cancelledAt,
     source: i.purchase.source,
+    orderNumber: i.purchase.orderNumber,
     note: i.purchase.note,
   }));
 }

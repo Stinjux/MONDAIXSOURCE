@@ -46,7 +46,7 @@ function csvRows(purchases: PurchaseView[]) {
     p.items.map((i) => [
       p.createdAt.slice(0, 10), p.id.slice(-8).toUpperCase(), p.note, i.asin, i.name, i.supplierName, i.supplierUrl, i.quantity, i.unitCost,
       i.unitCost * i.quantity, i.amazonPrice, i.fees, i.taxes, i.unitProfit, i.unitProfit == null ? null : i.unitProfit * i.quantity,
-      i.roi, i.margin, p.cancelledAt ? "Annulé" : "Acheté",
+      i.roi, i.margin, p.cancelledAt ? "Annulé" : "Panier potentiel",
     ]),
   );
 }
@@ -91,7 +91,7 @@ export function PurchasedList({ purchases }: { purchases: PurchaseView[] }) {
   if (purchases.length === 0) {
     return (
       <div className="rounded-md border border-line bg-surface">
-        <EmptyState title="Aucun achat confirmé" icon={<PackageCheck size={22} />}>
+        <EmptyState title="Aucun panier confirmé" icon={<PackageCheck size={22} />}>
           Ajoutez des produits au panier dans <Link href="/decisions" className="link">Buy Decisions</Link> puis cliquez sur « Confirmer l&apos;achat ».
         </EmptyState>
       </div>
@@ -101,9 +101,9 @@ export function PurchasedList({ purchases }: { purchases: PurchaseView[] }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Kpi label="Commandes" value={active.length} hint={query ? "selon la recherche" : "non annulées"} />
-        <Kpi label="Unités achetées" value={units} />
-        <Kpi label="Investissement" value={cad(cost)} />
+        <Kpi label="Paniers" value={active.length} hint={query ? "selon la recherche" : "non annulées"} />
+        <Kpi label="Unités envisagées" value={units} />
+        <Kpi label="Montant envisagé" value={cad(cost)} />
         <Kpi label="Profit attendu" value={cad(profit)} hint={cost > 0 ? `ROI ${pct((profit / cost) * 100, 0)} · prix au moment de l'achat` : undefined} tone="good" />
       </div>
 
@@ -115,7 +115,7 @@ export function PurchasedList({ purchases }: { purchases: PurchaseView[] }) {
         <label className="flex cursor-pointer items-center gap-2 text-xs text-ink-2">
           <input type="checkbox" className="accent-accent" checked={showCancelled} onChange={(e) => setShowCancelled(e.target.checked)} /> Afficher les achats annulés
         </label>
-        <button type="button" className="btn-primary" disabled={!visible.length} onClick={() => download(`mondaix-achats-${stamp}.csv`, toCsv(CSV_HEADER, csvRows(visible)))}>
+        <button type="button" className="btn-primary" disabled={!visible.length} onClick={() => download(`mondaix-panier-potentiel-${stamp}.csv`, toCsv(CSV_HEADER, csvRows(visible)))}>
           <Download size={15} /> Exporter en CSV
         </button>
       </div>
@@ -148,7 +148,7 @@ export function PurchasedList({ purchases }: { purchases: PurchaseView[] }) {
                   <span>Profit <b className="text-good">{cad(p.totalProfit)}</b></span>
                 </span>
                 <span className="flex gap-1">
-                  <button type="button" className="btn-ghost px-2 py-1 text-xs" onClick={() => download(`mondaix-achat-${p.createdAt.slice(0, 10)}-${p.id.slice(-8)}.csv`, toCsv(CSV_HEADER, csvRows([p])))}>
+                  <button type="button" className="btn-ghost px-2 py-1 text-xs" onClick={() => download(`mondaix-panier-${p.createdAt.slice(0, 10)}-${p.id.slice(-8)}.csv`, toCsv(CSV_HEADER, csvRows([p])))}>
                     <Download size={12} /> CSV
                   </button>
                   <button

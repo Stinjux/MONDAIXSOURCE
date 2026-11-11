@@ -13,6 +13,8 @@ import { CHECKLIST, REVIEW_STATUSES, RESTRICTIONS } from "@/lib/labels";
 import { setNoteTemplates, setTaxConfig } from "@/lib/settings";
 import { cleanTags, type NoteTemplates } from "@/lib/noteTemplates";
 import { DOC_KINDS } from "@/lib/documents";
+import { extractAsin } from "@/lib/normalize";
+import { storeName } from "@/lib/stores";
 import { loadProducts } from "@/lib/queries";
 import { toDecisionRows } from "@/lib/decisionRows";
 import { preliminaryProfit } from "@/lib/profit";
@@ -240,42 +242,52 @@ export async function updateDocument(id: string, patch: z.input<typeof docUpdate
 }
 
 const manualPurchaseSchema = z.object({
-  asin: z.string().regex(/^[A-Z0-9]{10}$/i),
+  /** Lien Amazon ou ASIN */
+  amazon: z.string().min(10).max(500),
+  name: z.string().max(300).nullable().optional(),
   orderedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   quantity: z.number().int().min(1).max(100_000),
   unitCost: z.number().finite().min(0).max(1_000_000),
-  supplierName: z.string().max(120).nullable(),
-  note: z.string().max(500).nullable(),
+  /** Nom du fournisseur ou lien vers le produit chez lui */
+  supplier: z.string().max(500).nullable().optional(),
+  orderNumber: z.string().max(120).nullable().optional(),
+  note: z.string().max(500).nullable().optional(),
 });
 
-/** Achat saisi à la main (hors panier) : enregistré comme une commande, marquée « MANUAL ». */
-export async function addManualPurchase(input: z.input<typeof manualPurchaseSchema>): Promise<ActionResult> {
+/** Achat réel saisi dans COGS (de A à Z) : enregistré comme une commande « MANUAL ». */
+export async function addManualPurchase(input: z.input<typeof manualPurchaseSchema>): Promise<{ ok: true; asin: string } | { ok: false; error: string }> {
   try {
     await guard();
     const data = manualPurchaseSchema.parse(input);
-    const asin = data.asin.toUpperCase();
+    const asin = extractAsin(data.amazon, data.amazon);
+    if (!asin) return { ok: false, error: "Lien Amazon ou ASIN non reconnu (ex. https://www.amazon.ca/dp/B0ABC12345)" };
     const product = await prisma.product.findUnique({ where: { asin }, select: { id: true, name: true } });
-    const known = await prisma.purchaseItem.findFirst({ where: { asin }, select: { name: true } });
-    const name = product?.name ?? known?.name;
-    if (!name) return { ok: false, error: "ASIN inconnu dans MONDAIX" };
+    const known = product ? null : await prisma.purchaseItem.findFirst({ where: { asin }, orderBy: { id: "desc" }, select: { name: true } });
+    const name = data.name?.trim() || product?.name || known?.name;
+    if (!name) return { ok: false, error: "Produit inconnu de MONDAIX : indiquez son nom" };
+    // Fournisseur : un lien (page du produit chez lui) ou un simple nom
+    const raw = data.supplier?.trim() || null;
+    const isLink = !!raw && /^(https?:\/\/)?[a-z0-9-]+(\.[a-z0-9-]+)+(\/\S*)?$/i.test(raw) && !/\s/.test(raw);
+    const supplierUrl = isLink ? (/^https?:\/\//i.test(raw!) ? raw! : `https://${raw}`) : null;
+    const supplierName = isLink ? storeName({ supplierUrl }) : raw;
     const orderedAt = new Date(`${data.orderedAt}T12:00:00`);
     const totalCost = Math.round(data.quantity * data.unitCost * 100) / 100;
     const created = await prisma.purchase.create({
       data: {
         createdAt: orderedAt,
         source: "MANUAL",
+        orderNumber: data.orderNumber?.trim() || null,
         note: data.note?.trim() || null,
         totalCost,
         totalUnits: data.quantity,
-        items: { create: [{ productId: product?.id ?? null, asin, name, supplierName: data.supplierName?.trim() || null, quantity: data.quantity, unitCost: data.unitCost }] },
+        items: { create: [{ productId: product?.id ?? null, asin, name, supplierName, supplierUrl, quantity: data.quantity, unitCost: data.unitCost }] },
       },
     });
     await prisma.changeLog.create({ data: { entity: "Purchase", entityId: created.id, action: "CREATE", after: json({ source: "MANUAL", asin, quantity: data.quantity, unitCost: data.unitCost, totalCost }) } });
     refreshCogs();
-    refresh();
-    return { ok: true };
+    return { ok: true, asin };
   } catch (e) {
-    return { ok: false, error: e instanceof z.ZodError ? "Achat invalide : vérifiez la date, la quantité et le coût" : e instanceof Error ? e.message : "Erreur" };
+    return { ok: false, error: e instanceof z.ZodError ? "Achat invalide : vérifiez le lien Amazon, la date, la quantité et le coût" : e instanceof Error ? e.message : "Erreur" };
   }
 }
 

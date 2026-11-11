@@ -83,10 +83,8 @@ export default async function CogsProductPage({ params }: { params: Promise<{ as
                     <tr key={`${l.purchaseId}-${i}`} className={cn(l.cancelled && "opacity-55")}>
                       <td>
                         <span className="block">{formatDate(l.orderedAt)}</span>
-                        <span className="flex gap-1">
-                          <Badge tone={l.source === "MANUAL" ? "neutral" : "accent"}>{l.source === "MANUAL" ? "Saisie" : "Panier"}</Badge>
-                          {l.cancelled && <Badge tone="critical">Annulée</Badge>}
-                        </span>
+                        {l.orderNumber && <span className="block font-mono text-[11px] text-ink-3">n° {l.orderNumber}</span>}
+                        {l.cancelled && <Badge tone="critical">Annulée</Badge>}
                         {l.note && <span className="mt-0.5 block max-w-48 truncate text-[11px] text-ink-3" title={l.note}>{l.note}</span>}
                       </td>
                       <td className="max-w-40">{l.supplierName || l.supplierUrl ? <Supplier name={l.supplierName} url={l.supplierUrl} /> : "—"}</td>
@@ -119,10 +117,10 @@ export default async function CogsProductPage({ params }: { params: Promise<{ as
               </table>
             </div>
           ) : (
-            <EmptyState title="Aucune commande enregistrée">Ajoutez un achat fait hors du panier ci-dessous.</EmptyState>
+            <EmptyState title="Aucun achat enregistré">Ajoutez vos achats réels de ce produit ci-dessous.</EmptyState>
           )}
           <div className="border-t border-line p-3">
-            <ManualPurchaseForm asin={asin} defaultSupplier={lines.find((l) => l.supplierName)?.supplierName ?? null} />
+            <ManualPurchaseForm asin={asin} defaultSupplier={lines.find((l) => l.supplierUrl)?.supplierUrl ?? lines.find((l) => l.supplierName)?.supplierName ?? null} />
           </div>
         </Card>
 

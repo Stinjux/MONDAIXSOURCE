@@ -211,8 +211,10 @@ model Purchase {
   totalProfit Float?
   totalUnits  Int
   cancelledAt DateTime?
-  /// CART (panier de Buy Decisions) | MANUAL (achat saisi dans la section COGS)
+  /// CART (panier potentiel de Buy Decisions) | MANUAL (achat réel saisi dans la section COGS)
   source      String         @default("CART")
+  /// N° de commande chez le fournisseur (achats saisis dans COGS)
+  orderNumber String?
   items       PurchaseItem[]
 
   @@index([createdAt])

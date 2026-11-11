@@ -9,6 +9,7 @@ import { formatDate } from "@/lib/dates";
 import { cad } from "@/lib/format";
 import { toCsv } from "@/lib/cart";
 import { ProductImage } from "./ProductImage";
+import { ManualPurchaseForm } from "./ManualPurchaseForm";
 import { EmptyState, Kpi, Supplier, cn } from "./ui";
 
 type Row = CogsProduct & { documents: number };
@@ -43,16 +44,22 @@ export function CogsList({ products }: { products: Row[] }) {
 
   if (products.length === 0) {
     return (
-      <div className="rounded-md border border-line bg-surface">
-        <EmptyState title="Aucun achat pour le moment" icon={<Receipt size={22} />}>
-          Les produits apparaissent ici dès qu&apos;un achat est confirmé dans le panier de <Link href="/decisions" className="link">Buy Decisions</Link>. Un achat fait en dehors de MONDAIX s&apos;ajoute depuis la fiche COGS du produit.
-        </EmptyState>
+      <div className="flex flex-col gap-4">
+        <ManualPurchaseForm defaultOpen label="Nouvel achat" />
+        <div className="rounded-md border border-line bg-surface">
+          <EmptyState title="Aucun achat enregistré" icon={<Receipt size={22} />}>
+            Ajoutez vos achats réels ci-dessus, à partir du lien Amazon du produit. Le panier potentiel de Buy Decisions n&apos;est pas compté dans les COGS.
+          </EmptyState>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="flex flex-col gap-4">
+      <div>
+        <ManualPurchaseForm label="Nouvel achat" />
+      </div>
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Kpi label="Coût total des achats" value={cad(total)} hint="commandes non annulées" />
         <Kpi label="Unités commandées" value={units.toLocaleString("fr-CA")} hint={`${products.filter((p) => p.units > 0).length} produits`} />
@@ -156,7 +163,7 @@ export function CogsList({ products }: { products: Row[] }) {
         {visible.length === 0 && <p className={cn("px-4 py-6 text-center text-sm text-ink-3")}>Aucun produit ne correspond.</p>}
       </div>
       <p className="text-xs text-ink-3">
-        COGS = unités commandées × coût unitaire payé, d&apos;après les commandes confirmées dans le panier et les achats saisis à la main. Les commandes annulées ne comptent pas.
+        COGS = unités commandées × coût unitaire payé, d&apos;après les achats réels saisis ici (le panier potentiel de Buy Decisions n&apos;en fait pas partie).
         Le contenu des documents n&apos;est pas recopié dans les sauvegardes automatiques : téléchargez de temps en temps « Tous les documents (.zip) » et gardez-le hors de Railway.
       </p>
     </div>

@@ -285,7 +285,7 @@ export function Cart({
             {result.text}
             {result.ok && (
               <>
-                {" "}— <Link href="/purchased" className="link">voir dans Acheté</Link>
+                {" "}— <Link href="/purchased" className="link">voir dans Panier potentiel</Link>
               </>
             )}
           </p>

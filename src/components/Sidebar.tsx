@@ -4,8 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  BarChart3, CalendarCheck, ChevronsLeft, ChevronsRight, Copy, History, KanbanSquare, LayoutDashboard, LogOut, Menu, PackageCheck, PackageX, Receipt, RefreshCw, Rows3, Rows4,
-  Search, Settings, ShoppingCart, Store, Table2, X,
+  BarChart3, CalendarCheck, ChevronsLeft, ChevronsRight, Copy, History, KanbanSquare, LayoutDashboard, LogOut, Menu, PackageX, Receipt, RefreshCw, Rows3, Rows4,
+  Search, Settings, ShoppingBasket, ShoppingCart, Store, Table2, X,
 } from "lucide-react";
 import { logout } from "@/app/(app)/actions";
 import { cn } from "./ui";
@@ -21,6 +21,7 @@ export const NAV_SECTIONS: { title: string; items: Item[] }[] = [
       { href: "/", label: "Dashboard", icon: LayoutDashboard },
       { href: "/pipeline", label: "Pipeline", icon: KanbanSquare },
       { href: "/decisions", label: "Buy Decisions", icon: ShoppingCart },
+      { href: "/purchased", label: "Panier potentiel", icon: ShoppingBasket },
       { href: "/weekly-review", label: "Weekly Review", icon: CalendarCheck, count: "review" },
       { href: "/reconfirm", label: "À reconfirmer", icon: RefreshCw, count: "reconfirm" },
     ],
@@ -38,7 +39,6 @@ export const NAV_SECTIONS: { title: string; items: Item[] }[] = [
     title: "Inventaire",
     items: [
       { href: "/cogs", label: "COGS & factures", icon: Receipt },
-      { href: "/purchased", label: "Acheté", icon: PackageCheck },
     ],
   },
   {
