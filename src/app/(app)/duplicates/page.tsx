@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CheckCircle2, Copy, Layers, Repeat } from "lucide-react";
 import { AckButton } from "@/components/AckButton";
-import { Asin, Badge, Card, DuplicateBadges, EmptyState, Kpi, PageHeader, ReviewBadge, SourceBadges, Supplier, cn } from "@/components/ui";
+import { Asin, Badge, Card, DuplicateBadges, EmptyState, Kpi, PageHeader, PriceE, ReviewBadge, SourceBadges, Supplier, cn } from "@/components/ui";
 import { formatDate } from "@/lib/dates";
 import { cad } from "@/lib/format";
 import { loadProducts, type ProductView } from "@/lib/queries";
@@ -104,7 +104,7 @@ export default async function DuplicatesPage({ searchParams }: { searchParams: P
                         <td><SourceBadges sources={o.sources} /></td>
                         <td className="text-right tabular-nums">{o.occurrences}</td>
                         <td className="text-right tabular-nums">{cad(o.costPrice)}</td>
-                        <td className="text-right tabular-nums">{cad(o.amazonPrice)}</td>
+                        <td className="text-right tabular-nums">{cad(o.amazonPrice)}<PriceE value={o.priceE} /></td>
                         <td className="text-right tabular-nums">{o.profit.issue ? <span className="text-ink-3">n/d</span> : cad(o.profit.profit)}</td>
                         <td className="text-ink-2">{formatDate(o.firstSeenAt)}</td>
                         <td className="text-ink-2">{formatDate(o.lastSeenAt)}</td>

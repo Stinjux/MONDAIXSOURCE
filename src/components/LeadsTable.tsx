@@ -6,7 +6,7 @@ import { setReviewStatus } from "@/app/(app)/actions";
 import { formatDate } from "@/lib/dates";
 import { cad, num, pct } from "@/lib/format";
 import { REVIEW_LABELS, REVIEW_STATUSES } from "@/lib/labels";
-import { Asin, Badge, DuplicateBadges, EmptyState, SourceBadges, StockBadge, Supplier, cn } from "./ui";
+import { Asin, Badge, DuplicateBadges, EmptyState, PriceE, SourceBadges, StockBadge, Supplier, cn } from "./ui";
 
 /** Offre d'un fournisseur pour l'ASIN. */
 export type SupplierRow = {
@@ -15,6 +15,8 @@ export type SupplierRow = {
   supplierUrl: string | null;
   supplierKey: string;
   salePrice: number | null;
+  /** Sale Price (colonne E) sous la Buy Box */
+  priceE: number | null;
   costPrice: number | null;
   fbaFee: number | null;
   estimatedSales: number | null;
@@ -42,6 +44,7 @@ export type LeadRow = {
   suppliers: SupplierRow[];
   best: SupplierRow | null;
   salePrice: number | null;
+  priceE: number | null;
   costPrice: number | null;
   profit: number | null;
   roi: number | null;
@@ -256,7 +259,7 @@ export function LeadsTable({ rows, currentWeek }: { rows: LeadRow[]; currentWeek
                           <ChevronDown size={14} className={cn("shrink-0 text-ink-3 transition", isOpen && "rotate-180")} />
                         </button>
                       </td>
-                      <td className="text-right tabular-nums">{cad(r.salePrice)}</td>
+                      <td className="text-right tabular-nums">{cad(r.salePrice)}<PriceE value={r.priceE} /></td>
                       <td className="text-right tabular-nums">{cad(r.costPrice)}</td>
                       <td className={cn("text-right font-medium tabular-nums", r.profit != null && r.profit < 0 && "text-critical")} title={r.best?.calcIssue ?? undefined}>
                         {r.profit == null ? <span className="text-ink-3">n/d</span> : cad(r.profit)}
@@ -350,7 +353,7 @@ function SupplierList({ row }: { row: LeadRow }) {
                   </span>
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums">{s.currency !== "CAD" && s.costPrice != null ? `${num(s.costPrice)} ${s.currency}` : cad(s.costPrice)}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{cad(s.salePrice)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{cad(s.salePrice)}<PriceE value={s.priceE} /></td>
                 <td className="px-3 py-2 text-right tabular-nums text-ink-2">{cad(s.fbaFee)}</td>
                 <td className={cn("px-3 py-2 text-right font-medium tabular-nums", s.profit != null && s.profit < 0 && "text-critical")} title={s.calcIssue ?? undefined}>
                   {s.calcIssue ? <span className="text-ink-3">n/d</span> : cad(s.profit)}

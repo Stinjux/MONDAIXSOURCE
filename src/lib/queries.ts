@@ -6,7 +6,7 @@ import { config } from "./config";
 import { recentWeekKeys, weekBoundsFromKey, weekKey } from "./dates";
 import { duplicateAlertActive, duplicateFlags, type DuplicateFlags } from "./duplicates";
 import { isDecided, parseChecklist, type Checklist } from "./labels";
-import { amazonPrice, preliminaryProfit, type ProfitResult } from "./profit";
+import { amazonPrice, columnEPrice, preliminaryProfit, type ProfitResult } from "./profit";
 import { getTaxConfig } from "./settings";
 import { needsRecheck } from "./stock";
 import { freshSince, freshness, lastExportDate } from "./freshness";
@@ -24,6 +24,8 @@ export type OfferView = {
   buyBox90: number | null;
   /** Prix Amazon retenu : Buy Box 90 j, sinon Sale Price */
   amazonPrice: number | null;
+  /** Sale Price (colonne E) affiché sous la Buy Box ; null si la Buy Box est vide */
+  priceE: number | null;
   fbaFee: number | null;
   costPrice: number | null;
   estimatedSales: number | null;
@@ -116,6 +118,7 @@ export async function loadProducts(now = new Date(), filter: { asin?: string } =
         salePrice: o.salePrice,
         buyBox90: o.buyBox90,
         amazonPrice: amazonPrice(o),
+        priceE: columnEPrice(o),
         fbaFee: o.fbaFee,
         costPrice: o.costPrice,
         estimatedSales: o.estimatedSales,

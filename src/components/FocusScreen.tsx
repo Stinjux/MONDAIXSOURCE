@@ -23,7 +23,7 @@ import { readSaved, useDecisionFilters, writeSaved } from "./DecisionFilters";
 import { FreshnessPill } from "./Freshness";
 import { ProductImage } from "./ProductImage";
 import { storeName } from "@/lib/stores";
-import { Badge, EmptyState, Supplier, cn } from "./ui";
+import { Badge, EmptyState, PriceE, Supplier, cn } from "./ui";
 
 //  - review    : Weekly Review rapide (Valider / À suivre / Rejeter), leads et ordre choisis par la page
 export type FocusMode = "reconfirm" | "decide" | "review";
@@ -409,7 +409,7 @@ function LeadPanel({
         <section className="rounded-md border border-line bg-surface p-4">
           <h2 className="text-sm font-semibold text-ink">Amazon</h2>
           <div className="mt-2 grid gap-3 sm:grid-cols-2">
-            <MoneyField label="Prix Amazon (Buy Box)" value={sale} onChange={setSale} initial={toField(lead.row.amazonPrice)} />
+            <MoneyField label="Prix Amazon (Buy Box)" value={sale} onChange={setSale} initial={toField(lead.row.amazonPrice)} hint={lead.row.priceE} />
             <MoneyField label="Total Fees" value={fees} onChange={setFees} initial={toField(lead.row.fees)} />
           </div>
           <h2 className="mt-4 text-sm font-semibold text-ink">Fournisseurs</h2>
@@ -564,7 +564,7 @@ function Kbd({ children }: { children: React.ReactNode }) {
   return <kbd className="ml-auto rounded-sm border border-current px-1.5 font-sans text-[10px] font-normal opacity-60">{children}</kbd>;
 }
 
-function MoneyField({ label, value, onChange, initial, compact }: { label: string; value: string; onChange: (v: string) => void; initial: string; compact?: boolean }) {
+function MoneyField({ label, value, onChange, initial, compact, hint }: { label: string; value: string; onChange: (v: string) => void; initial: string; compact?: boolean; hint?: number | null }) {
   const changed = value !== initial;
   const bad = changed && parseField(value) === undefined;
   return (
@@ -582,6 +582,7 @@ function MoneyField({ label, value, onChange, initial, compact }: { label: strin
         <span className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-ink-3">$</span>
       </span>
       {changed && !compact && <span className="mt-0.5 block text-[10px] text-accent">avant : {initial ? `${initial} $` : "—"}</span>}
+      {hint != null && <PriceE value={hint} />}
     </label>
   );
 }

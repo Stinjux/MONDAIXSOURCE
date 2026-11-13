@@ -4,6 +4,7 @@ import { AlertTriangle, CheckCircle2, CircleDashed, CircleSlash, Clock, Copy, Ey
 import { REVIEW_LABELS, SOURCE_LABELS, type ReviewStatus } from "@/lib/labels";
 import { STOCK_LABELS, type StockStatus } from "@/lib/stock";
 import { storeName } from "@/lib/stores";
+import { cad } from "@/lib/format";
 
 export function cn(...classes: (string | false | null | undefined)[]) {
   return classes.filter(Boolean).join(" ");
@@ -162,6 +163,16 @@ export function EmptyState({ title, children, icon }: { title: string; children?
       <div className="text-sm font-medium text-ink">{title}</div>
       {children && <div className="max-w-md text-sm text-ink-3">{children}</div>}
     </div>
+  );
+}
+
+/** Sale Price (colonne E de la Sheet), en petit sous le prix Buy Box 90 j. */
+export function PriceE({ value }: { value: number | null | undefined }) {
+  if (value == null) return null;
+  return (
+    <span className="block text-[11px] leading-tight font-normal text-ink-3 tabular-nums" title="Sale Price, colonne E de la Sheet (n'entre pas dans les calculs)">
+      E : {cad(value)}
+    </span>
   );
 }
 

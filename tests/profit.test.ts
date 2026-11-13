@@ -93,3 +93,12 @@ test("réglage par défaut = SellerAmp (inscrit, 20 %), plus prudent que le taux
   assert.equal(prudent.toFixed(2), "0.60");
   assert.ok(prudent < quebec, "20 % doit donner un profit plus faible (marge de sécurité)");
 });
+
+test("prix colonne E affiché sous la Buy Box, sans changer le prix retenu", async () => {
+  const { amazonPrice, columnEPrice } = await import("../src/lib/profit");
+  assert.equal(columnEPrice({ buyBox90: 33.89, salePrice: 31.49 }), 31.49);
+  assert.equal(amazonPrice({ buyBox90: 33.89, salePrice: 31.49 }), 33.89);
+  // Buy Box vide : le prix affiché est déjà E, pas de doublon en dessous
+  assert.equal(columnEPrice({ buyBox90: null, salePrice: 31.49 }), null);
+  assert.equal(columnEPrice({ buyBox90: 33.89, salePrice: null }), null);
+});

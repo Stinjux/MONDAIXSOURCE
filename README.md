@@ -107,6 +107,7 @@ Statut dérivé des colonnes N (Disponibilité), O (Dernière vérification) et 
 | Indicateur | Formule |
 |---|---|
 | Profit | Prix Amazon (Buy Box moyenne 90 j, colonne D ; Sale Price si vide) − Cost Price − Total Fees (colonne H : commission Amazon + FBA) |
+| Prix colonne E | Le Sale Price (colonne E) est affiché en petit sous le prix Buy Box 90 j (« E : … », All Leads, Out of Stock, Doublons, fiche du lead et historique des prix, écran Décider / Reconfirmer). Il n'entre pas dans les calculs tant que la colonne D est remplie. |
 | ROI | Profit / Cost Price × 100 |
 | Marge | Profit / prix Amazon × 100 |
 | Profit mensuel | Profit × Estimated Sales |

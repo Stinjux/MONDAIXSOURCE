@@ -15,6 +15,8 @@ export type DecisionRow = DecisionMetrics & {
   supplierKey: string;
   offerCount: number;
   amazonPrice: number | null;
+  /** Sale Price (colonne E) de la meilleure offre, affiché sous le prix Buy Box */
+  priceE: number | null;
   costPrice: number | null;
   fees: number | null;
   calcIssue: string | null;
@@ -82,6 +84,7 @@ export function toDecisionRows(products: ProductView[], tax: TaxConfig = NO_TAX,
         supplierKey: best.offer.supplierKey,
         offerCount: p.offers.length,
         amazonPrice: best.amazonPrice,
+        priceE: best.offer.priceE,
         costPrice: best.costPrice,
         fees: best.fees,
         calcIssue: best.issue,

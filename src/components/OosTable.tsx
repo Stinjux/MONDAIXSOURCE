@@ -4,7 +4,7 @@ import { ChevronDown, Search } from "lucide-react";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { cad, num, pct } from "@/lib/format";
 import { STOCK_LABELS } from "@/lib/stock";
-import { Asin, Badge, EmptyState, StockBadge, Supplier, cn } from "./ui";
+import { Asin, Badge, EmptyState, PriceE, StockBadge, Supplier, cn } from "./ui";
 
 export type OosRow = {
   offerId: string;
@@ -17,6 +17,7 @@ export type OosRow = {
   costPrice: number | null;
   currency: string;
   salePrice: number | null;
+  priceE: number | null;
   sheetRoi: number | null;
   sheetProfit: number | null;
   estimatedSales: number | null;
@@ -112,7 +113,7 @@ export function OosTable({ rows }: { rows: OosRow[] }) {
                     <td className="max-w-40 truncate text-ink-2" title={r.availability ?? undefined}>{r.availability ?? "—"}</td>
                     <td className="text-ink-2">{r.stockCheckedAt ? formatDate(r.stockCheckedAt) : "—"}</td>
                     <td className="text-right tabular-nums">{r.currency !== "CAD" && r.costPrice != null ? `${num(r.costPrice)} ${r.currency}` : cad(r.costPrice)}</td>
-                    <td className="text-right tabular-nums">{cad(r.salePrice)}</td>
+                    <td className="text-right tabular-nums">{cad(r.salePrice)}<PriceE value={r.priceE} /></td>
                     <td className="text-right tabular-nums text-ink-2">{pct(r.sheetRoi, 0)}</td>
                     <td className="text-right tabular-nums text-ink-2">{cad(r.sheetProfit)}</td>
                     <td className="text-right tabular-nums text-ink-2">{num(r.estimatedSales)}</td>

@@ -38,6 +38,11 @@ function taxFactors(tax: TaxConfig) {
  * Prix Amazon retenu pour les calculs : Buy Box moyenne 90 jours (colonne D),
  * sinon Sale Price (colonne E) si la Buy Box est vide.
  */
+/** Sale Price (colonne E) affiché sous la Buy Box 90 j ; null si la Buy Box est vide (le prix affiché est alors déjà E). */
+export function columnEPrice(o: { buyBox90?: number | null; salePrice?: number | null }): number | null {
+  return o.buyBox90 != null ? (o.salePrice ?? null) : null;
+}
+
 export function amazonPrice(o: { buyBox90?: number | null; salePrice?: number | null }): number | null {
   return o.buyBox90 ?? o.salePrice ?? null;
 }

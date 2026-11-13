@@ -5,7 +5,7 @@ import { FreshnessPill } from "@/components/Freshness";
 import { ProductImage } from "@/components/ProductImage";
 import { freshness, freshnessText } from "@/lib/freshness";
 import { AddToCartButton, BackButton, LeadEditor } from "@/components/LeadActions";
-import { Badge, Card, DuplicateBadges, EmptyState, PageHeader, ReviewBadge, SourceBadges, StockBadge, Supplier } from "@/components/ui";
+import { Badge, Card, DuplicateBadges, EmptyState, PageHeader, PriceE, ReviewBadge, SourceBadges, StockBadge, Supplier } from "@/components/ui";
 import { ACTION_LABELS, describeChange } from "@/lib/changes";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { cad, num, pct } from "@/lib/format";
@@ -13,6 +13,7 @@ import { prisma } from "@/lib/prisma";
 import { loadProducts } from "@/lib/queries";
 import { getNoteTemplates } from "@/lib/settings";
 import { SOURCE_LABELS } from "@/lib/labels";
+import { columnEPrice } from "@/lib/profit";
 
 export const metadata = { title: "Fiche ASIN" };
 
@@ -90,7 +91,7 @@ export default async function LeadPage({ params }: { params: Promise<{ asin: str
                   <tr key={o.id}>
                     <td className="max-w-56 truncate"><Supplier name={o.supplierName} url={o.supplierUrl} fallback={o.supplierKey} product={p.name} /></td>
                     <td className="text-right tabular-nums">{cad(o.verifiedCostPrice ?? o.costPrice)}{o.verifiedCostPrice != null && <Badge tone="good">vérifié</Badge>}</td>
-                    <td className="text-right tabular-nums">{cad(o.amazonPrice)}</td>
+                    <td className="text-right tabular-nums">{cad(o.amazonPrice)}<PriceE value={o.priceE} /></td>
                     <td className="text-right tabular-nums">{cad(o.profit.profit)}</td>
                     <td className="text-right tabular-nums">{pct(o.profit.roi, 0)}</td>
                     <td>{o.sources.includes("OUT_OF_STOCK") ? <StockBadge status={o.stockStatus} /> : <span className="text-ink-3">—</span>}</td>
@@ -166,7 +167,7 @@ export default async function LeadPage({ params }: { params: Promise<{ asin: str
                     <tr key={s.id}>
                       <td className="text-ink-2">{formatDateTime(s.capturedAt)}</td>
                       <td className="max-w-40 truncate text-ink-2">{s.offer.supplierName ?? s.offer.supplierKey} <span className="text-ink-3">· {SOURCE_LABELS[s.source] ?? s.source}</span></td>
-                      <td className="text-right tabular-nums">{cad(s.buyBox90 ?? s.salePrice)}</td>
+                      <td className="text-right tabular-nums">{cad(s.buyBox90 ?? s.salePrice)}<PriceE value={columnEPrice(s)} /></td>
                       <td className="text-right tabular-nums">{cad(s.costPrice)}</td>
                       <td className="text-right tabular-nums">{cad(s.fbaFee)}</td>
                       <td className="text-right tabular-nums">{num(s.estimatedSales)}</td>
