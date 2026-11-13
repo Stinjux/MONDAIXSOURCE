@@ -17,6 +17,8 @@ export type SupplierRow = {
   salePrice: number | null;
   /** Sale Price (colonne E) sous la Buy Box */
   priceE: number | null;
+  /** Sale Price (colonne E) tel qu'importé, pour l'export CSV */
+  columnE: number | null;
   costPrice: number | null;
   fbaFee: number | null;
   estimatedSales: number | null;
@@ -131,12 +133,12 @@ export function LeadsTable({ rows, currentWeek }: { rows: LeadRow[]; currentWeek
 
   const exportCsv = () => {
     // Une ligne par fournisseur, regroupées par ASIN (le statut de revue est celui de l'ASIN).
-    const head = ["ASIN", "Produit", "Fournisseur", "Meilleure offre", "URL fournisseur", "Prix Amazon (Buy Box 90 j)", "Cost Price", "Total Fees", "Profit prélim.", "ROI prélim. %", "Marge prélim. %", "Ventes est.", "Profit mensuel prélim.", "Sources", "Occurrences", "Première découverte", "Dernière découverte", "Revue"];
+    const head = ["ASIN", "Produit", "Fournisseur", "Meilleure offre", "URL fournisseur", "Prix Amazon (Buy Box 90 j)", "Sale Price (colonne E)", "Cost Price", "Total Fees", "Profit prélim.", "ROI prélim. %", "Marge prélim. %", "Ventes est.", "Profit mensuel prélim.", "Sources", "Occurrences", "Première découverte", "Dernière découverte", "Revue"];
     const esc = (v: unknown) => (v == null ? "" : /[",\n;]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
     const lines = filtered.flatMap((r) =>
       r.suppliers.map((s) =>
         [
-          r.asin, r.name, s.supplierName ?? s.supplierKey, r.best?.offerId === s.offerId ? "oui" : "", s.supplierUrl, s.salePrice, s.costPrice, s.fbaFee,
+          r.asin, r.name, s.supplierName ?? s.supplierKey, r.best?.offerId === s.offerId ? "oui" : "", s.supplierUrl, s.salePrice, s.columnE, s.costPrice, s.fbaFee,
           s.profit?.toFixed(2), s.roi?.toFixed(1), s.margin?.toFixed(1), s.estimatedSales, s.monthlyProfit?.toFixed(2), s.sources.join("+"), s.occurrences,
           s.firstSeenAt.slice(0, 10), s.lastSeenAt.slice(0, 10), REVIEW_LABELS[r.reviewStatus as keyof typeof REVIEW_LABELS] ?? r.reviewStatus,
         ].map(esc).join(","),

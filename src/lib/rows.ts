@@ -11,6 +11,7 @@ export function toLeadRows(products: ProductView[]): LeadRow[] {
       supplierKey: o.supplierKey,
       salePrice: o.amazonPrice,
       priceE: o.priceE,
+      columnE: o.salePrice,
       costPrice: o.costPrice,
       fbaFee: o.fbaFee,
       estimatedSales: o.estimatedSales,
