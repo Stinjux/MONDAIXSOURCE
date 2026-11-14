@@ -64,3 +64,13 @@ test("commandes : rattachement au fournisseur de la section Fournisseurs", () =>
   assert.equal(matchSupplierKey("unknown", ["unknown"]), null);
   assert.equal(matchSupplierKey("abc", ["abcdef"]), null); // trop court pour un rapprochement
 });
+
+test("commande : date ambiguë signalée (jour et mois tous deux ≤ 12)", async () => {
+  const { ambiguousDate } = await import("../src/lib/orders");
+  assert.equal(ambiguousDate("03/11/2026"), true);
+  assert.equal(ambiguousDate("3-11-26"), true);
+  assert.equal(ambiguousDate("13/11/2026"), false);
+  assert.equal(ambiguousDate("11/11/2026"), false);
+  assert.equal(ambiguousDate("2026-11-03"), false);
+  assert.equal(ambiguousDate(null), false);
+});

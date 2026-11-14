@@ -12,7 +12,7 @@ import { prisma as defaultDb } from "../prisma";
 import { readSheet, sheetConfig } from "../google";
 import { config } from "../config";
 import { parseSheetDate, type DateOrder } from "../dates";
-import { QC_TAX_RATE, cell, isBlank, isOrderHeader, parseOrderRow, type OrderRow } from "../orders";
+import { QC_TAX_RATE, ambiguousDate, cell, isBlank, isOrderHeader, parseOrderRow, type OrderRow } from "../orders";
 import type { SyncResult, Trigger } from "./engine";
 
 export type OrdersSyncOptions = { trigger?: Trigger; read?: () => Promise<string[][]>; now?: Date; db?: PrismaClient; dateOrder?: DateOrder };
@@ -73,6 +73,13 @@ export async function syncOrders(opts: OrdersSyncOptions = {}): Promise<SyncResu
       if (v.row.orderedText && !orderedAt) {
         counters.warnings++;
         issues.push({ sheetRow: v.row.sheetRow, severity: "WARNING", message: `Date de commande illisible ou future « ${v.row.orderedText} » : date d'import utilisée` });
+      } else if (orderedAt && ambiguousDate(v.row.orderedText)) {
+        counters.warnings++;
+        issues.push({
+          sheetRow: v.row.sheetRow,
+          severity: "WARNING",
+          message: `Date de commande ambiguë « ${v.row.orderedText} », lue comme le ${orderedAt.toISOString().slice(0, 10)} (${dateOrder === "DMY" ? "jour/mois" : "mois/jour"}, réglage SHEET_DATE_ORDER) : écrivez la date au format AAAA-MM-JJ pour éviter toute confusion`,
+        });
       }
       await db.supplierOrder.create({
         data: {

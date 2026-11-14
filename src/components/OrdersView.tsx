@@ -149,7 +149,7 @@ export function OrdersView({ orders, removed, dashboard, initialSupplier }: { or
                 const mail = safeLink(o.emailUrl);
                 return (
                   <tr key={o.id}>
-                    <td className="whitespace-nowrap text-ink-2">
+                    <td className="whitespace-nowrap text-ink-2" title={o.orderedText ? `Dans la Sheet : ${o.orderedText}` : undefined}>
                       {formatDate(o.orderedAt)}
                       {!o.dateFromSheet && <span className="block text-[10px] text-warning">date d&apos;import</span>}
                     </td>

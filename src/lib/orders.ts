@@ -60,6 +60,15 @@ export function parseOrderRow(r: string[], sheetRow: number): OrderParse {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+/**
+ * Date de commande ambiguë (« 03/11/2026 » : 3 novembre ou 11 mars ?) : jour et mois tous deux ≤ 12
+ * et différents. Elle est lue selon SHEET_DATE_ORDER ; un avertissement invite à écrire AAAA-MM-JJ.
+ */
+export function ambiguousDate(text: string | null): boolean {
+  const m = (text ?? "").trim().match(/^(\d{1,2})[/.-](\d{1,2})[/.-]\d{2,4}\b/);
+  return !!m && Number(m[1]) <= 12 && Number(m[2]) <= 12 && Number(m[1]) !== Number(m[2]);
+}
+
 /** Prix total taxes incluses → hors taxes, taxes et coût unitaire hors taxes. */
 export function orderAmounts(o: { totalPaid: number; quantity: number; taxRate?: number }) {
   const rate = o.taxRate ?? QC_TAX_RATE;

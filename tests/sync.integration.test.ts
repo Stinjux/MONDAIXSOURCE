@@ -294,3 +294,10 @@ test("commandes : import, ré-import identique, tri, ligne retirée ou corrigée
   assert.equal(failed.status, "FAILED");
   assert.equal(await db.supplierOrder.count(), 4);
 });
+
+test("commandes : date ambiguë lue selon le réglage, mais signalée", { skip }, async () => {
+  const amb = bySource(await runOrders([ORDERS[0], ["Staples", "23", "2", "03/11/2026", ""]]), "ORDERS");
+  const warn = await db.importIssue.findMany({ where: { runId: amb.runId } });
+  assert.equal(warn.length, 1);
+  assert.match(warn[0].message, /Date de commande ambiguë « 03\/11\/2026 », lue comme le 2026-03-11/);
+});
