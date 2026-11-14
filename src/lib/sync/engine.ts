@@ -15,14 +15,23 @@ import { matchOffer } from "../duplicates";
 import { isBlankRow, isHeaderRow, isCad, parseRow, supplierIdentity, type ParsedRow, type SheetSource } from "../normalize";
 import { stockFromSheet } from "../stock";
 import { PRICE_FIELDS, pickOfferValues, pricesChanged, prioritize, rowHash } from "./values";
+import { ordersConfigured, syncOrders } from "./orders";
 
 export type RowReader = (source: SheetSource) => Promise<string[][]>;
 export type Trigger = "MANUAL" | "CRON" | "CLI" | "LEGACY_MIGRATION" | "TEST";
 
-export type SyncOptions = { trigger?: Trigger; read?: RowReader; now?: Date; db?: PrismaClient; dateOrder?: DateOrder };
+export type SyncOptions = {
+  trigger?: Trigger;
+  read?: RowReader;
+  now?: Date;
+  db?: PrismaClient;
+  dateOrder?: DateOrder;
+  /** Lecture de la Sheet COMMANDES (tests) ; sinon lue seulement si ORDERS_SHEET_ID est configurée */
+  readOrders?: () => Promise<string[][]>;
+};
 
 export type SyncResult = {
-  source: SheetSource | "ALL";
+  source: SheetSource | "ORDERS" | "ALL";
   runId?: string;
   status: "SUCCESS" | "FAILED" | "SKIPPED";
   rowsRead: number;
@@ -558,7 +567,7 @@ export async function migrateLegacy(opts: SyncOptions = {}): Promise<SyncResult[
   return results;
 }
 
-/** Synchronise LEADS puis OUT OF STOCK (l'ordre compte : seul LEADS alimente l'objectif hebdomadaire). */
+/** Synchronise LEADS, OUT OF STOCK (l'ordre compte : seul LEADS alimente l'objectif hebdomadaire), puis COMMANDES si configurée. */
 export async function syncAll(opts: SyncOptions = {}): Promise<SyncResult[]> {
   const db = opts.db ?? defaultDb;
   if (!(await acquireLock(db))) {
@@ -569,6 +578,9 @@ export async function syncAll(opts: SyncOptions = {}): Promise<SyncResult[]> {
     const results: SyncResult[] = [];
     results.push(...(await migrateLegacy(opts)));
     for (const source of ["LEADS", "OUT_OF_STOCK"] as SheetSource[]) results.push(await syncSource(source, opts));
+    if (opts.readOrders || (!opts.read && ordersConfigured())) {
+      results.push(await syncOrders({ trigger: opts.trigger, read: opts.readOrders, now: opts.now, db: opts.db, dateOrder: opts.dateOrder }));
+    }
     return results;
   } finally {
     await releaseLock(db);

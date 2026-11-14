@@ -42,7 +42,7 @@ export const RESTRICTION_LABELS: Record<(typeof RESTRICTIONS)[number], string> =
   APPROVED: "Autorisé",
 };
 
-export const SOURCE_LABELS: Record<string, string> = { LEADS: "Leads", OUT_OF_STOCK: "Out of Stock", LEGACY: "Historique" };
+export const SOURCE_LABELS: Record<string, string> = { LEADS: "Leads", OUT_OF_STOCK: "Out of Stock", ORDERS: "Commandes", LEGACY: "Historique" };
 
 export const RUN_STATUS_LABELS: Record<string, string> = {
   RUNNING: "En cours",

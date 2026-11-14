@@ -48,7 +48,7 @@ function reader(sheets: { LEADS: string[][]; OUT_OF_STOCK: string[][] }) {
 
 async function reset() {
   await db.$executeRawUnsafe(
-    `TRUNCATE "PurchaseItem", "Purchase", "ImportIssue", "ImportEvent", "PriceSnapshot", "StockCheck", "Occurrence", "SupplierOffer", "Product", "ChangeLog", "AppSetting", "Lead", "DataBackup" CASCADE`,
+    `TRUNCATE "PurchaseItem", "Purchase", "ImportIssue", "ImportEvent", "PriceSnapshot", "StockCheck", "Occurrence", "SupplierOffer", "Product", "ChangeLog", "AppSetting", "Lead", "DataBackup", "SupplierOrder" CASCADE`,
   );
 }
 
@@ -247,4 +247,50 @@ test("sauvegarde quotidienne : une seule par jour", { skip }, async () => {
   assert.equal(await backup.ensureDailyBackup(db, new Date(NOW.getTime() + 2 * 3600_000)), null);
   assert.ok(await backup.ensureDailyBackup(db, new Date(NOW.getTime() + 25 * 3600_000)));
   assert.equal(await db.dataBackup.count({ where: { reason: "DAILY" } }), 2);
+});
+
+const ORDERS = [
+  ["Fournisseur", "Prix total ($ CA)", "Quantité", "Date de commande", "Lien vers le courriel"],
+  ["Walmart", "114,98 $", "10", "2026-10-05", "https://mail.google.com/mail/u/0/#inbox/a1"],
+  ["Costco", "57.49", "3", "2026-10-12", "https://mail.google.com/mail/u/0/#inbox/a2"],
+  ["Costco", "57.49", "3", "2026-10-12", "https://mail.google.com/mail/u/0/#inbox/a2"], // 2e commande identique
+  ["Best Buy", "", "2", "2026-10-12", ""], // invalide : prix manquant
+  [],
+];
+const runOrders = (rows: string[][], now = NOW) =>
+  engine.syncAll({ read: reader({ LEADS: BASE_LEADS, OUT_OF_STOCK: BASE_OOS }), readOrders: async () => rows, now, trigger: "TEST", db, dateOrder: "MDY" });
+
+test("commandes : import, ré-import identique, tri, ligne retirée ou corrigée, Sheet vide", { skip }, async () => {
+  const first = bySource(await runOrders(ORDERS), "ORDERS");
+  assert.equal(first.status, "SUCCESS");
+  assert.deepEqual([first.rowsRead, first.imported, first.errors], [4, 3, 1]);
+  const walmart = await db.supplierOrder.findFirstOrThrow({ where: { supplierKey: "walmart" } });
+  assert.deepEqual([walmart.supplierName, walmart.totalPaid, walmart.quantity, walmart.taxRate, walmart.orderedAt?.toISOString().slice(0, 10)], ["Walmart", 114.98, 10, 14.975, "2026-10-05"]);
+  assert.equal(await db.supplierOrder.count({ where: { supplierKey: "costco" } }), 2);
+  const issues = await db.importIssue.findMany({ where: { runId: first.runId } });
+  assert.deepEqual(issues.map((i) => i.message), ["Prix total manquant (colonne B)"]);
+
+  // Même Sheet, puis triée autrement : rien de nouveau
+  const again = bySource(await runOrders(ORDERS), "ORDERS");
+  assert.deepEqual([again.imported, again.unchanged, again.missing], [0, 3, 0]);
+  const sorted = bySource(await runOrders([ORDERS[0], ORDERS[3], ORDERS[1], ORDERS[2]]), "ORDERS");
+  assert.deepEqual([sorted.imported, sorted.missing], [0, 0]);
+  assert.equal(await db.supplierOrder.count(), 3);
+
+  // Prix de Walmart corrigé dans la Sheet : nouvelle commande, l'ancienne est conservée mais ne compte plus
+  const fixed = bySource(await runOrders([ORDERS[0], ["Walmart", "120,00 $", "10", "2026-10-05", "https://mail.google.com/mail/u/0/#inbox/a1"], ORDERS[2], ORDERS[3]]), "ORDERS");
+  assert.deepEqual([fixed.imported, fixed.missing], [1, 1]);
+  const all = await db.supplierOrder.findMany({ where: { supplierKey: "walmart" }, orderBy: { firstImportedAt: "asc" } });
+  assert.deepEqual(all.map((o) => [o.totalPaid, o.present]), [[114.98, false], [120, true]]);
+  assert.equal((await db.supplierOrder.findUniqueOrThrow({ where: { id: walmart.id } })).totalPaid, 114.98);
+
+  // Sheet vide (lecture partielle) : rien n'est marqué absent
+  const empty = bySource(await runOrders([ORDERS[0]]), "ORDERS");
+  assert.deepEqual([empty.status, empty.missing], ["SUCCESS", 0]);
+  assert.equal(await db.supplierOrder.count({ where: { present: true } }), 3);
+
+  // Échec de lecture : run FAILED, aucune commande touchée
+  const failed = (await engine.syncAll({ read: reader({ LEADS: BASE_LEADS, OUT_OF_STOCK: BASE_OOS }), readOrders: async () => { throw new Error("403"); }, now: NOW, trigger: "TEST", db })).find((r) => r.source === "ORDERS")!;
+  assert.equal(failed.status, "FAILED");
+  assert.equal(await db.supplierOrder.count(), 4);
 });

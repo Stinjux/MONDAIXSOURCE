@@ -84,6 +84,11 @@ export function storeName(input: StoreInput): string {
   return label.split(/[-_]+/).filter(Boolean).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 }
 
+/** Domaine probable d'un commerce connu saisi par son nom (« walmart » → walmart.ca), pour son logo. */
+export function knownStoreDomain(brand: string): string | null {
+  return KNOWN[brand] ? `${brand}.ca` : null;
+}
+
 /** Initiales pour le logo de remplacement (« CT » pour Canadian Tire). */
 export function storeInitials(name: string): string {
   const words = name.replace(/[^\p{L}\p{N} ]/gu, " ").split(/\s+/).filter(Boolean);

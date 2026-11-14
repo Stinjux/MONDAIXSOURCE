@@ -13,7 +13,8 @@ import { Card, cn } from "./ui";
 
 const KEY = "mondaix.cogs.granularity";
 
-export function CogsDashboard({ lines, now }: { lines: CogsLine[]; now: string }) {
+/** `byProduct` = false pour des commandes sans produit (Sheet COMMANDES) : seule la répartition par fournisseur est affichée. */
+export function CogsDashboard({ lines, now, byProduct = true, label = "COGS" }: { lines: CogsLine[]; now: string; byProduct?: boolean; label?: string }) {
   const [g, setG] = useState<Granularity>("month");
   const current = periodKey(new Date(now), g);
   // La période choisie est liée à sa vue : en changeant de vue, on revient à la période courante
@@ -82,7 +83,7 @@ export function CogsDashboard({ lines, now }: { lines: CogsLine[]; now: string }
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Tile
-          label={`COGS · ${periodLabel(selected, g, true)}`}
+          label={`${label} · ${periodLabel(selected, g, true)}`}
           value={cad(cur.cost)}
           hint={
             delta == null ? (
@@ -97,12 +98,12 @@ export function CogsDashboard({ lines, now }: { lines: CogsLine[]; now: string }
           }
           strong
         />
-        <Tile label="Unités achetées" value={cur.units.toLocaleString("fr-CA")} hint={`${cur.products} produit${cur.products > 1 ? "s" : ""} · ${cur.orders} commande${cur.orders > 1 ? "s" : ""}`} />
+        <Tile label="Unités achetées" value={cur.units.toLocaleString("fr-CA")} hint={`${byProduct ? `${cur.products} produit${cur.products > 1 ? "s" : ""} · ` : ""}${cur.orders} commande${cur.orders > 1 ? "s" : ""}`} />
         <Tile label="Coût moyen par unité" value={cad(cur.avgUnitCost)} hint={prev.avgUnitCost != null ? `${cad(prev.avgUnitCost)} ${prevPhrase}` : "—"} />
         <Tile label={`Cumul ${year}`} value={cad(ytd.cost)} hint={`${ytd.units.toLocaleString("fr-CA")} unités depuis le 1er janvier`} />
       </div>
 
-      <Card title={`COGS par ${g === "week" ? "semaine" : g === "month" ? "mois" : "année"}`} action={<span className="text-[11px] text-ink-3">Cliquez sur une barre pour voir sa période</span>}>
+      <Card title={`${label} par ${g === "week" ? "semaine" : g === "month" ? "mois" : "année"}`} action={<span className="text-[11px] text-ink-3">Cliquez sur une barre pour voir sa période</span>}>
         <CogsBarChart data={periods.map((p) => ({ key: p.key, label: p.label, value: p.cost }))} selected={selected} onSelect={setSelected} />
         <div className="mt-2 overflow-x-auto">
           <table className="table-base text-xs">
@@ -120,7 +121,7 @@ export function CogsDashboard({ lines, now }: { lines: CogsLine[]; now: string }
             </thead>
             <tbody>
               <tr>
-                <td className="font-medium text-ink-2">COGS</td>
+                <td className="font-medium text-ink-2">{label}</td>
                 {periods.map((p) => (
                   <td key={p.key} className={cn("text-right tabular-nums", p.key === selected && "bg-accent-soft font-semibold")}>
                     {p.cost ? cad(p.cost) : "—"}
@@ -140,7 +141,8 @@ export function CogsDashboard({ lines, now }: { lines: CogsLine[]; now: string }
         </div>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className={cn("grid gap-4", byProduct && "lg:grid-cols-2")}>
+        {byProduct && (
         <Card title={`Produits · ${periodLabel(selected, g, true)}`} padded={false}>
           {detail.products.length ? (
             <ul className="py-1.5">
@@ -166,6 +168,7 @@ export function CogsDashboard({ lines, now }: { lines: CogsLine[]; now: string }
             <p className="px-4 py-6 text-center text-sm text-ink-3">Aucun achat sur cette période.</p>
           )}
         </Card>
+        )}
         <Card title={`Fournisseurs · ${periodLabel(selected, g, true)}`} padded={false}>
           {detail.suppliers.length ? (
             <ul className="py-1.5">

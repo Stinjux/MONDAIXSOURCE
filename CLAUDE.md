@@ -29,6 +29,8 @@ déjà stockées.**
 - Historique : `ChangeLog` (modifications manuelles), `PriceSnapshot`, `StockCheck`,
   `ImportRun` / `ImportIssue` ne sont jamais modifiés ni supprimés.
 - La synchronisation ne supprime rien : une ligne retirée d'une Sheet passe à `present = false`.
+- `SupplierOrder` (Sheet COMMANDES) : jamais modifié ni supprimé ; une ligne retirée ou corrigée dans la
+  Sheet passe à `present = false` et la version corrigée est ajoutée. `taxRate` (TPS + TVQ) est figé à l'import.
 
 ## Documents (COGS)
 

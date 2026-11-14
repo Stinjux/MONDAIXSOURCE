@@ -84,9 +84,23 @@ Les paniers confirmés dans Buy Decisions, c'est-à-dire les achats **envisagés
 
 Tableau Kanban du sourcing, de l'arrivée d'un lead à l'achat : **Nouveaux** (« À revoir ») → **En analyse** (« En cours ») → **À reconfirmer** (données de 30 jours ou plus) → **Prêts à acheter** (« Revu et validé », données à jour) → **Achetés** (achat confirmé), plus **En veille** (« À suivre » ou fournisseur en rupture) et **Rejetés**. Chaque carte montre la vignette du produit, ROI, profit unitaire et mensuel, l'avis, la fraîcheur et les alertes. **Glisser-déposer** une carte (ou « Déplacer… », aussi sur mobile) change son statut de revue (journalisé) ; déposer dans « À reconfirmer » ou un lead périmé dans « Prêts à acheter » ouvre la reconfirmation ; un achat se confirme toujours depuis le panier. L'étape est calculée à l'affichage : aucune donnée n'est réécrite. Filtres partagés avec Buy Decisions (avis, semaine, tri) ; cliquer sur le titre d'une colonne l'ouvre en grand (`/pipeline?vue=prets`, etc.), avec plein écran. Les anciennes adresses `/purchases?vue=…` redirigent vers le Pipeline.
 
+### Commandes (`/commandes`, section Inventaire)
+
+Chaque commande passée chez un fournisseur, lue dans une troisième Google Sheet, **COMMANDES** (facultative : variables `ORDERS_SHEET_ID` et `ORDERS_SHEET_RANGE`, plage `A:E` par défaut) :
+
+| A | B | C | D | E |
+|---|---|---|---|---|
+| Fournisseur (nom ou lien) | Prix total ($ CA, **taxes incluses**) | Quantité | Date de commande | Lien vers le courriel |
+
+- **Calcul** : total HT = prix total ÷ 1,14975 (TPS 5 % + TVQ 9,975 % retirées) ; taxes = prix total − total HT ; **coût unitaire HT** = total HT ÷ quantité. Le taux est enregistré sur chaque commande à l'import.
+- **Page** : COGS hors taxes, total payé et taxes, unités, coût moyen par unité ; tableau de bord **Hebdomadaire / Mensuel / Annuel** (COGS HT par période, écart avec la précédente, répartition par fournisseur) ; **« Où vous achetez le plus »** (classement des fournisseurs par montant, part du total, commandes, unités, coût moyen par unité, dernière commande ; un clic filtre ses commandes) ; liste des commandes avec le lien vers le courriel ; export **Commandes (CSV)**.
+- **Fournisseurs** : chaque commande est rattachée au commerce de la section Fournisseurs (« Walmart » = walmart.ca) ; fiche du commerce avec ses totaux et ses dernières commandes, tri de la liste **« Par montant commandé »**. Un commerce seulement présent dans les commandes y apparaît aussi.
+- **Synchronisation** : avec LEADS et OUT OF STOCK (bouton, tâche planifiée). Une commande est identifiée par son contenu : trier la Sheet ne crée pas de doublon. Une commande enregistrée n'est jamais modifiée ni supprimée : une ligne retirée ou corrigée dans la Sheet ne compte plus mais reste en base, et la version corrigée est ajoutée. Les lignes invalides (prix ou quantité illisible) sont listées dans Import History.
+- Les achats saisis produit par produit (avec factures) restent dans **COGS & factures** : les deux sections sont séparées, rien n'est compté deux fois.
+
 ### Fournisseurs (`/suppliers`)
 
-Tous les produits regroupés par fournisseur (magasin), avec le logo du commerce (icône de son site, sinon ses initiales) et une barre de répartition par étape (à traiter, à reconfirmer, prêts, achetés, en veille) qui sert aussi de filtre. Partout dans l'app, un fournisseur s'affiche par le seul nom du commerce (« Canadian Tire »), surligné en bleu et cliquable, sans l'URL ni le « .ca ». Regroupement : une URL walmart.ca et la boutique « Walmart » de la Sheet OUT OF STOCK forment un seul fournisseur. Pour chacun : produits actifs, à revoir, prêts à acheter, en rupture, ROI moyen et ce qui y a déjà été acheté (unités, montant). Ses produits s'affichent avec leur étape dans le Pipeline, le coût et le ROI chez ce fournisseur, « meilleure offre » quand c'est le fournisseur retenu dans Buy Decisions, et le lien vers la page du produit. Recherche, et option pour afficher les rejetés.
+Tous les produits regroupés par fournisseur (magasin), avec le logo du commerce (icône de son site, sinon ses initiales) et une barre de répartition par étape (à traiter, à reconfirmer, prêts, achetés, en veille) qui sert aussi de filtre. Partout dans l'app, un fournisseur s'affiche par le seul nom du commerce (« Canadian Tire »), surligné en bleu et cliquable, sans l'URL ni le « .ca ». Regroupement : une URL walmart.ca et la boutique « Walmart » de la Sheet OUT OF STOCK forment un seul fournisseur. Pour chacun : produits actifs, à revoir, prêts à acheter, en rupture, ROI moyen et **« Commandé ici »** (montant, commandes et unités de la Sheet COMMANDES). Ses produits s'affichent avec leur étape dans le Pipeline, le coût et le ROI chez ce fournisseur, « meilleure offre » quand c'est le fournisseur retenu dans Buy Decisions, et le lien vers la page du produit. Recherche, et option pour afficher les rejetés.
 
 ### Fraîcheur et reconfirmation (`/reconfirm`)
 
@@ -124,10 +138,10 @@ Les frais Amazon (commission + FBA) sont inclus via Total Fees. **Taxes (TPS/TVQ
    - `DATABASE_URL` = `${{Postgres.DATABASE_URL}}`
    - `ADMIN_PASSWORD`, `SYNC_SECRET` : deux valeurs longues et différentes (`openssl rand -base64 32`)
    - `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` : `base64 -w0 service-account.json` (macOS : `base64 -i service-account.json`)
-   - `LEADS_SHEET_ID`, `LEADS_SHEET_RANGE` (ex. `LEADS!A:J`), `OOS_SHEET_ID`, `OOS_SHEET_RANGE` (ex. `'OUT OF STOCK'!A:P` — guillemets simples si le nom de l'onglet contient des espaces)
+   - `LEADS_SHEET_ID`, `LEADS_SHEET_RANGE` (ex. `LEADS!A:J`), `OOS_SHEET_ID`, `OOS_SHEET_RANGE` (ex. `'OUT OF STOCK'!A:P` — guillemets simples si le nom de l'onglet contient des espaces), et facultatif `ORDERS_SHEET_ID`, `ORDERS_SHEET_RANGE` (ex. `COMMANDES!A:E`) pour la section Commandes
 3. `railway.json` configure tout le reste : build `npm run build`, **pré-déploiement `npm run deploy:prepare`** (`prisma db push` sans `--accept-data-loss` : Prisma refuse toute modification destructive, puis sauvegarde complète de la base), démarrage `npm run start`, healthcheck `/api/health`.
 
-Google Cloud : activer **Google Sheets API**, créer un compte de service, télécharger sa clé JSON et **partager les deux Sheets en lecture** avec son `client_email`.
+Google Cloud : activer **Google Sheets API**, créer un compte de service, télécharger sa clé JSON et **partager les Sheets (LEADS, OUT OF STOCK, COMMANDES) en lecture** avec son `client_email`.
 
 ### 2. Synchronisation planifiée
 Créer un second service depuis le même dépôt, avec les mêmes variables, et dans **Settings → Config-as-code** le fichier `railway/sync-cron.json` (commande `npm run sync:cron`, toutes les 2 h ; modifiable). Alternative : un ordonnanceur externe qui appelle

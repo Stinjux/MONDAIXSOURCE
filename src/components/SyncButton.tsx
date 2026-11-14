@@ -18,7 +18,9 @@ export function SyncButton() {
           ? r.message ?? "Ignorée"
           : r.status === "FAILED"
             ? `${SOURCE_LABELS[r.source] ?? r.source} : échec — ${r.message}`
-            : `${SOURCE_LABELS[r.source] ?? r.source} : ${r.imported} nouveaux, ${r.duplicates} doublons, ${r.updated} mis à jour${r.errors ? `, ${r.errors} lignes invalides` : ""}`,
+            : r.source === "ORDERS"
+              ? `Commandes : ${r.imported} nouvelle${r.imported > 1 ? "s" : ""}${r.missing ? `, ${r.missing} retirée${r.missing > 1 ? "s" : ""} de la Sheet` : ""}${r.errors ? `, ${r.errors} lignes invalides` : ""}`
+              : `${SOURCE_LABELS[r.source] ?? r.source} : ${r.imported} nouveaux, ${r.duplicates} doublons, ${r.updated} mis à jour${r.errors ? `, ${r.errors} lignes invalides` : ""}`,
       );
       setMessage({ ok: res.ok, text: parts.join(" · ") });
     });

@@ -1,7 +1,10 @@
 import { google } from "googleapis";
 import type { SheetSource } from "./normalize";
 
-const DEFAULT_RANGE: Record<SheetSource, string> = { LEADS: "A:J", OUT_OF_STOCK: "A:P" };
+/** Sheets lues : LEADS, OUT OF STOCK et COMMANDES (commandes passées chez les fournisseurs) */
+export type SheetName = SheetSource | "ORDERS";
+const DEFAULT_RANGE: Record<SheetName, string> = { LEADS: "A:J", OUT_OF_STOCK: "A:P", ORDERS: "A:E" };
+const PREFIX: Record<SheetName, string> = { LEADS: "LEADS", OUT_OF_STOCK: "OOS", ORDERS: "ORDERS" };
 
 const unquote = (v: string | undefined) => v?.trim().replace(/^(["'])(.*)\1$/, "$2").trim() || undefined;
 
@@ -17,8 +20,8 @@ export function parseSheetId(value: string | undefined): string | undefined {
   return v.replace(/[/?#].*$/, "");
 }
 
-export function sheetConfig(source: SheetSource) {
-  const prefix = source === "LEADS" ? "LEADS" : "OOS";
+export function sheetConfig(source: SheetName) {
+  const prefix = PREFIX[source];
   return {
     id: parseSheetId(process.env[`${prefix}_SHEET_ID`]),
     range: unquote(process.env[`${prefix}_SHEET_RANGE`]) || DEFAULT_RANGE[source],
@@ -59,7 +62,7 @@ export function resolveRange(range: string, tabs: string[]): string | null {
 }
 
 /** Lit toutes les lignes d'une Sheet (valeurs formatées, comme affichées). */
-export async function readSheet(source: SheetSource): Promise<string[][]> {
+export async function readSheet(source: SheetName): Promise<string[][]> {
   const { id, range, idVar } = sheetConfig(source);
   if (!id) throw new Error(`${idVar} manquant dans les variables Railway`);
   const auth = new google.auth.GoogleAuth({ credentials: credentials(), scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"] });
@@ -87,7 +90,7 @@ export async function readSheet(source: SheetSource): Promise<string[][]> {
       const fixed = resolveRange(range, tabs);
       if (fixed && fixed !== range) return await read(fixed);
       const cols = range.slice(range.lastIndexOf("!") + 1);
-      const rangeVar = source === "LEADS" ? "LEADS_SHEET_RANGE" : "OOS_SHEET_RANGE";
+      const rangeVar = `${PREFIX[source]}_SHEET_RANGE`;
       throw new Error(
         `Onglet introuvable pour ${source} (« ${range} »). Onglets de ce fichier : ${tabs.map((t) => `« ${t} »`).join(", ")}. ` +
           `Mettez par exemple ${rangeVar} = ${quoteTab(tabs[0] ?? "Feuille 1")}!${cols}`,

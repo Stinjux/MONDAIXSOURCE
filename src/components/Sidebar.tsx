@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   BarChart3, CalendarCheck, ChevronsLeft, ChevronsRight, Copy, History, KanbanSquare, LayoutDashboard, LogOut, Menu, PackageX, Receipt, RefreshCw, Rows3, Rows4,
-  Search, Settings, ShoppingBasket, ShoppingCart, Store, Table2, X,
+  Search, Settings, ShoppingBag, ShoppingBasket, ShoppingCart, Store, Table2, X,
 } from "lucide-react";
 import { logout } from "@/app/(app)/actions";
 import { cn } from "./ui";
@@ -39,6 +39,7 @@ export const NAV_SECTIONS: { title: string; items: Item[] }[] = [
     title: "Inventaire",
     items: [
       { href: "/cogs", label: "COGS & factures", icon: Receipt },
+      { href: "/commandes", label: "Commandes", icon: ShoppingBag },
     ],
   },
   {

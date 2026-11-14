@@ -399,3 +399,39 @@ model LegacyLead {
   @@index([firstSeenAt])
   @@map("Lead")
 }
+
+/// Commande passée chez un fournisseur, importée de la Sheet COMMANDES (A Fournisseur, B Prix total $ CA
+/// taxes incluses, C Quantité, D Date de commande, E Lien vers le courriel). Jamais modifiée ni supprimée
+/// par la synchronisation : une ligne retirée ou corrigée dans la Sheet passe à present = false et la
+/// version corrigée est ajoutée comme nouvelle ligne.
+model SupplierOrder {
+  id              String    @id @default(cuid())
+  /// Empreinte du contenu de la ligne (+ rang si plusieurs lignes identiques)
+  rowKey          String    @unique
+  sheetRow        Int
+  /// Colonne A telle que saisie
+  supplierText    String
+  /// Marque du commerce (« walmart »), pour le rattacher à la section Fournisseurs
+  supplierKey     String
+  supplierName    String
+  supplierUrl     String?
+  /// Colonne B : prix total payé, taxes incluses ($ CA)
+  totalPaid       Float
+  /// Colonne C
+  quantity        Int
+  /// Colonne D lue (null si illisible) et texte d'origine
+  orderedAt       DateTime?
+  orderedText     String?
+  /// Colonne E
+  emailUrl        String?
+  /// Taxes incluses dans le prix total, en % (TPS 5 % + TVQ 9,975 %), figé à l'import
+  taxRate         Float     @default(14.975)
+  present         Boolean   @default(true)
+  firstImportedAt DateTime  @default(now())
+  lastImportedAt  DateTime  @default(now())
+  firstRunId      String?
+  raw             Json?
+
+  @@index([orderedAt])
+  @@index([supplierKey])
+}

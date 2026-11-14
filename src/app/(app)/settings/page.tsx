@@ -22,6 +22,7 @@ export default async function SettingsPage() {
   const env = envStatus();
   const leads = sheetConfig("LEADS");
   const oos = sheetConfig("OUT_OF_STOCK");
+  const orders = sheetConfig("ORDERS");
   return (
     <>
       <PageHeader title="Settings" description="Configuration lue depuis les variables d'environnement Railway. Les valeurs secrètes ne sont jamais affichées ni envoyées au navigateur." />
@@ -51,6 +52,7 @@ export default async function SettingsPage() {
               <dt className="text-ink-3">Marché / devise</dt><dd>Amazon.ca · CAD</dd>
               <dt className="text-ink-3">Plage LEADS</dt><dd><code className="font-mono text-xs">{leads.range}</code> (colonnes A à J)</dd>
               <dt className="text-ink-3">Plage OUT OF STOCK</dt><dd><code className="font-mono text-xs">{oos.range}</code> (colonnes A à P)</dd>
+              <dt className="text-ink-3">Plage COMMANDES</dt><dd>{orders.id ? <><code className="font-mono text-xs">{orders.range}</code> (colonnes A à E, taxes TPS + TVQ 14,975 % retirées)</> : <span className="text-ink-3">non configurée (ORDERS_SHEET_ID)</span>}</dd>
               <dt className="text-ink-3">Dates ambiguës</dt><dd>{config.dateOrder === "DMY" ? "JJ/MM/AAAA" : "MM/JJ/AAAA"} <span className="text-ink-3">(SHEET_DATE_ORDER)</span></dd>
               <dt className="text-ink-3">Revérification OOS</dt><dd>après {config.recheckDays} jours <span className="text-ink-3">(OOS_RECHECK_DAYS)</span></dd>
             </dl>

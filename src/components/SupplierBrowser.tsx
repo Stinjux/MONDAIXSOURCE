@@ -3,8 +3,9 @@
 // fiche du commerce à droite (indicateurs, répartition filtrable, produits).
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ExternalLink, PackageX, Search, Star, Store } from "lucide-react";
+import { ExternalLink, Mail, PackageX, Search, ShoppingBag, Star, Store } from "lucide-react";
 import { DEFAULT_THRESHOLDS } from "@/lib/decision";
+import { formatDate } from "@/lib/dates";
 import { cad, pct } from "@/lib/format";
 import type { Stage } from "@/lib/pipeline";
 import type { SupplierGroup, SupplierProduct } from "@/lib/suppliers";
@@ -52,11 +53,15 @@ export function SupplierBrowser({ groups, initial }: { groups: SupplierGroup[]; 
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(initial ?? groups[0]?.key ?? null);
   const [bucket, setBucket] = useState<Bucket | "all" | "rejected">("all");
+  const [sort, setSort] = useState<"products" | "ordered">("products");
+  const hasOrders = groups.some((g) => g.stats.ordered);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return q ? groups.filter((g) => `${g.name} ${g.key}`.toLowerCase().includes(q)) : groups;
-  }, [groups, query]);
+    const list = q ? groups.filter((g) => `${g.name} ${g.key}`.toLowerCase().includes(q)) : groups;
+    // « Où j'achète le plus » : par montant commandé (Sheet COMMANDES)
+    return sort === "ordered" ? [...list].sort((a, b) => (b.stats.ordered?.totalPaid ?? -1) - (a.stats.ordered?.totalPaid ?? -1)) : list;
+  }, [groups, query, sort]);
   const maxActive = Math.max(1, ...groups.map((g) => g.stats.products - g.stats.rejected));
   const group = groups.find((g) => g.key === selected) ?? null;
   const products = group
@@ -88,6 +93,20 @@ export function SupplierBrowser({ groups, initial }: { groups: SupplierGroup[]; 
             <Search size={15} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-3" />
             <input className="field pl-9" placeholder="Rechercher un commerce" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Rechercher un commerce" />
           </div>
+          {hasOrders && (
+            <div className="mt-2.5 inline-flex rounded-md border border-line p-0.5 text-xs" role="radiogroup" aria-label="Trier les commerces">
+              {(
+                [
+                  ["products", "Par produits"],
+                  ["ordered", "Par montant commandé"],
+                ] as const
+              ).map(([v, label]) => (
+                <button key={v} type="button" role="radio" aria-checked={sort === v} onClick={() => setSort(v)} className={cn("rounded-sm px-2 py-1 font-medium transition", sort === v ? "bg-accent text-white" : "text-ink-2 hover:text-ink")}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="mt-2.5 flex flex-wrap gap-x-3 gap-y-1">
             {BUCKETS.map((b) => (
               <span key={b.key} className="flex items-center gap-1 text-[10px] text-ink-3">
@@ -118,9 +137,14 @@ export function SupplierBrowser({ groups, initial }: { groups: SupplierGroup[]; 
                     <span className="mt-1.5 block">
                       <StageBar g={g} max={maxActive} />
                     </span>
-                    <span className="mt-1 flex gap-2 text-[11px] text-ink-3">
+                    <span className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] whitespace-nowrap text-ink-3">
                       {g.stats.ready > 0 && <span className="font-medium text-good">{g.stats.ready} prêt{g.stats.ready > 1 ? "s" : ""}</span>}
                       {g.stats.toReview > 0 && <span>{g.stats.toReview} à traiter</span>}
+                      {g.stats.ordered && (
+                        <span className="inline-flex items-center gap-1 font-medium text-accent tabular-nums" title="Montant commandé (Sheet COMMANDES)">
+                          <ShoppingBag size={11} /> {cad(g.stats.ordered.totalPaid)}
+                        </span>
+                      )}
                       {g.stats.avgRoi != null && <span className="ml-auto tabular-nums">ROI moy. {pct(g.stats.avgRoi, 0)}</span>}
                     </span>
                   </span>
@@ -155,7 +179,11 @@ export function SupplierBrowser({ groups, initial }: { groups: SupplierGroup[]; 
               <Kpi label="Prêts à acheter" value={group.stats.ready} tone={group.stats.ready ? "text-good" : undefined} />
               <Kpi label="ROI moyen" value={pct(group.stats.avgRoi, 0)} />
               <Kpi label="En rupture" value={group.stats.unavailable} tone={group.stats.unavailable ? "text-critical" : undefined} />
-              <Kpi label="Acheté ici" value={group.stats.bought.units ? cad(group.stats.bought.spend) : "—"} hint={group.stats.bought.units ? `${group.stats.bought.units} unités` : "aucun achat"} />
+              <Kpi
+                label="Commandé ici"
+                value={group.stats.ordered ? cad(group.stats.ordered.totalPaid) : "—"}
+                hint={group.stats.ordered ? `${group.stats.ordered.orders} commande${group.stats.ordered.orders > 1 ? "s" : ""} · ${group.stats.ordered.units} unités` : "aucune commande"}
+              />
             </dl>
             {/* Répartition par étape, cliquable pour filtrer */}
             <div className="border-t border-line px-5 py-4">
@@ -189,6 +217,8 @@ export function SupplierBrowser({ groups, initial }: { groups: SupplierGroup[]; 
               </div>
             </div>
           </div>
+
+          {group.stats.ordered && <SupplierOrders group={group} />}
 
           <div className="overflow-hidden rounded-md border border-line bg-surface">
             {products.length === 0 ? (
@@ -225,6 +255,50 @@ export function SupplierBrowser({ groups, initial }: { groups: SupplierGroup[]; 
           <EmptyState title="Choisissez un commerce" icon={<Store size={22} />} />
         </div>
       )}
+    </div>
+  );
+}
+
+/** Commandes passées chez ce commerce (Sheet COMMANDES) : totaux et dernières commandes. */
+function SupplierOrders({ group }: { group: SupplierGroup }) {
+  const o = group.stats.ordered!;
+  const orderKey = group.orders[0]?.supplierKey ?? group.key;
+  return (
+    <div className="overflow-hidden rounded-md border border-line bg-surface">
+      <div className="flex items-center justify-between gap-2 border-b border-line px-5 py-3">
+        <h3 className="flex items-center gap-2 text-[12px] font-semibold tracking-[0.1em] text-ink-2 uppercase">
+          <ShoppingBag size={14} className="text-accent" /> Commandes chez {group.name}
+        </h3>
+        <Link href={`/commandes?f=${encodeURIComponent(orderKey)}`} className="text-xs text-accent hover:underline">
+          Toutes les commandes
+        </Link>
+      </div>
+      <dl className="grid grid-cols-2 divide-line sm:grid-cols-4 sm:divide-x">
+        <Kpi label="Total payé (TTC)" value={cad(o.totalPaid)} hint={`dont ${cad(o.taxes)} de taxes`} />
+        <Kpi label="COGS hors taxes" value={cad(o.beforeTax)} />
+        <Kpi label="Unités" value={o.units} hint={`${o.orders} commande${o.orders > 1 ? "s" : ""}`} />
+        <Kpi label="Coût moyen / u." value={cad(o.avgUnitCost)} hint="hors taxes" />
+      </dl>
+      <table className="table-base border-t border-line text-xs">
+        <tbody>
+          {group.orders.slice(0, 5).map((x) => (
+            <tr key={x.id}>
+              <td className="text-ink-2">{formatDate(x.orderedAt)}</td>
+              <td className="text-right tabular-nums">{x.quantity} u.</td>
+              <td className="text-right tabular-nums">{cad(x.totalPaid)} TTC</td>
+              <td className="text-right font-semibold tabular-nums">{cad(x.unitCost)} / u. HT</td>
+              <td className="w-20">
+                {x.emailUrl && /^https?:\/\//i.test(x.emailUrl) ? (
+                  <a href={x.emailUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-accent hover:underline">
+                    <Mail size={12} /> Courriel
+                  </a>
+                ) : null}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {group.orders.length > 5 && <p className="border-t border-line px-5 py-2 text-[11px] text-ink-3">+ {group.orders.length - 5} autres commandes</p>}
     </div>
   );
 }
