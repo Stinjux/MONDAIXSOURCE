@@ -74,3 +74,19 @@ test("commande : date ambiguë signalée (jour et mois tous deux ≤ 12)", async
   assert.equal(ambiguousDate("2026-11-03"), false);
   assert.equal(ambiguousDate(null), false);
 });
+
+test("Sheet COMMANDES : onglet choisi automatiquement et autres noms de variable", async () => {
+  const { pickOrdersTab, sheetConfig } = await import("../src/lib/google");
+  assert.equal(pickOrdersTab(["LEADS", "Commandes", "Notes"]), "Commandes");
+  assert.equal(pickOrdersTab(["Feuille 1", "Mes achats"]), "Mes achats");
+  assert.equal(pickOrdersTab(["Feuille 1"]), null);
+  const saved = { ...process.env };
+  try {
+    delete process.env.ORDERS_SHEET_ID;
+    process.env.COMMANDES_SHEET_ID = "https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789/edit#gid=0";
+    const c = sheetConfig("ORDERS");
+    assert.deepEqual([c.id, c.idVar, c.range, c.rangeSet], ["1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789", "COMMANDES_SHEET_ID", "A:E", false]);
+  } finally {
+    process.env = saved;
+  }
+});

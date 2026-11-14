@@ -20,13 +20,29 @@ export function parseSheetId(value: string | undefined): string | undefined {
   return v.replace(/[/?#].*$/, "");
 }
 
+// Autres noms acceptés pour la Sheet COMMANDES (variable saisie en français ou au singulier)
+const ID_ALIASES: Partial<Record<SheetName, string[]>> = { ORDERS: ["COMMANDES_SHEET_ID", "ORDER_SHEET_ID", "COMMANDE_SHEET_ID"] };
+const RANGE_ALIASES: Partial<Record<SheetName, string[]>> = { ORDERS: ["COMMANDES_SHEET_RANGE", "ORDER_SHEET_RANGE", "COMMANDE_SHEET_RANGE"] };
+
 export function sheetConfig(source: SheetName) {
   const prefix = PREFIX[source];
+  const idVar = [`${prefix}_SHEET_ID`, ...(ID_ALIASES[source] ?? [])].find((v) => unquote(process.env[v])) ?? `${prefix}_SHEET_ID`;
+  const rangeVar = [`${prefix}_SHEET_RANGE`, ...(RANGE_ALIASES[source] ?? [])].find((v) => unquote(process.env[v]));
   return {
-    id: parseSheetId(process.env[`${prefix}_SHEET_ID`]),
-    range: unquote(process.env[`${prefix}_SHEET_RANGE`]) || DEFAULT_RANGE[source],
-    idVar: `${prefix}_SHEET_ID`,
+    id: parseSheetId(process.env[idVar]),
+    range: (rangeVar && unquote(process.env[rangeVar])) || DEFAULT_RANGE[source],
+    idVar,
+    /** Plage choisie explicitement (sinon onglet déterminé automatiquement pour COMMANDES) */
+    rangeSet: !!rangeVar,
   };
+}
+
+/**
+ * Onglet de la Sheet COMMANDES quand aucune plage n'est configurée : un onglet nommé « Commandes »,
+ * « Orders » ou « Achats », sinon le premier onglet. null = premier onglet.
+ */
+export function pickOrdersTab(tabs: string[]): string | null {
+  return tabs.find((t) => /command|order|achat/i.test(looseName(t))) ?? null;
 }
 
 function credentials() {
@@ -72,6 +88,12 @@ export async function readSheet(source: SheetName): Promise<string[][]> {
     return (response.data.values ?? []).map((row) => row.map((c) => (c == null ? "" : String(c))));
   };
   try {
+    if (source === "ORDERS" && !range.includes("!")) {
+      // Fichier à plusieurs onglets (ex. LEADS et COMMANDES dans le même classeur) : on prend l'onglet des commandes
+      const meta = await api.spreadsheets.get({ spreadsheetId: id, fields: "sheets.properties.title" });
+      const tab = pickOrdersTab((meta.data.sheets ?? []).map((sh) => sh.properties?.title ?? "").filter(Boolean));
+      if (tab) return await read(`${quoteTab(tab)}!${range}`);
+    }
     return await read(range);
   } catch (e) {
     const status = (e as { code?: number }).code;

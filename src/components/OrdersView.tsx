@@ -53,9 +53,8 @@ export function OrdersView({ orders, removed, dashboard, initialSupplier }: { or
   if (orders.length === 0) {
     return (
       <div className="rounded-md border border-line bg-surface">
-        <EmptyState title="Aucune commande importée" icon={<ShoppingBag size={22} />}>
-          Ajoutez la variable Railway <code className="font-mono text-xs">ORDERS_SHEET_ID</code> (ID de la Sheet COMMANDES, partagée en lecture avec le compte de service),
-          puis synchronisez. Colonnes : A Fournisseur, B Prix total ($ CA, taxes incluses), C Quantité, D Date de commande, E Lien vers le courriel.
+        <EmptyState title="Aucune commande pour l'instant" icon={<ShoppingBag size={22} />}>
+          Colonnes attendues dans la Sheet COMMANDES : A Fournisseur, B Prix total ($ CA, taxes incluses), C Quantité, D Date de commande, E Lien vers le courriel.
           {removed > 0 && ` ${removed} commande${removed > 1 ? "s" : ""} retirée${removed > 1 ? "s" : ""} de la Sheet reste${removed > 1 ? "nt" : ""} conservée${removed > 1 ? "s" : ""} en base.`}
         </EmptyState>
       </div>

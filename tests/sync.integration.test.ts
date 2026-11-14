@@ -301,3 +301,10 @@ test("commandes : date ambiguë lue selon le réglage, mais signalée", { skip }
   assert.equal(warn.length, 1);
   assert.match(warn[0].message, /Date de commande ambiguë « 03\/11\/2026 », lue comme le 2026-03-11/);
 });
+
+test("commandes : un onglet LEADS lu par erreur n'importe rien", { skip }, async () => {
+  const res = bySource(await runOrders(BASE_LEADS), "ORDERS");
+  assert.equal(res.status, "FAILED");
+  assert.match(res.message ?? "", /ressemble à LEADS/);
+  assert.equal(await db.supplierOrder.count(), 0);
+});

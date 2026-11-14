@@ -45,6 +45,12 @@ export async function syncOrders(opts: OrdersSyncOptions = {}): Promise<SyncResu
   const run = await db.importRun.create({ data: { source: "ORDERS", status: "RUNNING", trigger: opts.trigger ?? "CLI", startedAt: now } });
   try {
     const rows = await read();
+    // Onglet LEADS lu par erreur (même classeur, plage non précisée) : on s'arrête avant d'importer quoi que ce soit
+    if (rows.slice(0, 5).some((r) => /^asin$/i.test(cell(r, 1)))) {
+      throw new Error(
+        "L'onglet lu ressemble à LEADS (colonne B « ASIN »), pas à COMMANDES. Nommez l'onglet des commandes « Commandes », ou ajoutez la variable ORDERS_SHEET_RANGE = 'Nom de l'onglet'!A:E.",
+      );
+    }
     const m = sheetConfig("ORDERS").range.split("!").pop()!.match(/^[A-Z]*(\d+)/i);
     const firstRow = m ? Number(m[1]) : 1;
 

@@ -86,7 +86,7 @@ Tableau Kanban du sourcing, de l'arrivée d'un lead à l'achat : **Nouveaux** (�
 
 ### Commandes (`/commandes`, section Inventaire)
 
-Chaque commande passée chez un fournisseur, lue dans une troisième Google Sheet, **COMMANDES** (facultative : variables `ORDERS_SHEET_ID` et `ORDERS_SHEET_RANGE`, plage `A:E` par défaut) :
+Chaque commande passée chez un fournisseur, lue dans une troisième Google Sheet, **COMMANDES** (facultative : variable `ORDERS_SHEET_ID` — `COMMANDES_SHEET_ID` est aussi acceptée — et `ORDERS_SHEET_RANGE` ; sans plage, l'onglet nommé « Commandes », « Orders » ou « Achats » est lu, sinon le premier onglet ; un onglet LEADS lu par erreur est refusé sans rien importer). Un encadré en haut de la page indique si l'ID est lu par l'app, la date de la dernière lecture, l'erreur éventuelle et les lignes à corriger, avec le bouton de synchronisation :
 
 | A | B | C | D | E |
 |---|---|---|---|---|
