@@ -1,0 +1,134 @@
+"use client";
+// Graphiques interactifs (Recharts). Couleurs validées pour la surface claire (CVD) ;
+// les valeurs et libellés utilisent les couleurs de texte, jamais celles des séries.
+import { Bar, BarChart, CartesianGrid, Cell, Legend, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+
+const C = {
+  s1: "#1c5cab",
+  s2: "#eb6834",
+  s3: "#1baf7a",
+  neutral: "#aab3c0",
+  grid: "#e3e8ee",
+  axis: "#66748a",
+  ink: "#13233a",
+  ink2: "#46566c",
+  surface: "#ffffff",
+};
+
+const axisProps = { stroke: C.axis, tick: { fill: C.axis, fontSize: 11 }, tickLine: false, axisLine: { stroke: C.grid } } as const;
+
+type TipProps = { active?: boolean; label?: string | number; payload?: readonly { dataKey?: unknown; name?: unknown; value?: unknown; color?: string }[]; unit?: string };
+
+function TooltipBox({ active, payload, label, unit }: TipProps) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-sm border border-line-strong bg-surface px-3 py-2 text-xs shadow-lg">
+      <div className="mb-1 font-medium text-ink">{label}</div>
+      {payload.map((p) => (
+        <div key={String(p.dataKey)} className="flex items-center gap-2 text-ink-2">
+          <span className="size-2 rounded-sm" style={{ background: p.color }} />
+          <span className="flex-1">{String(p.name)}</span>
+          <span className="font-medium text-ink tabular-nums">
+            {String(p.value)}
+            {unit}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export type WeeklyPoint = { label: string; found: number; validated: number; rejected: number; followUp: number; pending: number };
+
+/** Leads uniques par semaine vs objectif (une série + ligne de référence). */
+export function WeeklyLeadsChart({ data, goal, height = 260 }: { data: WeeklyPoint[]; goal: number; height?: number }) {
+  const max = Math.max(goal, ...data.map((d) => d.found));
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <BarChart data={data} margin={{ top: 16, right: 8, left: -18, bottom: 0 }} barCategoryGap="28%">
+        <CartesianGrid vertical={false} stroke={C.grid} strokeDasharray="3 4" />
+        <XAxis dataKey="label" {...axisProps} />
+        <YAxis {...axisProps} allowDecimals={false} domain={[0, Math.ceil(max * 1.1)]} />
+        <Tooltip cursor={{ fill: "#13233a0a" }} content={(p) => <TooltipBox active={p.active} label={p.label} payload={p.payload} />} />
+        <ReferenceLine y={goal} stroke={C.ink2} strokeDasharray="5 4" label={{ value: `Objectif ${goal}`, position: "insideTopRight", fill: C.ink2, fontSize: 11 }} />
+        <Bar dataKey="found" name="Leads uniques" radius={[4, 4, 0, 0]} maxBarSize={40}>
+          {data.map((d, i) => (
+            <Cell key={i} fill={C.s1} fillOpacity={d.found >= goal ? 1 : 0.75} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+/** Décisions de revue par semaine (barres empilées, séparées par la surface). */
+export function ReviewOutcomeChart({ data, height = 260 }: { data: WeeklyPoint[]; height?: number }) {
+  const series = [
+    { key: "validated", name: "Validés", color: C.s3 },
+    { key: "followUp", name: "À suivre", color: C.s1 },
+    { key: "rejected", name: "Rejetés", color: C.s2 },
+    { key: "pending", name: "Non revus", color: C.neutral },
+  ];
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <BarChart data={data} margin={{ top: 8, right: 8, left: -18, bottom: 0 }} barCategoryGap="28%">
+        <CartesianGrid vertical={false} stroke={C.grid} strokeDasharray="3 4" />
+        <XAxis dataKey="label" {...axisProps} />
+        <YAxis {...axisProps} allowDecimals={false} />
+        <Tooltip cursor={{ fill: "#13233a0a" }} content={(p) => <TooltipBox active={p.active} label={p.label} payload={p.payload} />} />
+        <Legend iconType="square" iconSize={9} wrapperStyle={{ fontSize: 12, paddingTop: 8 }} formatter={(v) => <span style={{ color: C.ink2 }}>{v}</span>} />
+        {series.map((s, i) => (
+          <Bar key={s.key} dataKey={s.key} name={s.name} stackId="r" fill={s.color} stroke={C.surface} strokeWidth={1} radius={i === series.length - 1 ? [4, 4, 0, 0] : 0} maxBarSize={40} />
+        ))}
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+/** Barres simples (jour de la semaine, distribution du ROI…). */
+export function SimpleBarChart({ data, name, unit, height = 220 }: { data: { label: string; value: number }[]; name: string; unit?: string; height?: number }) {
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <BarChart data={data} margin={{ top: 8, right: 8, left: -18, bottom: 0 }} barCategoryGap="22%">
+        <CartesianGrid vertical={false} stroke={C.grid} strokeDasharray="3 4" />
+        <XAxis dataKey="label" {...axisProps} interval={0} />
+        <YAxis {...axisProps} allowDecimals={false} />
+        <Tooltip cursor={{ fill: "#13233a0a" }} content={(p) => <TooltipBox active={p.active} label={p.label} payload={p.payload} unit={unit} />} />
+        <Bar dataKey="value" name={name} fill={C.s1} radius={[4, 4, 0, 0]} maxBarSize={44} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+/** COGS par période : une barre par période ; un clic sélectionne la période (montants en $ CA). */
+export function CogsBarChart({ data, selected, onSelect, height = 240 }: { data: { key: string; label: string; value: number }[]; selected: string; onSelect: (key: string) => void; height?: number }) {
+  const money = (v: unknown) => (typeof v === "number" ? v.toLocaleString("fr-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 }) : String(v));
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <BarChart data={data} margin={{ top: 8, right: 8, left: 4, bottom: 0 }} barCategoryGap="22%">
+        <CartesianGrid vertical={false} stroke={C.grid} strokeDasharray="3 4" />
+        <XAxis dataKey="label" {...axisProps} interval={0} />
+        <YAxis {...axisProps} width={64} tickFormatter={money} />
+        <Tooltip
+          cursor={{ fill: "#13233a0a" }}
+          content={(p) =>
+            p.active && p.payload?.length ? (
+              <div className="rounded-sm border border-line-strong bg-surface px-3 py-2 text-xs shadow-lg">
+                <div className="mb-1 font-medium text-ink">{String(p.label)}</div>
+                <div className="flex items-center gap-2 text-ink-2">
+                  <span className="size-2 rounded-sm" style={{ background: C.s1 }} />
+                  COGS <b className="ml-auto text-ink tabular-nums">{money(p.payload[0].value)}</b>
+                </div>
+              </div>
+            ) : null
+          }
+        />
+        <Bar dataKey="value" name="COGS" radius={[4, 4, 0, 0]} maxBarSize={48} cursor="pointer" onClick={(d: { payload?: { key?: string } }) => d.payload?.key && onSelect(d.payload.key)}>
+          {data.map((d) => (
+            <Cell key={d.key} fill={C.s1} fillOpacity={d.key === selected ? 1 : 0.45} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}

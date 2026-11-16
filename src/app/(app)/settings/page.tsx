@@ -1,0 +1,137 @@
+import { CheckCircle2, CircleDashed, Download, ShieldCheck, XCircle } from "lucide-react";
+import { Card, PageHeader } from "@/components/ui";
+import { config, envStatus } from "@/lib/config";
+import { TIME_ZONE } from "@/lib/dates";
+import { sheetConfig } from "@/lib/google";
+import { getNoteTemplates, getTaxConfig } from "@/lib/settings";
+import { NoteTemplatesForm } from "@/components/NoteTemplatesForm";
+import { TaxSettingsForm } from "@/components/TaxSettingsForm";
+import { BackupButton } from "@/components/BackupButton";
+import { BACKUP_REASON_LABELS, DAILY_KEEP, backupTableExists, type BackupReason } from "@/lib/backup";
+import { formatDateTime } from "@/lib/dates";
+import { prisma } from "@/lib/prisma";
+
+export const metadata = { title: "Settings" };
+
+export default async function SettingsPage() {
+  const [tax, templates] = await Promise.all([getTaxConfig(), getNoteTemplates()]);
+  const backups = (await backupTableExists(prisma))
+    ? await prisma.dataBackup.findMany({ orderBy: { createdAt: "desc" }, take: 12, select: { id: true, createdAt: true, reason: true, tables: true, sizeBytes: true } })
+    : [];
+  const backupCount = backups.length ? await prisma.dataBackup.count() : 0;
+  const env = envStatus();
+  const leads = sheetConfig("LEADS");
+  const oos = sheetConfig("OUT_OF_STOCK");
+  const orders = sheetConfig("ORDERS");
+  return (
+    <>
+      <PageHeader title="Settings" description="Configuration lue depuis les variables d'environnement Railway. Les valeurs secrètes ne sont jamais affichées ni envoyées au navigateur." />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card title="Variables d'environnement" padded={false}>
+          <ul className="divide-y divide-line">
+            {env.map((v) => (
+              <li key={v.name} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
+                <code className="font-mono text-xs text-ink">{v.name}</code>
+                {v.set ? (
+                  <span className="flex items-center gap-1.5 text-xs text-good"><CheckCircle2 size={14} /> Configurée</span>
+                ) : v.required ? (
+                  <span className="flex items-center gap-1.5 text-xs text-critical"><XCircle size={14} /> Manquante (requise)</span>
+                ) : (
+                  <span className="flex items-center gap-1.5 text-xs text-ink-3"><CircleDashed size={14} /> Optionnelle — défaut utilisé</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Card>
+
+        <div className="flex flex-col gap-4">
+          <Card title="Paramètres actifs">
+            <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2.5 text-sm">
+              <dt className="text-ink-3">Objectif hebdomadaire</dt><dd>{config.weeklyGoal} nouveaux leads uniques <span className="text-ink-3">(WEEKLY_LEAD_GOAL)</span></dd>
+              <dt className="text-ink-3">Semaine</dt><dd>Lundi 00:00 → dimanche 23:59, {TIME_ZONE} (heure du Québec)</dd>
+              <dt className="text-ink-3">Marché / devise</dt><dd>Amazon.ca · CAD</dd>
+              <dt className="text-ink-3">Plage LEADS</dt><dd><code className="font-mono text-xs">{leads.range}</code> (colonnes A à J)</dd>
+              <dt className="text-ink-3">Plage OUT OF STOCK</dt><dd><code className="font-mono text-xs">{oos.range}</code> (colonnes A à P)</dd>
+              <dt className="text-ink-3">Plage COMMANDES</dt><dd>{orders.id ? <><code className="font-mono text-xs">{orders.range}</code> (colonnes A à E, taxes TPS + TVQ 14,975 % retirées)</> : <span className="text-ink-3">non configurée (ORDERS_SHEET_ID)</span>}</dd>
+              <dt className="text-ink-3">Dates ambiguës</dt><dd>{config.dateOrder === "DMY" ? "JJ/MM/AAAA" : "MM/JJ/AAAA"} <span className="text-ink-3">(SHEET_DATE_ORDER)</span></dd>
+              <dt className="text-ink-3">Revérification OOS</dt><dd>après {config.recheckDays} jours <span className="text-ink-3">(OOS_RECHECK_DAYS)</span></dd>
+            </dl>
+          </Card>
+
+          <Card title="Synchronisation automatique">
+            <p className="text-sm text-ink-2">Tâche planifiée Railway (service Cron) avec les mêmes variables, commande :</p>
+            <pre className="mt-2 overflow-x-auto rounded-sm bg-page p-3 font-mono text-xs text-ink">npm run sync:cron</pre>
+            <p className="mt-3 text-sm text-ink-2">Ou appel HTTP depuis un ordonnanceur externe :</p>
+            <pre className="mt-2 overflow-x-auto rounded-sm bg-page p-3 font-mono text-xs text-ink">{`curl -X POST https://<votre-app>.up.railway.app/api/sync \\
+  -H "Authorization: Bearer $SYNC_SECRET"`}</pre>
+          </Card>
+
+          <Card title="Rappel de la Weekly Review">
+            <p className="text-sm text-ink-2">
+              Créez une tâche planifiée Railway le dimanche (ex. <code className="font-mono text-xs">0 13 * * 0</code> = 9 h HAE / 8 h HNE, Railway utilise l&apos;UTC) avec la commande
+              <code className="mx-1 font-mono text-xs">npm run reminder</code>. Le rappel est envoyé au webhook <code className="font-mono text-xs">REMINDER_WEBHOOK_URL</code> (Slack, Discord ou ntfy) s&apos;il est configuré.
+            </p>
+          </Card>
+
+          <Card title="Modèles de notes">
+            <p className="mb-3 text-sm text-ink-2">Motifs proposés en un clic quand vous validez, mettez à suivre ou rejetez un lead (mode rapide, Buy Decisions, fiche). Ils alimentent les « Motifs » d&apos;Analytics.</p>
+            <NoteTemplatesForm initial={templates} />
+          </Card>
+
+          <Card title="Protection des données et sauvegardes" action={<ShieldCheck size={16} className="text-good" />}>
+            <ul className="list-disc space-y-1 pl-4 text-sm text-ink-2">
+              <li>Les nouvelles versions de l&apos;app ne peuvent qu&apos;<b className="text-ink">ajouter</b> des tables ou des colonnes : un changement qui effacerait ou modifierait des données existantes est refusé (vérification automatique, puis Prisma au déploiement).</li>
+              <li>Une <b className="text-ink">sauvegarde complète</b> est faite avant le démarrage de chaque nouvelle version, et une fois par jour par la tâche planifiée ({DAILY_KEEP} dernières quotidiennes conservées ; celles de déploiement et manuelles sont toutes gardées).</li>
+              <li>La synchronisation ne supprime rien, les achats confirmés gardent leurs prix et profits figés, et chaque modification manuelle est journalisée.</li>
+            </ul>
+            <div className="mt-3 flex flex-wrap items-start gap-2">
+              <a href="/api/backup" className="btn-primary text-xs"><Download size={14} /> Télécharger l&apos;état actuel</a>
+              <BackupButton />
+            </div>
+            {backups.length ? (
+              <div className="mt-3 overflow-x-auto rounded-sm border border-line">
+                <table className="table-base">
+                  <thead>
+                    <tr><th>Date</th><th>Type</th><th className="text-right">Lignes</th><th className="text-right">Taille</th><th /></tr>
+                  </thead>
+                  <tbody>
+                    {backups.map((b) => (
+                      <tr key={b.id}>
+                        <td className="whitespace-nowrap">{formatDateTime(b.createdAt)}</td>
+                        <td>{BACKUP_REASON_LABELS[b.reason as BackupReason] ?? b.reason}</td>
+                        <td className="text-right tabular-nums">{Object.values(b.tables as Record<string, number>).reduce((n, c) => n + c, 0).toLocaleString("fr-CA")}</td>
+                        <td className="text-right tabular-nums">{(b.sizeBytes / 1024).toLocaleString("fr-CA", { maximumFractionDigits: 0 })} Ko</td>
+                        <td className="text-right"><a href={`/api/backup?id=${b.id}`} className="link text-xs">Télécharger</a></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {backupCount > backups.length && <p className="px-3 py-2 text-xs text-ink-3">{backupCount} sauvegardes au total — les plus récentes sont affichées.</p>}
+              </div>
+            ) : (
+              <p className="mt-3 text-xs text-ink-3">Aucune sauvegarde enregistrée pour le moment : la première sera faite au prochain déploiement.</p>
+            )}
+            <p className="mt-2 text-xs text-ink-3">Gardez de temps en temps une copie téléchargée hors de Railway (fichier .json.gz). En cas de problème, elle se restaure dans une base vide : aucune donnée n&apos;est jamais écrasée.</p>
+          </Card>
+
+          <Card title="Taxes dans le calcul du profit (TPS/TVQ)">
+            <p className="mb-3 text-sm text-ink-2">
+              Même méthode que SellerAmp (« VAT »). Inscrit : les taxes perçues sur la vente sont reversées et celles payées sur le coût et les frais
+              sont récupérées, donc profit = (vente − coût) ÷ (1 + taux) − frais. Non inscrit : les taxes sur les frais Amazon sont un coût.
+              En cas de doute sur votre situation fiscale, validez avec votre comptable.
+            </p>
+            <TaxSettingsForm initial={tax} />
+          </Card>
+
+          <Card title="Estimations de rentabilité">
+            <p className="text-sm text-ink-2">
+              Profit préliminaire = prix Amazon (Buy Box moyenne 90 jours, colonne D ; Sale Price si vide) − Cost Price − Total Fees (colonne H, frais Amazon totaux : commission + FBA). ROI = profit / coût. Marge = profit / prix Amazon. Profit mensuel = profit × ventes estimées.
+              Les taxes sont déduites selon le réglage ci-dessus. Le transport vers Amazon, la préparation et le stockage mensuel ne sont pas encore déduits.
+              Aucun calcul n&apos;est fait sur un coût dans une autre devise que le CAD.
+            </p>
+          </Card>
+        </div>
+      </div>
+    </>
+  );
+}

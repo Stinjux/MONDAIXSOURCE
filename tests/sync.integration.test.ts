@@ -1,0 +1,331 @@
+// Tests d'intégration du moteur de synchronisation sur une vraie base PostgreSQL.
+// Lancement : TEST_DATABASE_URL=postgresql://…/mondaix_test npm test
+// Le nom de la base doit contenir "test" : toutes ses tables sont vidées.
+import test, { before, after, beforeEach } from "node:test";
+import assert from "node:assert/strict";
+import { execSync } from "node:child_process";
+
+const url = process.env.TEST_DATABASE_URL;
+const skip = !url ? "TEST_DATABASE_URL non défini" : !/test/i.test(new URL(url).pathname) ? "le nom de la base doit contenir « test »" : false;
+
+type Engine = typeof import("../src/lib/sync/engine");
+type Backup = typeof import("../src/lib/backup");
+type Db = import("@prisma/client").PrismaClient;
+let engine: Engine;
+let backup: Backup;
+let db: Db;
+
+const NOW = new Date("2026-10-14T16:00:00Z"); // mercredi, semaine du 2026-10-12
+const HEADER_LEADS = ["Product Name", "ASIN", "Amazon URL", "Buy Box 90", "Sale Price", "Estimated Sales", "Export Date", "FBA Fee", "Cost Price", "Supplier URL"];
+const HEADER_OOS = ["Name", "ASIN", "AMZ", "BB(90)", "Sale Price", "ROI", "PROFIT (%)", "PROFIT", "EST SALES", "STORE", "NOTES", "Prix fournisseur", "Devise", "Disponibilité", "Dernière vérification", "Détail du contrôle"];
+
+const lead = (name: string, asin: string, supplier: string, cost = "20", exportDate = "2026-10-13", sale = "45") =>
+  [name, asin, `https://www.amazon.ca/dp/${asin}`, "40", sale, "90", exportDate, "7", cost, supplier];
+const oos = (name: string, asin: string, store: string, availability: string, checked = "", cost = "22") =>
+  [name, asin, "", "30", "40", "50", "30", "12", "100", store, "", cost, "CAD", availability, checked, ""];
+
+const WALMART_A = "https://www.walmart.ca/ip/a?utm_source=x";
+const BASE_LEADS = [
+  HEADER_LEADS,
+  lead("Produit A", "B0AAAAAAAA", WALMART_A),
+  lead("Produit A (doublon exact)", "B0AAAAAAAA", "https://walmart.ca/ip/a"),
+  lead("Produit A chez Best Buy", "B0AAAAAAAA", "https://www.bestbuy.ca/p/a"),
+  lead("Produit B", "B0BBBBBBBB", "https://www.costco.ca/b.html", "15", "2026-10-06"),
+  ["Ligne invalide", "12345", "", "", "", "", "", "", "", ""],
+  [],
+  lead("Produit D", "B0DDDDDDDD", "https://shop.ca/d", "10", ""),
+];
+const BASE_OOS = [
+  HEADER_OOS,
+  oos("Produit A", "B0AAAAAAAA", "Walmart", "Rupture", "2026-10-12"),
+  oos("Produit E", "B0EEEEEEEE", "Canadian Tire", "Rupture", "2026-10-12"),
+  oos("Produit F", "B0FFFFFFFF", "Staples", "Out of stock", "2026-10-10"),
+];
+
+function reader(sheets: { LEADS: string[][]; OUT_OF_STOCK: string[][] }) {
+  return async (source: "LEADS" | "OUT_OF_STOCK") => sheets[source];
+}
+
+async function reset() {
+  await db.$executeRawUnsafe(
+    `TRUNCATE "PurchaseItem", "Purchase", "ImportIssue", "ImportEvent", "PriceSnapshot", "StockCheck", "Occurrence", "SupplierOffer", "Product", "ChangeLog", "AppSetting", "Lead", "DataBackup", "SupplierOrder" CASCADE`,
+  );
+}
+
+const run = (sheets: { LEADS: string[][]; OUT_OF_STOCK: string[][] }, now = NOW) => engine.syncAll({ read: reader(sheets), now, trigger: "TEST", db, dateOrder: "MDY" });
+const bySource = (results: Awaited<ReturnType<Engine["syncAll"]>>, s: string) => results.find((r) => r.source === s && r.status !== "SKIPPED")!;
+
+before(async () => {
+  if (skip) return;
+  process.env.DATABASE_URL = url;
+  execSync("npx prisma db push --skip-generate", { env: { ...process.env, DATABASE_URL: url }, stdio: "ignore" });
+  engine = await import("../src/lib/sync/engine");
+  backup = await import("../src/lib/backup");
+  db = (await import("../src/lib/prisma")).prisma;
+});
+after(async () => {
+  if (!skip) await db.$disconnect();
+});
+beforeEach(async () => {
+  if (!skip) await reset();
+});
+
+test("import initial : nouveaux produits, doublons, lignes invalides, objectif", { skip }, async () => {
+  const results = await run({ LEADS: BASE_LEADS, OUT_OF_STOCK: BASE_OOS });
+  const leads = bySource(results, "LEADS");
+  assert.equal(leads.status, "SUCCESS");
+  assert.equal(leads.rowsRead, 6); // en-tête et ligne vide ignorés
+  assert.equal(leads.imported, 3); // A, B, D
+  assert.equal(leads.duplicates, 2); // A doublon exact + A chez un 2e fournisseur
+  assert.equal(leads.errors, 1);
+
+  const oosRun = bySource(results, "OUT_OF_STOCK");
+  assert.equal(oosRun.imported, 2); // E, F
+  assert.equal(oosRun.duplicates, 1); // A présent aussi dans OUT OF STOCK
+
+  // Objectif : uniquement les nouveaux ASIN de LEADS, par semaine de découverte (Export Date)
+  const thisWeek = await db.product.findMany({ where: { countsTowardGoal: true, goalWeek: "2026-10-12" }, orderBy: { asin: "asc" } });
+  assert.deepEqual(thisWeek.map((p) => p.asin), ["B0AAAAAAAA", "B0DDDDDDDD"]);
+  const lastWeek = await db.product.findMany({ where: { countsTowardGoal: true, goalWeek: "2026-10-05" } });
+  assert.deepEqual(lastWeek.map((p) => p.asin), ["B0BBBBBBBB"]);
+  assert.equal(await db.product.count({ where: { countsTowardGoal: false } }), 2); // E et F (OOS)
+
+  // Produit A : 2 offres (Walmart, Best Buy) ; l'offre Walmart regroupe LEADS ×2 et OOS ×1
+  const a = await db.product.findUniqueOrThrow({ where: { asin: "B0AAAAAAAA" }, include: { offers: { include: { occurrences: true } } } });
+  assert.equal(a.offers.length, 2);
+  const walmart = a.offers.find((o) => o.supplierKey === "walmart.ca/ip/a")!;
+  assert.equal(walmart.occurrences.length, 3);
+  assert.deepEqual(walmart.occurrences.map((o) => o.source).sort(), ["LEADS", "LEADS", "OUT_OF_STOCK"]);
+  assert.equal(walmart.costPrice, 20); // valeurs LEADS prioritaires
+  assert.equal(walmart.stockStatus, "OUT_OF_STOCK");
+  assert.ok(a.lastDuplicateAt);
+
+  const issues = await db.importIssue.findMany({ where: { severity: "ERROR" } });
+  assert.equal(issues.length, 1);
+  assert.equal(issues[0].sheetRow, 6);
+  assert.match(issues[0].message, /ASIN invalide/);
+});
+
+test("resynchronisation identique : aucun changement, aucune double comptabilisation", { skip }, async () => {
+  await run({ LEADS: BASE_LEADS, OUT_OF_STOCK: BASE_OOS });
+  const counts = { p: await db.product.count(), o: await db.occurrence.count(), s: await db.priceSnapshot.count(), c: await db.stockCheck.count() };
+  const results = await run({ LEADS: BASE_LEADS, OUT_OF_STOCK: BASE_OOS }, new Date("2026-10-14T18:00:00Z"));
+  for (const r of results) {
+    assert.equal(r.imported, 0);
+    assert.equal(r.duplicates, 0);
+    assert.equal(r.updated, 0);
+    assert.equal(r.missing, 0);
+  }
+  assert.equal(bySource(results, "LEADS").unchanged, 5);
+  assert.deepEqual(counts, { p: await db.product.count(), o: await db.occurrence.count(), s: await db.priceSnapshot.count(), c: await db.stockCheck.count() });
+});
+
+test("trier la Sheet ou insérer une ligne ne réinitialise pas les revues", { skip }, async () => {
+  await run({ LEADS: BASE_LEADS, OUT_OF_STOCK: BASE_OOS });
+  await db.product.update({ where: { asin: "B0BBBBBBBB" }, data: { reviewStatus: "VALIDATED", reviewNotes: "OK" } });
+  const shuffled = [HEADER_LEADS, lead("Nouveau G", "B0GGGGGGGG", "https://shop.ca/g"), ...BASE_LEADS.slice(1).reverse()];
+  const r = bySource(await run({ LEADS: shuffled, OUT_OF_STOCK: BASE_OOS }, new Date("2026-10-15T16:00:00Z")), "LEADS");
+  assert.equal(r.imported, 1);
+  assert.equal(r.updated, 0);
+  assert.equal(r.duplicates, 0);
+  const b = await db.product.findUniqueOrThrow({ where: { asin: "B0BBBBBBBB" } });
+  assert.equal(b.reviewStatus, "VALIDATED");
+  assert.equal(b.reviewNotes, "OK");
+  assert.equal(b.goalWeek, "2026-10-05");
+});
+
+test("changement de prix : historisé, sans nouvelle occurrence", { skip }, async () => {
+  await run({ LEADS: BASE_LEADS, OUT_OF_STOCK: BASE_OOS });
+  const changed = BASE_LEADS.map((row) => (row[1] === "B0BBBBBBBB" ? lead("Produit B", "B0BBBBBBBB", "https://www.costco.ca/b.html", "17.50", "2026-10-06") : row));
+  const r = bySource(await run({ LEADS: changed, OUT_OF_STOCK: BASE_OOS }, new Date("2026-10-15T16:00:00Z")), "LEADS");
+  assert.equal(r.updated, 1);
+  assert.equal(r.imported, 0);
+  const offer = await db.supplierOffer.findFirstOrThrow({ where: { product: { asin: "B0BBBBBBBB" } }, include: { priceSnapshots: { orderBy: { capturedAt: "asc" } } } });
+  assert.equal(offer.costPrice, 17.5);
+  assert.deepEqual(offer.priceSnapshots.map((s) => s.costPrice), [15, 17.5]);
+});
+
+test("ligne retirée de la Sheet : conservée et marquée absente ; Sheet vide : rien n'est marqué", { skip }, async () => {
+  await run({ LEADS: BASE_LEADS, OUT_OF_STOCK: BASE_OOS });
+  const withoutD = BASE_LEADS.filter((row) => row[1] !== "B0DDDDDDDD");
+  const r = bySource(await run({ LEADS: withoutD, OUT_OF_STOCK: BASE_OOS }), "LEADS");
+  assert.equal(r.missing, 1);
+  const d = await db.product.findUniqueOrThrow({ where: { asin: "B0DDDDDDDD" }, include: { occurrences: true } });
+  assert.equal(d.occurrences[0].present, false);
+  assert.ok(d.occurrences[0].missingSince);
+  assert.equal(d.countsTowardGoal, true); // reste compté dans sa semaine
+
+  const empty = bySource(await run({ LEADS: [HEADER_LEADS], OUT_OF_STOCK: BASE_OOS }), "LEADS");
+  assert.equal(empty.missing, 0);
+  assert.equal(empty.warnings, 1);
+  assert.equal(await db.occurrence.count({ where: { source: "LEADS", present: true } }), 4);
+});
+
+test("OUT OF STOCK : retour en stock vérifié, historique des contrôles", { skip }, async () => {
+  await run({ LEADS: BASE_LEADS, OUT_OF_STOCK: BASE_OOS });
+  // Sans date de vérification : jamais déclaré disponible
+  const unverified = BASE_OOS.map((row) => (row[1] === "B0FFFFFFFF" ? oos("Produit F", "B0FFFFFFFF", "Staples", "En stock", "") : row));
+  await run({ LEADS: BASE_LEADS, OUT_OF_STOCK: unverified }, new Date("2026-10-14T17:00:00Z"));
+  const f = await db.supplierOffer.findFirstOrThrow({ where: { product: { asin: "B0FFFFFFFF" } } });
+  assert.equal(f.stockStatus, "UNVERIFIED");
+  assert.equal(f.backInStockAt, null);
+
+  const back = BASE_OOS.map((row) => (row[1] === "B0FFFFFFFF" ? oos("Produit F", "B0FFFFFFFF", "Staples", "En stock", "2026-10-14") : row));
+  await run({ LEADS: BASE_LEADS, OUT_OF_STOCK: back }, new Date("2026-10-14T18:00:00Z"));
+  const g = await db.supplierOffer.findFirstOrThrow({ where: { product: { asin: "B0FFFFFFFF" } }, include: { stockChecks: { orderBy: { recordedAt: "asc" } } } });
+  assert.equal(g.stockStatus, "IN_STOCK");
+  assert.ok(g.backInStockAt);
+  assert.deepEqual(g.stockChecks.map((c) => c.status), ["OUT_OF_STOCK", "UNVERIFIED", "IN_STOCK"]);
+});
+
+test("verrou : deux synchronisations simultanées", { skip }, async () => {
+  const [a, b] = await Promise.all([run({ LEADS: BASE_LEADS, OUT_OF_STOCK: BASE_OOS }), run({ LEADS: BASE_LEADS, OUT_OF_STOCK: BASE_OOS })]);
+  const skipped = [...a, ...b].filter((r) => r.status === "SKIPPED");
+  assert.equal(skipped.length, 1);
+  assert.equal(await db.product.count(), 5);
+});
+
+test("échec de lecture : run FAILED, aucune donnée perdue", { skip }, async () => {
+  await run({ LEADS: BASE_LEADS, OUT_OF_STOCK: BASE_OOS });
+  const results = await engine.syncAll({ db, now: NOW, trigger: "TEST", read: async () => { throw new Error("403 accès refusé"); } });
+  assert.ok(results.every((r) => r.status === "FAILED"));
+  assert.equal(await db.occurrence.count({ where: { present: false } }), 0);
+  const failed = await db.importRun.findFirstOrThrow({ where: { status: "FAILED" } });
+  assert.match(failed.details!, /403/);
+});
+
+test("migration de l'ancienne table Lead : statuts de revue et dates conservés", { skip }, async () => {
+  await db.legacyLead.createMany({
+    data: [
+      { id: "l1", source: "LEADS", sourceRow: 2, key: "x", asin: "B0BBBBBBBB", supplierKey: "x", name: "Produit B", supplierUrl: "https://www.costco.ca/b.html", salePrice: 45, costPrice: 15, fbaFee: 7, exportDate: "", firstSeenAt: new Date("2026-09-03T14:00:00Z"), reviewStatus: "REVIEWED", reviewedAt: new Date("2026-09-06T14:00:00Z") },
+      { id: "l2", source: "LEADS", sourceRow: 3, key: "y", asin: "B0ZZZZZZZZ", supplierKey: "y", name: "Ancien Z", supplierUrl: "https://z.ca/z", firstSeenAt: new Date("2026-09-10T14:00:00Z"), reviewStatus: "REJECTED" },
+    ],
+  });
+  const results = await run({ LEADS: BASE_LEADS, OUT_OF_STOCK: BASE_OOS });
+  assert.ok(results.some((r) => r.status === "SUCCESS" && r.source === "LEADS"));
+  const b = await db.product.findUniqueOrThrow({ where: { asin: "B0BBBBBBBB" } });
+  assert.equal(b.reviewStatus, "VALIDATED");
+  assert.equal(b.goalWeek, "2026-08-31"); // semaine de la découverte d'origine, pas celle de la migration
+  const z = await db.product.findUniqueOrThrow({ where: { asin: "B0ZZZZZZZZ" }, include: { occurrences: true } });
+  assert.equal(z.reviewStatus, "REJECTED");
+  assert.equal(z.occurrences[0].present, false); // absent de la Sheet actuelle, mais conservé
+  assert.equal(await db.legacyLead.count(), 2); // table d'origine intacte
+  // La migration ne s'exécute qu'une fois
+  await run({ LEADS: BASE_LEADS, OUT_OF_STOCK: BASE_OOS });
+  assert.equal(await db.importRun.count({ where: { trigger: "LEGACY_MIGRATION" } }), 1);
+});
+
+test("sauvegarde : restauration identique dans une base vide, refusée sur une base remplie", { skip }, async () => {
+  await run({ LEADS: BASE_LEADS, OUT_OF_STOCK: BASE_OOS });
+  const product = await db.product.findFirstOrThrow({ where: { asin: "B0AAAAAAAA" } });
+  await db.product.update({ where: { id: product.id }, data: { reviewStatus: "VALIDATED", reviewNotes: "Lot de 3 « vérifié »", reviewChecklist: { gated: true } } });
+  await db.purchase.create({ data: { totalCost: 40, totalProfit: 12.5, totalUnits: 2, items: { create: [{ asin: product.asin, name: product.name, quantity: 2, unitCost: 20, unitProfit: 6.25 }] } } });
+
+  const saved = await backup.createBackup(db, "MANUAL", NOW);
+  const stored = await db.dataBackup.findUniqueOrThrow({ where: { id: saved.id } });
+  const dump = backup.decodeDump(stored.data);
+  assert.equal(dump.tables.Product.length, 5);
+  assert.equal(dump.tables.PurchaseItem.length, 1);
+  assert.equal((saved.tables as Record<string, number>).Occurrence, dump.tables.Occurrence.length);
+  assert.equal(dump.tables.DataBackup, undefined);
+
+  await assert.rejects(backup.restoreDatabase(db, dump), /contient déjà des données/);
+
+  await reset();
+  await backup.restoreDatabase(db, dump);
+  const after = await backup.dumpDatabase(db, NOW);
+  assert.deepEqual(after.tables, dump.tables);
+  const restored = await db.product.findUniqueOrThrow({ where: { asin: "B0AAAAAAAA" } });
+  assert.equal(restored.reviewNotes, "Lot de 3 « vérifié »");
+  assert.deepEqual(restored.reviewChecklist, { gated: true });
+  assert.equal(restored.firstSeenAt.toISOString(), product.firstSeenAt.toISOString());
+});
+
+test("sauvegarde quotidienne : une seule par jour", { skip }, async () => {
+  await run({ LEADS: BASE_LEADS, OUT_OF_STOCK: BASE_OOS });
+  assert.ok(await backup.ensureDailyBackup(db, NOW));
+  assert.equal(await backup.ensureDailyBackup(db, new Date(NOW.getTime() + 2 * 3600_000)), null);
+  assert.ok(await backup.ensureDailyBackup(db, new Date(NOW.getTime() + 25 * 3600_000)));
+  assert.equal(await db.dataBackup.count({ where: { reason: "DAILY" } }), 2);
+});
+
+const ORDERS = [
+  ["Fournisseur", "Prix total ($ CA)", "Quantité", "Date de commande", "Lien vers le courriel"],
+  ["Walmart", "114,98 $", "10", "2026-10-05", "https://mail.google.com/mail/u/0/#inbox/a1"],
+  ["Costco", "57.49", "3", "2026-10-12", "https://mail.google.com/mail/u/0/#inbox/a2"],
+  ["Costco", "57.49", "3", "2026-10-12", "https://mail.google.com/mail/u/0/#inbox/a2"], // 2e commande identique
+  ["Best Buy", "", "2", "2026-10-12", ""], // invalide : prix manquant
+  [],
+];
+const runOrders = (rows: string[][], now = NOW) =>
+  engine.syncAll({ read: reader({ LEADS: BASE_LEADS, OUT_OF_STOCK: BASE_OOS }), readOrders: async () => rows, now, trigger: "TEST", db, dateOrder: "MDY" });
+
+test("commandes : import, ré-import identique, tri, ligne retirée ou corrigée, Sheet vide", { skip }, async () => {
+  const first = bySource(await runOrders(ORDERS), "ORDERS");
+  assert.equal(first.status, "SUCCESS");
+  assert.deepEqual([first.rowsRead, first.imported, first.errors], [4, 3, 1]);
+  const walmart = await db.supplierOrder.findFirstOrThrow({ where: { supplierKey: "walmart" } });
+  assert.deepEqual([walmart.supplierName, walmart.totalPaid, walmart.quantity, walmart.taxRate, walmart.orderedAt?.toISOString().slice(0, 10)], ["Walmart", 114.98, 10, 14.975, "2026-10-05"]);
+  assert.equal(await db.supplierOrder.count({ where: { supplierKey: "costco" } }), 2);
+  const issues = await db.importIssue.findMany({ where: { runId: first.runId } });
+  assert.deepEqual(issues.map((i) => i.message), ["Prix total manquant (colonne B)"]);
+
+  // Même Sheet, puis triée autrement : rien de nouveau
+  const again = bySource(await runOrders(ORDERS), "ORDERS");
+  assert.deepEqual([again.imported, again.unchanged, again.missing], [0, 3, 0]);
+  const sorted = bySource(await runOrders([ORDERS[0], ORDERS[3], ORDERS[1], ORDERS[2]]), "ORDERS");
+  assert.deepEqual([sorted.imported, sorted.missing], [0, 0]);
+  assert.equal(await db.supplierOrder.count(), 3);
+
+  // Prix de Walmart corrigé dans la Sheet : nouvelle commande, l'ancienne est conservée mais ne compte plus
+  const fixed = bySource(await runOrders([ORDERS[0], ["Walmart", "120,00 $", "10", "2026-10-05", "https://mail.google.com/mail/u/0/#inbox/a1"], ORDERS[2], ORDERS[3]]), "ORDERS");
+  assert.deepEqual([fixed.imported, fixed.missing], [1, 1]);
+  const all = await db.supplierOrder.findMany({ where: { supplierKey: "walmart" }, orderBy: { firstImportedAt: "asc" } });
+  assert.deepEqual(all.map((o) => [o.totalPaid, o.present]), [[114.98, false], [120, true]]);
+  assert.equal((await db.supplierOrder.findUniqueOrThrow({ where: { id: walmart.id } })).totalPaid, 114.98);
+
+  // Sheet vide (lecture partielle) : rien n'est marqué absent
+  const empty = bySource(await runOrders([ORDERS[0]]), "ORDERS");
+  assert.deepEqual([empty.status, empty.missing], ["SUCCESS", 0]);
+  assert.equal(await db.supplierOrder.count({ where: { present: true } }), 3);
+
+  // Échec de lecture : run FAILED, aucune commande touchée
+  const failed = (await engine.syncAll({ read: reader({ LEADS: BASE_LEADS, OUT_OF_STOCK: BASE_OOS }), readOrders: async () => { throw new Error("403"); }, now: NOW, trigger: "TEST", db })).find((r) => r.source === "ORDERS")!;
+  assert.equal(failed.status, "FAILED");
+  assert.equal(await db.supplierOrder.count(), 4);
+});
+
+test("commandes : date ambiguë lue selon le réglage, mais signalée", { skip }, async () => {
+  const amb = bySource(await runOrders([ORDERS[0], ["Staples", "23", "2", "03/11/2026", ""]]), "ORDERS");
+  const warn = await db.importIssue.findMany({ where: { runId: amb.runId } });
+  assert.equal(warn.length, 1);
+  assert.match(warn[0].message, /Date de commande ambiguë « 03\/11\/2026 », lue comme le 2026-03-11/);
+});
+
+test("commandes : un onglet LEADS lu par erreur n'importe rien", { skip }, async () => {
+  const res = bySource(await runOrders(BASE_LEADS), "ORDERS");
+  assert.equal(res.status, "FAILED");
+  assert.match(res.message ?? "", /ressemble à LEADS/);
+  assert.equal(await db.supplierOrder.count(), 0);
+});
+
+test("migration : la décision la plus récente l'emporte, LEADS et OUT OF STOCK confondus", { skip }, async () => {
+  const lead = (id: string, source: string, asin: string, reviewStatus: string, reviewedAt: string) => ({
+    id, source, sourceRow: Number(id.slice(1)) + 1, key: id, asin, supplierKey: id, name: `Ancien ${asin}`, supplierUrl: `https://www.walmart.ca/ip/${id}`,
+    firstSeenAt: new Date("2026-09-01T14:00:00Z"), reviewStatus, reviewedAt: new Date(reviewedAt),
+  });
+  await db.legacyLead.createMany({
+    data: [
+      // Validé puis rejeté plus tard (même Sheet)
+      lead("l1", "LEADS", "B0MMMMMMM1", "REVIEWED", "2026-09-05T14:00:00Z"),
+      lead("l2", "LEADS", "B0MMMMMMM1", "REJECTED", "2026-09-20T14:00:00Z"),
+      // Rejeté dans LEADS, puis validé plus tard dans OUT OF STOCK
+      lead("l3", "LEADS", "B0MMMMMMM2", "REJECTED", "2026-09-05T14:00:00Z"),
+      lead("l4", "OUT_OF_STOCK", "B0MMMMMMM2", "REVIEWED", "2026-09-25T14:00:00Z"),
+    ],
+  });
+  await run({ LEADS: BASE_LEADS, OUT_OF_STOCK: BASE_OOS });
+  const status = async (asin: string) => (await db.product.findUniqueOrThrow({ where: { asin } })).reviewStatus;
+  assert.equal(await status("B0MMMMMMM1"), "REJECTED");
+  assert.equal(await status("B0MMMMMMM2"), "VALIDATED");
+});

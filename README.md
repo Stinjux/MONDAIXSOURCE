@@ -1,44 +1,222 @@
-# MONDAIXSOURCE — Phase 1
+# MONDAIX SOURCE
 
-Dashboard Next.js/TypeScript pour le sourcing Amazon.ca. Sépare les imports **LEADS (A:J)** et **OUT OF STOCK (A:P)**. Détection de doublons entre sources, revue hebdomadaire, objectif de 50 leads uniques par semaine et journal des synchronisations.
+Centre de sourcing **Amazon FBA (Amazon.ca, CAD)** : importe automatiquement les Google Sheets **LEADS** et **OUT OF STOCK**, élimine les doublons, suit l'objectif de **50 nouveaux leads uniques par semaine**, organise la **Weekly Review** du dimanche et surveille les ruptures de stock.
 
-## Variables Railway
-Copier les noms de `.env.example` dans **Railway → Service → Variables** :
+Stack : Next.js 15 (App Router) · TypeScript · Tailwind CSS 4 · PostgreSQL · Prisma 6 · Google Sheets API · Railway.
 
-- `DATABASE_URL` : référence au service PostgreSQL Railway
-- `ADMIN_PASSWORD` : mot de passe fort pour accès au dashboard et API de revue (jamais exposé en variable `NEXT_PUBLIC_*`)
-- `SYNC_SECRET` : secret distinct pour déclencher la synchronisation
-- `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` : JSON du compte de service Google encodé en base64, jamais dans GitHub
-- `LEADS_SHEET_ID` et `OOS_SHEET_ID` : identifiants des fichiers Google Sheets
-- `LEADS_SHEET_RANGE` (ex. `Sheet1!A:J`) et `OOS_SHEET_RANGE` (ex. `Sheet1!A:P`) : noms exacts des onglets Google Sheets
+---
 
-Partager chaque fichier Google Sheets en **Lecteur** avec l'adresse `client_email` du compte de service et activer Google Sheets API dans Google Cloud.
+## Fonctionnement
 
-**Important :** la clé Google n'est pas la même chose que `SYNC_SECRET`. Les secrets restent sur Railway.
+### Modèle de données
 
-## Démarrage
+```
+Product (ASIN Amazon.ca)                 ← revue hebdomadaire, prix Amazon vérifié, restrictions
+  └─ SupplierOffer (ASIN × fournisseur)  ← valeurs importées courantes, stock, coût vérifié
+       └─ Occurrence (ligne d'une Sheet) ← valeurs de la ligne, présente / retirée
+PriceSnapshot · StockCheck · ChangeLog   ← historiques (prix, vérifications, modifications manuelles)
+ImportRun · ImportIssue                  ← journal des synchronisations et lignes invalides
+```
+
+- **Rien n'est jamais supprimé automatiquement.** Une ligne retirée d'une Sheet est marquée « retirée » et reste consultable.
+- **Valeurs importées ≠ valeurs vérifiées** : les champs saisis pendant la revue (`verified…`) sont séparés et étiquetés « vérifié » / « importé » dans l'interface.
+- **Un lead = un ASIN** : tous les fournisseurs trouvés pour cet ASIN lui sont rattachés (ligne dépliable dans All Leads, meilleure offre en tête). L'ASIN ne compte qu'une fois dans l'objectif.
+- Une occurrence est identifiée par *(Sheet, offre, rang)* et non par numéro de ligne : **trier ou insérer des lignes dans la Sheet ne réinitialise ni les revues ni les dates.**
+
+### Doublons
+
+| Type | Règle |
+|---|---|
+| Doublon exact | même ASIN + même fournisseur (URL normalisée, paramètres de suivi retirés), plusieurs lignes |
+| Entre les 2 Sheets | même ASIN présent dans LEADS et OUT OF STOCK (la colonne STORE « Walmart » est rattachée à l'URL `walmart.ca/…` du même ASIN) |
+| Doublon potentiel | même ASIN chez plusieurs fournisseurs |
+
+Chaque fournisseur, chaque occurrence, la première et la dernière date de découverte sont conservés. Une alerte reste active jusqu'à « Marquer comme examiné » et se réactive si un nouveau doublon apparaît.
+
+### Objectif hebdomadaire
+
+- Semaine du **lundi 00:00 au dimanche 23:59, heure du Québec** (`America/Toronto`, changements d'heure gérés).
+- Seul un **nouvel ASIN** apparu dans **LEADS** compte, une seule fois, dans la semaine de sa découverte (colonne G *Export Date* si elle est lisible, sinon date d'import). Une mise à jour, un doublon ou un produit OUT OF STOCK ne compte pas.
+
+### Weekly Review
+
+**Mode rapide** (par défaut) : un lead à la fois, au choix ceux de la **semaine en cours** (ou de la semaine affichée) ou **tous les leads** sans décision, les plus récents d'abord (`?portee=tous`), avec la même disposition que Buy Decisions (vignette, liens Amazon / Keepa / fournisseur, jauges). **Valider** (Entrée ou V), **À suivre** (P) ou **Rejeter** (R) passe au lead suivant ; un prix modifié est d'abord enregistré comme valeur vérifiée (« Enregistrer et valider »). L'onglet **Liste détaillée** (`/weekly-review?vue=liste`) garde les fiches complètes (notes, checklist, restrictions).
+
+Statuts : À revoir · En cours · Revu et validé · Rejeté · À suivre. Pour chaque lead : prix Amazon et frais Amazon (Total Fees) vérifiés, coût et disponibilité vérifiés par fournisseur, restrictions Amazon, rentabilité recalculée en direct, doublons, checklist en 6 points, notes. Les leads sans décision des semaines précédentes restent affichés (« En retard »). Chaque modification est journalisée (`ChangeLog`).
+
+### COGS & factures (`/cogs`, section Inventaire)
+
+- **Achats réels seulement**, saisis ici de A à Z (« Nouvel achat » : lien Amazon ou ASIN, nom du produit s'il est inconnu de MONDAIX, date, unités, coût par unité, fournisseur — nom ou lien —, n° de commande, note) ; le panier potentiel de Buy Decisions n'est pas compté. Après l'enregistrement, la fiche du produit s'ouvre pour déposer la facture.
+- **Tableau de bord** : vue **Hebdomadaire / Mensuel / Annuel** (la vue choisie est gardée), flèches pour remonter les périodes ou clic sur une barre. COGS de la période et écart avec la précédente, unités (produits, commandes), coût moyen par unité, cumul de l'année civile ; graphique et tableau des 12 dernières semaines, 12 derniers mois ou 5 dernières années ; répartition de la période par produit et par fournisseur. Seuls les achats réels (non annulés) sont comptés, à la date d'achat (semaines du lundi, heure de Toronto).
+- **Liste par produit** : unités commandées, coût moyen par unité (et écart min–max), coût total, nombre de commandes, dernière commande, fournisseurs, nombre de documents. Alerte « Aucune facture » pour un produit acheté sans document, filtre « Sans facture seulement », export **COGS (CSV)** et **Tous les documents (.zip)**.
+- **Fiche COGS d'un produit** (`/cogs/<ASIN>`) : chaque commande (date, fournisseur, unités, coût par unité, total, pièces jointes ; commandes annulées grisées et exclues des totaux), et **« Ajouter un achat »** (date, unités, coût, fournisseur, n° de commande, note).
+- **Factures et documents** : zone de **glisser-déposer** (ou clic) pour PDF, images (JPG, PNG, WebP, GIF) et photos iPhone **HEIC/HEIF** (aperçu JPEG généré automatiquement), 20 Mo par fichier. Le format est vérifié d'après le contenu du fichier, pas son nom. Chaque document a un type (facture, reçu, autre) et peut être rattaché à une commande ; il s'ouvre, se télécharge, ou s'**archive** (jamais supprimé).
+- Stockage en base : `ProductDocument` (fiche) et `DocumentBlob` (contenu, une seule copie par contenu identique). Le contenu n'est pas recopié dans chaque sauvegarde automatique : téléchargez régulièrement le .zip et gardez-le hors de Railway.
+
+### Modèles de notes, Annuler, actions groupées
+
+- **Modèles de notes** : en validant, mettant à suivre ou rejetant un lead (mode rapide de la Weekly Review, Buy Decisions, reconfirmation, fiche du lead), des motifs en un clic — **Pour** (Bon ROI, Fort volume de ventes…), **Contre** (ROI trop bas, Faible volume, Trop de vendeurs…), **À vérifier** (Fournisseur à vérifier…) — plus une note libre. Les motifs sont enregistrés à part (colonne `reviewTags`), affichés dans la liste Buy Decisions et comptés dans Analytics (« Motifs des rejets / des validations »). La liste se modifie dans **Settings → Modèles de notes** ; retirer un modèle ne touche pas les leads qui l'utilisent.
+- **Annuler** : après une décision en mode un par un, un bandeau « Annuler » (ou Ctrl+Z / ⌘Z) remet le lead dans son statut précédent et y revient.
+- **Actions groupées** dans la liste Buy Decisions : cocher des leads (ou tous), puis Au panier, Achat, À suivre ou Rejeter en une fois, annulable.
+- **Panier, budget et critères d'achat enregistrés en base** (`AppSetting prefs.shared`) : retrouvés sur tous vos appareils. À l'ouverture, la version la plus récente (base ou navigateur) est appliquée ; un ancien panier du navigateur est fusionné, jamais perdu. La disposition du Dashboard, le menu réduit et l'affichage compact restent propres à chaque appareil.
+- **Chargement et erreurs** : squelette pendant le chargement d'une page ; si le serveur ou la base ne répond pas, un message clair et « Réessayer ».
+
+### Interface : modules, recherche ⌘K, menu réductible
+
+- **Dashboard modulaire** : « Personnaliser » permet de déplacer chaque module (glisser par sa poignée), de choisir sa largeur (⅓, ½, ⅔, pleine) ou de le masquer, puis de le rajouter ; « Disposition par défaut » remet tout en place. Modules : objectif hebdomadaire, indicateurs de la semaine, leads par semaine, Pipeline (leads par étape, chaque ligne ouvre la colonne), plus rentables, priorités, fournisseurs (logos et répartition par étape).
+- **Recherche et commandes ⌘K / Ctrl+K** (ou « / ») : un produit par nom ou ASIN, un commerce, une page, ou une action (synchroniser les Sheets, affichage compact, réduire le menu), au clavier (↑↓, Entrée, Échap).
+- **Menu** en sections (Sourcing, Catalogue, Suivi), réductible en barre d'icônes ; **affichage compact** pour des tableaux plus denses.
+- Ces préférences sont gardées dans le navigateur (aucune donnée en base).
+
+### Buy Decisions (aide à l'achat)
+
+Classe les leads selon 5 stratégies : **score d'achat** (40 % ROI plafonné à 100 %, 35 % profit mensuel en échelle logarithmique plafonné à 2 000 $, 25 % marge plafonnée à 40 %), **ROI %**, **profit mensuel**, **marge (profit %)** ou **profit unitaire**. Chaque lead reçoit un verdict selon vos critères (ROI, profit unitaire, marge, ventes mensuelles minimum ; 30 % / 3 $ / 15 % / 10 par défaut) : *Acheter* (tous atteints), *À considérer* (1–2 manqués, rupture ou ASIN restreint), *Éviter* (profit ≤ 0 ou plus de 2 manqués), *Incomplet*. Les valeurs vérifiées en Weekly Review remplacent les valeurs de la Sheet. **Tri par colonne** : un clic sur n'importe quel en-tête du tableau (#, Décision, Produit, Score, ROI, Marge, Profit/u., Profit mensuel, Ventes/mois, Coût, Coût max, Panier, Statut) trie par cette colonne, un second clic inverse l'ordre croissant / décroissant ; les valeurs manquantes restent en bas. Le tri est mémorisé dans le navigateur ; cliquer sur # ou choisir une stratégie revient au classement, et # garde le rang de la stratégie. **Panier** : ajout par copier-coller d'ASIN ou de liens Amazon (un par ligne, suivi de la quantité : `B0ABC12345 5`, `B0ABC12345,5`, `x5`, colonnes copiées depuis Sheets) ou par le bouton 🛒 de chaque ligne. Quantité et coût unitaire modifiables ; coût total, profit attendu, ROI du panier et budget restant calculés en direct. **Confirmer l'achat** enregistre la commande en base (prix, frais, taxes et profit recalculés côté serveur puis figés) et classe les produits dans la liste Achat.
+
+### Fiche ASIN (`/leads/<ASIN>`)
+
+Accessible en cliquant sur le nom d'un produit (Buy Decisions, Pipeline, All Leads, Acheté, Dashboard, Duplicate Alerts) ou sur ✏️ dans Buy Decisions. Vignette, fraîcheur, liens Amazon et Keepa, boutons Reconfirmer et Décider. Permet de tout modifier — notes, statut (donc la colonne du Pipeline), prix Amazon et Total Fees vérifiés, coût et disponibilité par fournisseur, restrictions, checklist — et d'ajouter le produit au panier. Affiche aussi les fournisseurs, les achats passés, l'historique des modifications (en clair), l'historique des prix importés et les lignes correspondantes dans les Sheets. Les notes s'affichent en aperçu dans Buy Decisions.
+
+### Panier potentiel (`/purchased`, anciennement « Acheté »)
+
+Les paniers confirmés dans Buy Decisions, c'est-à-dire les achats **envisagés** (`Purchase.source = CART`) ; ils ne comptent pas dans les COGS. Totaux (paniers, unités et montant envisagés, profit attendu), recherche, détail par commande, **export CSV** (tout ou par commande, compatible Excel / Google Sheets). Une commande annulée n'est jamais supprimée : elle reste dans l'historique, marquée « Annulé », hors totaux.
+
+### Pipeline (`/pipeline`)
+
+Tableau Kanban du sourcing, de l'arrivée d'un lead à l'achat : **Nouveaux** (« À revoir ») → **En analyse** (« En cours ») → **À reconfirmer** (données de 30 jours ou plus) → **Prêts à acheter** (« Revu et validé », données à jour) → **Achetés** (achat confirmé), plus **En veille** (« À suivre » ou fournisseur en rupture) et **Rejetés**. Chaque carte montre la vignette du produit, ROI, profit unitaire et mensuel, l'avis, la fraîcheur et les alertes. **Glisser-déposer** une carte (ou « Déplacer… », aussi sur mobile) change son statut de revue (journalisé) ; déposer dans « À reconfirmer » ou un lead périmé dans « Prêts à acheter » ouvre la reconfirmation ; un achat se confirme toujours depuis le panier. L'étape est calculée à l'affichage : aucune donnée n'est réécrite. Filtres partagés avec Buy Decisions (avis, semaine, tri) ; cliquer sur le titre d'une colonne l'ouvre en grand (`/pipeline?vue=prets`, etc.), avec plein écran. Les anciennes adresses `/purchases?vue=…` redirigent vers le Pipeline.
+
+### Commandes (`/commandes`, section Inventaire)
+
+Chaque commande passée chez un fournisseur, lue dans une troisième Google Sheet, **COMMANDES** (facultative : variable `ORDERS_SHEET_ID` — `COMMANDES_SHEET_ID` est aussi acceptée — et `ORDERS_SHEET_RANGE` ; sans plage, l'onglet nommé « Commandes », « Orders » ou « Achats » est lu, sinon le premier onglet ; un onglet LEADS lu par erreur est refusé sans rien importer). Un encadré en haut de la page indique si l'ID est lu par l'app, la date de la dernière lecture, l'erreur éventuelle et les lignes à corriger, avec le bouton de synchronisation :
+
+| A | B | C | D | E |
+|---|---|---|---|---|
+| Fournisseur (nom ou lien) | Prix total ($ CA, **taxes incluses**) | Quantité | Date de commande | Lien vers le courriel |
+
+- **Calcul** : total HT = prix total ÷ 1,14975 (TPS 5 % + TVQ 9,975 % retirées) ; taxes = prix total − total HT ; **coût unitaire HT** = total HT ÷ quantité. Le taux est enregistré sur chaque commande à l'import.
+- **Page** : COGS hors taxes, total payé et taxes, unités, coût moyen par unité ; tableau de bord **Hebdomadaire / Mensuel / Annuel** (COGS HT par période, écart avec la précédente, répartition par fournisseur) ; **« Où vous achetez le plus »** (classement des fournisseurs par montant, part du total, commandes, unités, coût moyen par unité, dernière commande ; un clic filtre ses commandes) ; liste des commandes avec le lien vers le courriel ; export **Commandes (CSV)**.
+- **Fournisseurs** : chaque commande est rattachée au commerce de la section Fournisseurs (« Walmart » = walmart.ca) ; fiche du commerce avec ses totaux et ses dernières commandes, tri de la liste **« Par montant commandé »**. Un commerce seulement présent dans les commandes y apparaît aussi.
+- **Synchronisation** : avec LEADS et OUT OF STOCK (bouton, tâche planifiée). Une commande est identifiée par son contenu : trier la Sheet ne crée pas de doublon. Une commande enregistrée n'est jamais modifiée ni supprimée : une ligne retirée ou corrigée dans la Sheet ne compte plus mais reste en base, et la version corrigée est ajoutée. Les lignes invalides (prix ou quantité illisible) sont listées dans Import History. Une date ambiguë (« 03/11/2026 ») est lue selon `SHEET_DATE_ORDER` (mois/jour par défaut) et signalée dans Import History : écrire les dates au format AAAA-MM-JJ évite toute confusion ; la date telle que saisie s'affiche au survol.
+- Les achats saisis produit par produit (avec factures) restent dans **COGS & factures** : les deux sections sont séparées, rien n'est compté deux fois.
+
+### Fournisseurs (`/suppliers`)
+
+Tous les produits regroupés par fournisseur (magasin), avec le logo du commerce (icône de son site, sinon ses initiales) et une barre de répartition par étape (à traiter, à reconfirmer, prêts, achetés, en veille) qui sert aussi de filtre. Partout dans l'app, un fournisseur s'affiche par le seul nom du commerce (« Canadian Tire »), surligné en bleu et cliquable, sans l'URL ni le « .ca ». Regroupement : une URL walmart.ca et la boutique « Walmart » de la Sheet OUT OF STOCK forment un seul fournisseur. Pour chacun : produits actifs, à revoir, prêts à acheter, en rupture, ROI moyen et **« Commandé ici »** (montant, commandes et unités de la Sheet COMMANDES). Ses produits s'affichent avec leur étape dans le Pipeline, le coût et le ROI chez ce fournisseur, « meilleure offre » quand c'est le fournisseur retenu dans Buy Decisions, et le lien vers la page du produit. Recherche, et option pour afficher les rejetés.
+
+### Fraîcheur et reconfirmation (`/reconfirm`)
+
+Les données d'un lead (prix Amazon, frais, coût, stock) sont **à reconfirmer 30 jours après son dernier export** dans LEADS ou sa dernière reconfirmation : pastille verte (à jour), orange (7 derniers jours), rouge (à reconfirmer). Un lead périmé ne peut pas être mis au panier ni acheté. L'écran **À reconfirmer** (compteur dans le menu) présente un lead à la fois, les plus rentables d'abord, avec liens Amazon, Keepa et fournisseurs et les valeurs pré-remplies : **« Toujours bon »** (touche Entrée) reconfirme en un clic ; une valeur modifiée est enregistrée comme vérifiée (les valeurs de la Sheet restent intactes) et l'effet sur ROI, marge et profit s'affiche avant/après. Raccourcis : Entrée, R (rejeter), ←/→, Échap pour sortir d'un champ.
+
+### Buy Decisions : vue « Carte » (`/decisions?vue=carte`)
+
+Chaque lead est une bulle. **Axe vertical, axe horizontal et taille au choix** parmi : ROI, ventes mensuelles, marge, coût unitaire, profit unitaire, profit mensuel, prix Amazon, score d'achat (par défaut : ROI × ventes, taille = profit mensuel). Couleur **et forme** selon l'avis (rond = Acheter, losange = À considérer, triangle = Éviter, anneau = Incomplet), légende cliquable pour masquer un avis. Vos critères minimum s'affichent en lignes pointillées, et la zone où les deux critères des axes sont atteints est teintée en vert. Survol = valeurs du lead ; clic = fiche à droite avec toutes ses valeurs, « Décider » (ouvre la vue Un par un sur ce lead), « Ajouter au panier » et la fiche ASIN. **Période** : cette semaine, 4 ou 12 dernières semaines, ou tous les leads (semaine de découverte du lead). **ROI max** : les leads au ROI plus élevé ne sont pas placés, pour que quelques leads extrêmes n'écrasent pas l'échelle (leur nombre est indiqué sous la carte). Option « Ignorer les valeurs extrêmes » (3 % les plus hauts et plus bas de chaque axe) pour lire le gros du nuage. Mêmes filtres et critères que les autres vues ; les axes choisis sont mémorisés avec vos réglages.
+
+### Buy Decisions : vue « Un par un » (par défaut)
+
+Buy Decisions regroupe deux vues sur les mêmes leads et le même panier : **Un par un** (par défaut) et **Liste** (le tableau triable, `/decisions?vue=liste`). La vue Un par un présente un lead à la fois, dans l'ordre de vos critères (« Classement et critères ») : grande vignette, jauges ROI / marge / profit / ventes par rapport à vos minimums, meilleure offre fournisseur, budget restant. **Acheter** (A) ajoute la quantité choisie (+/−) au panier et place le lead dans « Prêts à acheter » ; **À suivre** (P) le met en veille ; **Rejeter** (R). Un lead périmé se reconfirme d'abord sur le même écran. Dans la Liste, cliquer sur un produit l'ouvre en vue Un par un (✏️ ouvre la fiche complète). Le **panier** s'ouvre sur le côté (bouton « Panier » en haut à droite, Échap pour fermer) et regroupe les lignes **par fournisseur** (une commande par magasin, sous-total chacune). L'ancienne adresse `/decide` redirige vers Buy Decisions.
+
+Les **vignettes produit** viennent directement des images d'Amazon à partir de l'ASIN (aucune clé API) ; une icône s'affiche si Amazon n'a pas d'image.
+
+### OUT OF STOCK
+
+Statut dérivé des colonnes N (Disponibilité), O (Dernière vérification) et P (Détail). **Un produit n'est déclaré « En stock » que si la Sheet l'indique ET qu'une date de vérification valide existe** ; sinon il est « Non vérifié ». Le retour en stock déclenche une alerte. Chaque changement est historisé.
+
+### Rentabilité (préliminaire)
+
+| Indicateur | Formule |
+|---|---|
+| Profit | Prix Amazon (Buy Box moyenne 90 j, colonne D ; Sale Price si vide) − Cost Price − Total Fees (colonne H : commission Amazon + FBA) |
+| Prix colonne E | Le Sale Price (colonne E) est affiché en petit sous le prix Buy Box 90 j (« E : … », All Leads, Out of Stock, Doublons, fiche du lead et historique des prix, écran Décider / Reconfirmer) et exporté dans le CSV de All Leads (colonne « Sale Price (colonne E) »). Il n'entre pas dans les calculs tant que la colonne D est remplie. |
+| ROI | Profit / Cost Price × 100 |
+| Marge | Profit / prix Amazon × 100 |
+| Profit mensuel | Profit × Estimated Sales |
+
+Les frais Amazon (commission + FBA) sont inclus via Total Fees. **Taxes (TPS/TVQ)** : par défaut *inscrit à 20 %* comme SellerAmp (plus prudent que le taux réel du Québec, 14,975 %, ce qui laisse une marge de sécurité) ; réglables dans Settings, même méthode que SellerAmp — *inscrit* : profit = (vente − coût) ÷ (1 + taux) − frais ; *non inscrit* : profit = vente − coût − frais × (1 + taux) ; taxes arrondies au cent. Exemple SellerAmp vérifié par les tests : vente 20,20 $, coût 8,13 $, frais 9,46 $, taxe 20 % → profit 0,60 $, ROI 7,38 %, marge 2,97 %, coût max 5,24 $. Ce n'est **pas encore un profit net** : transport vers Amazon, préparation et stockage ne sont pas déduits. Aucun calcul n'est fait si une donnée manque ou si le coût n'est pas en CAD (pas de conversion inventée).
+
+---
+
+## Déploiement Railway
+
+### 1. Service web
+1. Railway → **New Project → Deploy from GitHub** → ce dépôt, puis **+ New → Database → PostgreSQL**.
+2. **Variables** du service web (voir `.env.example`) :
+   - `DATABASE_URL` = `${{Postgres.DATABASE_URL}}`
+   - `ADMIN_PASSWORD`, `SYNC_SECRET` : deux valeurs longues et différentes (`openssl rand -base64 32`)
+   - `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` : `base64 -w0 service-account.json` (macOS : `base64 -i service-account.json`)
+   - `LEADS_SHEET_ID`, `LEADS_SHEET_RANGE` (ex. `LEADS!A:J`), `OOS_SHEET_ID`, `OOS_SHEET_RANGE` (ex. `'OUT OF STOCK'!A:P` — guillemets simples si le nom de l'onglet contient des espaces), et facultatif `ORDERS_SHEET_ID`, `ORDERS_SHEET_RANGE` (ex. `COMMANDES!A:E`) pour la section Commandes
+3. `railway.json` configure tout le reste : build `npm run build`, **pré-déploiement `npm run deploy:prepare`** (`prisma db push` sans `--accept-data-loss` : Prisma refuse toute modification destructive, puis sauvegarde complète de la base), démarrage `npm run start`, healthcheck `/api/health`.
+
+Google Cloud : activer **Google Sheets API**, créer un compte de service, télécharger sa clé JSON et **partager les Sheets (LEADS, OUT OF STOCK, COMMANDES) en lecture** avec son `client_email`.
+
+### 2. Synchronisation planifiée
+Créer un second service depuis le même dépôt, avec les mêmes variables, et dans **Settings → Config-as-code** le fichier `railway/sync-cron.json` (commande `npm run sync:cron`, toutes les 2 h ; modifiable). Alternative : un ordonnanceur externe qui appelle
+
+```bash
+curl -X POST https://<app>.up.railway.app/api/sync -H "Authorization: Bearer $SYNC_SECRET"
+```
+
+Une seule synchronisation s'exécute à la fois (verrou en base). Le bouton **Synchroniser les Sheets** du dashboard déclenche la même opération côté serveur ; aucun secret n'est envoyé au navigateur.
+
+### 3. Rappel de la Weekly Review (optionnel)
+Troisième service cron avec `railway/reminder-cron.json` (`npm run reminder`, dimanche 12:45 UTC ≈ 8 h 45 au Québec). Définir `REMINDER_WEBHOOK_URL` (Slack, Discord ou ntfy) pour recevoir le message. `GET /api/reminder` (Bearer `SYNC_SECRET`) affiche le contenu sans l'envoyer.
+
+### Protection des données existantes
+Les données déjà stockées ne sont jamais effacées ni altérées par une nouvelle version (règles détaillées dans `CLAUDE.md`) :
+- **Schéma en ajout seulement** : `npm run check:schema` (aussi lancé par la CI) refuse toute modification de `prisma/schema.prisma` qui supprimerait une table ou une colonne, changerait un type ou rendrait une colonne obligatoire. Au déploiement, `prisma db push` sans `--accept-data-loss` refuse aussi : l'ancienne version reste en ligne.
+- **Sauvegardes complètes** (toutes les tables, JSON compressé, table `DataBackup`) : avant le démarrage de chaque nouvelle version (si elle échoue, le déploiement échoue), une fois par jour par la tâche planifiée (90 dernières conservées), et à la demande dans **Settings**, où chacune se télécharge (`.json.gz`). Gardez de temps en temps une copie hors de Railway.
+- **Restauration** uniquement dans une base vide, jamais par-dessus des données : `DATABASE_URL=<nouvelle base> npx prisma db push` puis `DATABASE_URL=<nouvelle base> npm run restore -- mondaix-sauvegarde-….json.gz`, et pointer l'app vers la nouvelle base.
+- Valeurs figées : achats confirmés (prix, frais, taxes, profit), semaine de découverte des leads, historique des prix, des stocks, des imports et des modifications manuelles.
+
+### Mise à niveau depuis la première version
+Les tables existantes `Lead` et `ImportEvent` sont conservées telles quelles. À la première synchronisation, les anciens leads (statuts de revue et dates de découverte inclus) sont migrés une seule fois vers le nouveau modèle ; la table `Lead` n'est ni modifiée ni supprimée.
+
+---
+
+## Développement
+
 ```bash
 npm install
-npx prisma db push
-npm run dev
+cp .env.example .env        # renseigner DATABASE_URL, ADMIN_PASSWORD…
+npm run db:push
+npm run dev                 # http://localhost:3000
+npm run sync                # synchronisation en ligne de commande
 ```
-Sur Railway, utiliser PostgreSQL et configurer la commande de déploiement `npx prisma db push && npm run build`. Démarrer avec `npm run start`. Pour une configuration de production, remplacer `db push` par des migrations Prisma versionnées.
 
-## Synchroniser les 2 fichiers
-Endpoint **POST /api/sync** avec header `Authorization: Bearer <SYNC_SECRET>` :
+### Tests
 
 ```bash
-curl -X POST https://YOUR-APP.up.railway.app/api/sync -H "Authorization: Bearer YOUR_SYNC_SECRET"
+npm run typecheck
+npm test                                                     # tests unitaires
+TEST_DATABASE_URL=postgresql://…/mondaix_test npm test       # + tests d'intégration PostgreSQL
 ```
 
-Il faut programmer cet appel depuis un cron Railway ou un ordonnanceur externe. Aucun déclencheur automatique n'est créé dans cette version. `npm run sync` permet également l'import dans une tâche Railway cron avec les mêmes variables d'environnement.
+Couverture : lecture des colonnes A–J / A–P, montants localisés, dates Sheets et semaines au fuseau du Québec (DST inclus), calculs de rentabilité, classification de disponibilité, rapprochement des fournisseurs, doublons, idempotence de la synchronisation, tri de la Sheet, historique des prix, lignes retirées, Sheet vide, échec de lecture, verrou, migration des anciennes données. La CI GitHub Actions exécute typecheck, tests (avec PostgreSQL) et build.
 
-## Revue
-Les statuts `PENDING`, `REVIEWED`, `REJECTED`, `FOLLOW_UP` s'éditent dans le dashboard après connexion. La revue du dimanche cible les leads importés pendant la semaine. Le compteur exclut les lignes OUT OF STOCK et les doublons ASIN + fournisseur.
+### Routes
+| Route | Accès | Rôle |
+|---|---|---|
+| `POST /api/sync` | Bearer `SYNC_SECRET` ou session | Synchronise LEADS puis OUT OF STOCK |
+| `GET/POST /api/reminder` | Bearer `SYNC_SECRET` | Rappel de la Weekly Review |
+| `GET /api/data` | Bearer `ADMIN_PASSWORD` ou session | Export JSON |
+| `GET /api/backup` | Bearer `ADMIN_PASSWORD` ou session | Sauvegarde complète (état actuel, ou `?id=` d'une sauvegarde enregistrée) |
+| `GET /api/health` | public | Santé (base de données) |
 
-## Limites phase 1
-- Le calcul du profit affiché est **préliminaire** (prix Amazon - coût fournisseur - FBA fee), non un profit net.
-- La colonne STORE du fichier OUT OF STOCK peut être un simple nom plutôt qu'une URL; elle est alors utilisée comme identifiant fournisseur. Des variations de noms peuvent empêcher de détecter certains doublons inter-sources.
-- Les dates de première découverte enregistrées correspondent à la première importation dans le dashboard, sauf si des données historiques sont ajoutées par la suite.
-- Un mot de passe administrateur partagé protège l'interface via les routes API ; pour une équipe, migrer vers une authentification utilisateurs avec sessions, limitation des tentatives et HTTPS strict.
-- La synchronisation **lit** les Google Sheets, mais ne les modifie pas. Les colonnes de suivi OUT OF STOCK ne sont pas vérifiées automatiquement auprès des fournisseurs dans cette phase.
+### Structure
+```
+prisma/schema.prisma        modèle de données
+src/lib/sync/engine.ts      synchronisation (idempotente, sans suppression)
+src/lib/normalize.ts        lecture des lignes Sheets, URL, fournisseurs
+src/lib/duplicates.ts       rapprochement d'offres, types de doublons
+src/lib/dates.ts            semaines et dates au fuseau du Québec
+src/lib/profit.ts           rentabilité préliminaire
+src/lib/stock.ts            interprétation de la disponibilité
+src/app/(app)/…             pages du dashboard (8 sections)
+tests/                      tests unitaires et d'intégration
+```
+
+### Évolutions prévues
+Le découpage Produit / Offre / Occurrence et les historiques (`PriceSnapshot`, `StockCheck`, `ChangeLog`) servent de base à : nouvelles sources (ajouter un `SheetSource` et son parseur), imports CSV, vérification automatique des prix fournisseurs (`StockCheck.origin`), suivi du ROI et alertes de prix, analyses par fournisseur, autorisations Amazon par ASIN (`Product.restriction`), achats et stocks FBA, rapports hebdomadaires par email (`src/lib/reminder.ts`).
+
+### Limites connues
+- Authentification par mot de passe unique (session signée, cookie HttpOnly, limitation des tentatives). Pour une équipe : comptes utilisateurs.
+- Le rapprochement « nom de boutique ↔ URL » (OUT OF STOCK) repose sur la marque ; en cas d'ambiguïté (plusieurs URL du même fournisseur), aucune fusion automatique n'est faite.
+- Les dates ambiguës (`03/04/2026`) suivent `SHEET_DATE_ORDER` (MDY par défaut).

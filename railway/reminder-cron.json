@@ -1,0 +1,11 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "buildCommand": "npx prisma generate"
+  },
+  "deploy": {
+    "startCommand": "npm run reminder",
+    "cronSchedule": "45 12 * * 0",
+    "restartPolicyType": "NEVER"
+  }
+}

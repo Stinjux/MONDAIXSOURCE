@@ -1,1 +1,131 @@
-:root{color-scheme:dark;font-family:Arial,Helvetica,sans-serif;background:#090e19;color:#e9eef8}*{box-sizing:border-box}body{margin:0}button,input,select{font:inherit}button{cursor:pointer;background:#234de8;color:white;border:0;border-radius:9px;padding:10px 13px}button:disabled{opacity:.4}input,select{background:#151e30;border:1px solid #344157;color:white;border-radius:9px;padding:10px;width:100%}a{color:#96b5ff}.layout{max-width:1280px;margin:auto;padding:28px}.header{display:flex;justify-content:space-between;align-items:center;gap:18px}.brand{font-size:25px;font-weight:800;letter-spacing:.07em}.muted{color:#98a7bd}.tabs{display:flex;gap:7px;flex-wrap:wrap;margin:22px 0}.tab{background:#17243b}.active{background:#234de8}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px}.card{background:#111a2a;border:1px solid #27354b;border-radius:14px;padding:19px}.value{font-size:31px;font-weight:800;margin-top:13px}.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.between{justify-content:space-between}.tablewrap{overflow:auto}.table{width:100%;border-collapse:collapse;white-space:nowrap}.table th,.table td{padding:11px;text-align:left;border-bottom:1px solid #29364b;font-size:13px}.table th{color:#98a7bd}.tag{background:#293f67;border-radius:20px;padding:5px 9px;font-size:12px}.alert{color:#ffcc78}.progress{height:13px;border-radius:20px;background:#2b3546;overflow:hidden}.fill{height:100%;background:#5082fa}.form{max-width:420px;margin:70px auto;display:grid;gap:15px}h1{margin-bottom:5px}h2{margin-top:0}@media(max-width:850px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.layout{padding:15px}}@media(max-width:420px){.grid{grid-template-columns:1fr}}
+@import "tailwindcss";
+
+/* Jetons de design — thème institutionnel MONDAIX (clair, marine, sobre) */
+@theme {
+  --color-page: #f3f5f8;
+  --color-surface: #ffffff;
+  --color-surface-2: #f7f8fa;
+  --color-surface-3: #e8ecf1;
+  --color-line: #dde2e9;
+  --color-line-strong: #c3cbd6;
+  --color-ink: #13233a;
+  --color-ink-2: #46566c;
+  --color-ink-3: #66748a;
+  /* Bleu marine institutionnel */
+  --color-accent: #0b3d91;
+  --color-accent-strong: #082f70;
+  --color-accent-soft: #0b3d9114;
+  /* Menu latéral */
+  --color-nav: #0b1f3a;
+  --color-nav-2: #15325c;
+  --color-nav-line: #1f3a62;
+  --color-nav-ink: #b9c6d8;
+  /* Séries de graphiques (validées CVD sur la surface claire) */
+  --color-series-1: #1c5cab;
+  --color-series-2: #eb6834;
+  --color-series-3: #1baf7a;
+  /* Statuts (toujours accompagnés d'un libellé) — lisibles en texte sur fond blanc */
+  --color-good: #1b7a3d;
+  --color-warning: #9a6700;
+  --color-serious: #c2410c;
+  --color-critical: #b42318;
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-serif: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+  --font-mono: ui-monospace, "SF Mono", "IBM Plex Mono", Menlo, Consolas, monospace;
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+    --sidebar-w: 16rem;
+  }
+  :root[data-sidebar="rail"] {
+    --sidebar-w: 4.25rem;
+  }
+  html,
+  body {
+    background: var(--color-page);
+    color: var(--color-ink);
+  }
+  body {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "tnum";
+  }
+  ::selection {
+    background: #0b3d9126;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+  input,
+  select,
+  textarea {
+    color-scheme: light;
+  }
+}
+
+@utility field {
+  @apply w-full rounded-sm border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-3 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/15;
+}
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-sm px-3.5 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
+}
+@utility btn-primary {
+  @apply btn bg-accent text-white shadow-sm hover:bg-accent-strong;
+}
+@utility btn-ghost {
+  @apply btn border border-line-strong bg-surface text-ink-2 hover:border-ink-3 hover:bg-surface-2 hover:text-ink;
+}
+@utility link {
+  @apply text-accent underline-offset-2 hover:underline;
+}
+
+@layer components {
+  .table-base {
+    @apply w-full border-collapse text-left text-sm;
+  }
+  .table-base th {
+    @apply sticky top-0 z-10 border-b border-line-strong bg-surface-2 px-3 py-2.5 text-[11px] font-semibold tracking-wider whitespace-nowrap text-ink-2 uppercase;
+  }
+  .table-base td {
+    @apply border-b border-line px-3 py-2.5 align-middle whitespace-nowrap;
+  }
+  .table-base tbody tr {
+    @apply transition-colors hover:bg-accent-soft;
+  }
+}
+
+/* Menu réduit (barre d'icônes) sur grand écran */
+@media (min-width: 1024px) {
+  :root[data-sidebar="rail"] .rail-hide {
+    display: none;
+  }
+  :root[data-sidebar="rail"] .rail-center {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  :root:not([data-sidebar="rail"]) .rail-only {
+    display: none;
+  }
+}
+@media (max-width: 1023px) {
+  .rail-only {
+    display: none;
+  }
+}
+
+/* Densité compacte : tableaux et listes plus serrés */
+:root[data-density="compact"] .table-base td {
+  padding-top: 0.3rem;
+  padding-bottom: 0.3rem;
+}
+:root[data-density="compact"] .table-base th {
+  padding-top: 0.45rem;
+  padding-bottom: 0.45rem;
+}
+:root[data-density="compact"] .density-tight {
+  gap: 0.5rem;
+}
