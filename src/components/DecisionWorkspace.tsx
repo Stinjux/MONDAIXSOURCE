@@ -1,11 +1,13 @@
 "use client";
-// Buy Decisions : une seule page, deux vues sur les mêmes leads et le même panier.
+// Buy Decisions : une seule page, trois vues sur les mêmes leads et le même panier.
 //  - « Un par un » (par défaut) : la disposition du mode décision
 //  - « Liste » : le tableau triable de tous les leads
+//  - « Carte » : les leads en bulles, axes au choix (ROI, ventes, marge, coût…)
 // Le panier s'ouvre sur le côté depuis le bouton en haut à droite.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { LayoutList, ShoppingCart, SlidersHorizontal, SquareStack, X } from "lucide-react";
+import { ChartScatter, LayoutList, ShoppingCart, SlidersHorizontal, SquareStack, X } from "lucide-react";
 import { BuyDecisions } from "./BuyDecisions";
+import { DecisionMap } from "./DecisionMap";
 import { Cart, cartLineValues, type CartState } from "./Cart";
 import { FilterPanel, VerdictChips, countVerdicts, readSaved, useDecisionFilters, writeSaved } from "./DecisionFilters";
 import { FocusScreen } from "./FocusScreen";
@@ -18,7 +20,7 @@ import { amount } from "@/lib/normalize";
 import type { TaxConfig } from "@/lib/profit";
 import { cn } from "./ui";
 
-type View = "focus" | "list";
+export type View = "focus" | "list" | "map";
 
 export function DecisionWorkspace({
   rows, leads, tax, currentWeek, startAsin = null, initialView = "focus", templates,
@@ -61,6 +63,7 @@ export function DecisionWorkspace({
     const url = new URL(window.location.href);
     url.searchParams.delete("asin");
     if (v === "list") url.searchParams.set("vue", "liste");
+    else if (v === "map") url.searchParams.set("vue", "carte");
     else url.searchParams.delete("vue");
     window.history.replaceState(null, "", url);
     window.scrollTo({ top: 0 });
@@ -103,6 +106,7 @@ export function DecisionWorkspace({
             [
               { v: "focus", label: "Un par un", icon: <SquareStack size={15} /> },
               { v: "list", label: "Liste", icon: <LayoutList size={15} /> },
+              { v: "map", label: "Carte", icon: <ChartScatter size={15} /> },
             ] as const
           ).map((t) => (
             <button
@@ -117,7 +121,7 @@ export function DecisionWorkspace({
             </button>
           ))}
         </div>
-        {view === "focus" && (
+        {view !== "list" && (
           <button type="button" className="btn-ghost" aria-expanded={showFilters} onClick={() => setShowFilters((v) => !v)}>
             <SlidersHorizontal size={15} /> {showFilters ? "Masquer les filtres" : "Classement et critères"}
           </button>
@@ -138,16 +142,18 @@ export function DecisionWorkspace({
         </button>
       </div>
 
-      {view === "focus" ? (
+      {view !== "list" && showFilters && (
+        <div className="flex flex-col gap-3">
+          <FilterPanel filters={filters} update={update} />
+          <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-line bg-surface px-3 py-2">
+            <VerdictChips value={filters.verdict} onChange={(v) => update({ verdict: v })} counts={counts.counts} total={counts.total} />
+          </div>
+        </div>
+      )}
+      {view === "map" ? (
+        <DecisionMap rows={rows} filters={filters} currentWeek={currentWeek} cart={cart} onOpen={(asin) => switchView("focus", asin)} onAdd={(id) => cartApi.add(id, 1)} />
+      ) : view === "focus" ? (
         <>
-          {showFilters && (
-            <div className="flex flex-col gap-3">
-              <FilterPanel filters={filters} update={update} />
-              <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-line bg-surface px-3 py-2">
-                <VerdictChips value={filters.verdict} onChange={(v) => update({ verdict: v })} counts={counts.counts} total={counts.total} />
-              </div>
-            </div>
-          )}
           <FocusScreen key={queueKey} leads={leads} mode="decide" tax={tax} currentWeek={currentWeek} startAsin={start.asin} cartApi={cartApi} templates={templates} />
         </>
       ) : (

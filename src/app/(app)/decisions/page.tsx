@@ -16,7 +16,7 @@ export default async function DecisionsPage({ searchParams }: { searchParams: Pr
     <>
       <PageHeader
         title="Buy Decisions"
-        description="Un lead à la fois, du plus intéressant au moins intéressant selon vos critères — ou tous en liste. « Acheter » ajoute au panier ; la commande se confirme dans le panier."
+        description="Un lead à la fois, du plus intéressant au moins intéressant selon vos critères — ou tous en liste, ou sur une carte aux axes de votre choix. « Acheter » ajoute au panier ; la commande se confirme dans le panier."
       />
       <DecisionWorkspace
         rows={rows}
@@ -25,7 +25,7 @@ export default async function DecisionsPage({ searchParams }: { searchParams: Pr
         templates={templates}
         currentWeek={weekKey(now)}
         startAsin={asin ?? null}
-        initialView={vue === "liste" && !asin ? "list" : "focus"}
+        initialView={asin ? "focus" : vue === "liste" ? "list" : vue === "carte" ? "map" : "focus"}
       />
     </>
   );
