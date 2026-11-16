@@ -522,7 +522,7 @@ export async function cancelPurchase(id: string, cancel = true): Promise<ActionR
 
 export async function logout() {
   (await cookies()).delete(SESSION_COOKIE);
-  redirect("/login");
+  redirect("/login?deconnecte=1");
 }
 
 const buyVoteSchema = z.object({

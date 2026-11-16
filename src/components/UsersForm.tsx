@@ -30,7 +30,7 @@ export function UsersForm() {
           <label className="flex-1 text-xs text-ink-2">
             {u === "owner" ? "Propriétaire · mot de passe ADMIN_PASSWORD" : "Partenaire · mot de passe PARTNER_PASSWORD"}
             {u === me && <span className="ml-1 font-semibold text-accent">(vous)</span>}
-            <input className="field mt-0.5 py-1.5 text-sm" value={names[u]} maxLength={40} onChange={(e) => setNames((n) => ({ ...n, [u]: e.target.value }))} placeholder={u === "owner" ? "Propriétaire" : "Partenaire"} />
+            <input className="field mt-0.5 py-1.5 text-sm" value={names[u]} maxLength={40} onChange={(e) => setNames((n) => ({ ...n, [u]: e.target.value }))} placeholder={u === "owner" ? "Justin" : "Hamza"} />
           </label>
           {u === "partner" && (
             <span className={partnerEnabled ? "text-xs font-medium text-good" : "text-xs text-ink-3"}>{partnerEnabled ? "Compte actif" : "Inactif"}</span>

@@ -10,6 +10,7 @@ import {
 import { logout } from "@/app/(app)/actions";
 import { UserAvatar, cn } from "./ui";
 import { useUser } from "./UserContext";
+import { ROLE_LABELS } from "@/lib/users";
 import { readUi, setUi, type UiPrefs } from "./uiPrefs";
 
 type Counts = { duplicates: number; review: number; backInStock: number; reconfirm: number; approvals: number };
@@ -132,13 +133,20 @@ function Footer({ ui, onToggleRail }: { ui: UiPrefs; onToggleRail?: () => void }
   const row = "rail-center flex w-full items-center gap-3 px-2.5 py-2 text-sm text-nav-ink transition hover:bg-white/5 hover:text-white";
   return (
     <div className="flex flex-col border-t border-nav-line pt-2">
-      {/* Compte connecté : toutes les actions sont enregistrées à son nom */}
-      <div className="rail-center mb-1 flex items-center gap-2.5 px-2.5 py-2" title={`Connecté : ${profiles[me].name}`}>
-        <UserAvatar profile={profiles[me]} size={28} />
-        <span className="rail-hide min-w-0 leading-tight">
-          <span className="block truncate text-sm font-semibold text-white">{profiles[me].name}</span>
-          <span className="block text-[10px] tracking-[0.12em] text-nav-ink/70 uppercase">{partnerEnabled ? (me === "owner" ? "Propriétaire" : "Partenaire") : "Connecté"}</span>
-        </span>
+      {/* Compte connecté (toutes les actions sont enregistrées à son nom) et déconnexion */}
+      <div className="mb-1 rounded-sm bg-white/[0.04] px-2.5 py-2" title={`Connecté : ${profiles[me].name}`}>
+        <div className="rail-center flex items-center gap-2.5">
+          <UserAvatar profile={profiles[me]} size={28} />
+          <span className="rail-hide min-w-0 flex-1 leading-tight">
+            <span className="block truncate text-sm font-semibold text-white">{profiles[me].name}</span>
+            <span className="block truncate text-[10px] tracking-[0.12em] text-nav-ink/70 uppercase">{partnerEnabled ? ROLE_LABELS[me] : "Connecté"}</span>
+          </span>
+        </div>
+        <form action={logout} className="rail-hide mt-2">
+          <button type="submit" className="flex w-full items-center justify-center gap-1.5 rounded-sm border border-white/20 px-2 py-1.5 text-xs text-nav-ink transition hover:border-white/50 hover:text-white" title="Se déconnecter (pour changer de compte)">
+            <LogOut size={13} /> Se déconnecter
+          </button>
+        </form>
       </div>
       <button type="button" className={row} onClick={() => setUi({ density: compact ? "comfort" : "compact" })} title={compact ? "Affichage confortable" : "Affichage compact"}>
         {compact ? <Rows3 size={16} className="shrink-0" /> : <Rows4 size={16} className="shrink-0" />}
@@ -150,9 +158,10 @@ function Footer({ ui, onToggleRail }: { ui: UiPrefs; onToggleRail?: () => void }
           <span className="rail-hide">Réduire le menu</span>
         </button>
       )}
-      <form action={logout}>
-        <button type="submit" className={row} title="Déconnexion">
-          <LogOut size={16} className="shrink-0" /> <span className="rail-hide">Déconnexion</span>
+      {/* Menu réduit en barre d'icônes : la déconnexion reste accessible */}
+      <form action={logout} className="rail-only">
+        <button type="submit" className={row} title="Se déconnecter" aria-label="Se déconnecter">
+          <LogOut size={16} className="shrink-0" />
         </button>
       </form>
     </div>
@@ -193,6 +202,11 @@ export function Sidebar({ counts }: { counts: Counts }) {
           <button type="button" className="btn px-2.5 text-white hover:bg-white/10" onClick={() => setOpen(true)} aria-label="Ouvrir le menu">
             <Menu size={18} />
           </button>
+          <form action={logout}>
+            <button type="submit" className="btn px-2.5 text-white hover:bg-white/10" aria-label="Se déconnecter" title="Se déconnecter">
+              <LogOut size={18} />
+            </button>
+          </form>
         </span>
       </div>
       {open && (

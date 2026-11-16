@@ -9,12 +9,14 @@ export type Profiles = Record<UserKey, UserProfile>;
 
 /** Couleurs d'avatar (palette de l'app), toujours accompagnées du nom ou des initiales. */
 const COLORS: Record<UserKey, string> = { owner: "#0b3d91", partner: "#b4531a" };
-const DEFAULT_NAMES: Record<UserKey, string> = { owner: "Propriétaire", partner: "Partenaire" };
+/** Noms par défaut (modifiables dans Settings → Comptes) */
+const DEFAULT_NAMES: Record<UserKey, string> = { owner: "Justin", partner: "Hamza" };
+export const ROLE_LABELS: Record<UserKey, string> = { owner: "Propriétaire", partner: "Partenaire" };
 
 export function initials(name: string): string {
   const words = name.replace(/[^\p{L}\p{N} '-]/gu, " ").split(/[\s'-]+/).filter(Boolean);
   if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
-  return (words[0] ?? "?").slice(0, 2).toUpperCase();
+  return (words[0]?.[0] ?? "?").toUpperCase();
 }
 
 /** Profils à partir des noms enregistrés (Settings) ; noms vides ou invalides remplacés par défaut. */
