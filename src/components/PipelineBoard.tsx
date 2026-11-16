@@ -138,7 +138,7 @@ export function PipelineBoard({ rows, purchased, currentWeek, initialView = null
 
   const move = (r: DecisionRow, to: Stage) => {
     setMessage(null);
-    if (to === "RECONFIRM" || (to === "READY" && r.fresh.state === "STALE")) return router.push(`/reconfirm?asin=${r.asin}`);
+    if (to === "RECONFIRM" || (to === "READY" && r.fresh.state === "STALE")) return router.push(`/decisions?asin=${r.asin}`);
     if (to === "BOUGHT") return setMessage({ ok: false, text: "Un achat se confirme depuis le panier de Buy Decisions." });
     const next = STAGE_STATUS[to];
     const previous = status[r.productId] ?? r.reviewStatus;
@@ -172,7 +172,6 @@ export function PipelineBoard({ rows, purchased, currentWeek, initialView = null
             <input className="field pl-9" placeholder="Rechercher par ASIN, produit ou fournisseur" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Rechercher" />
           </div>
           <Link href="/decisions" className="btn-primary"><Gavel size={15} /> Décider un par un</Link>
-          <Link href="/reconfirm" className="btn-ghost"><RefreshCw size={15} /> Reconfirmer ({columns.RECONFIRM.length + hidden.RECONFIRM})</Link>
           <button type="button" className="btn-ghost" aria-expanded={showFilters} onClick={() => setShowFilters((v) => !v)}>
             <SlidersHorizontal size={15} /> {showFilters ? "Masquer" : "Filtres"}
           </button>
@@ -252,7 +251,6 @@ export function PipelineBoard({ rows, purchased, currentWeek, initialView = null
                 {s === "READY" && list.length > 0 && (
                   <p className="mt-1 text-[11px] text-ink-2">1 u. de chaque : <b className="text-ink tabular-nums">{cad(readyCost)}</b> · profit mensuel max <b className="text-good tabular-nums">{cad(readyMonthly)}</b></p>
                 )}
-                {s === "RECONFIRM" && list.length > 0 && <Link href="/reconfirm" className="mt-1 inline-flex items-center gap-1 text-[11px] text-accent hover:underline"><RefreshCw size={11} /> Lancer la reconfirmation</Link>}
                 {hidden[s] > 0 && (
                   <p className="mt-1 text-[11px] text-ink-3">
                     + {hidden[s]} masqué{hidden[s] > 1 ? "s" : ""} ·{" "}
@@ -358,7 +356,7 @@ function LeadCard({
           ))}
         </select>
         {stage === "RECONFIRM" ? (
-          <Link href={`/reconfirm?asin=${r.asin}`} className="btn-ghost px-2 py-1 text-[11px] text-critical"><RefreshCw size={11} /> Reconfirmer</Link>
+          <Link href={`/decisions?asin=${r.asin}`} className="btn-ghost px-2 py-1 text-[11px] text-critical"><RefreshCw size={11} /> Reconfirmer</Link>
         ) : stage === "READY" ? (
           <button type="button" className="btn-ghost px-2 py-1 text-[11px]" onClick={onAddToCart}><ShoppingCart size={11} /> Panier</button>
         ) : stage === "NEW" || stage === "ANALYSIS" || stage === "BOUGHT" ? (

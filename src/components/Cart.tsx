@@ -221,7 +221,7 @@ export function Cart({
                           </span>
                         )}
                         {row.fresh.state === "STALE" && (
-                          <Link href={`/reconfirm?asin=${row.asin}`} className="mt-0.5 flex items-center gap-1 text-[11px] text-critical hover:underline">
+                          <Link href={`/decisions?asin=${row.asin}`} className="mt-0.5 flex items-center gap-1 text-[11px] text-critical hover:underline">
                             <RefreshCw size={10} /> Données de plus de 30 j : reconfirmer
                           </Link>
                         )}

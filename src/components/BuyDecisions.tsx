@@ -372,7 +372,7 @@ export function BuyDecisions({
                       </td>
                       <td className="text-center">
                         {r.fresh.state === "STALE" ? (
-                          <Link href={`/reconfirm?asin=${r.asin}`} className="btn-ghost px-2 py-1 text-xs whitespace-nowrap text-critical hover:border-critical/60" title="Données de plus de 30 jours : reconfirmez avant de mettre au panier">
+                          <Link href={`/decisions?asin=${r.asin}`} className="btn-ghost px-2 py-1 text-xs whitespace-nowrap text-critical hover:border-critical/60" title="Données de plus de 30 jours : reconfirmez avant de mettre au panier">
                             <RefreshCw size={12} /> Reconfirmer
                           </Link>
                         ) : (

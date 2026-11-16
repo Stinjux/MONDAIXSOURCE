@@ -64,7 +64,7 @@ export default async function LeadPage({ params }: { params: Promise<{ asin: str
         actions={
           <>
             <BackButton />
-            <Link href={`/reconfirm?asin=${p.asin}`} className={fresh.state === "STALE" ? "btn-primary" : "btn-ghost"}><RefreshCw size={15} /> Reconfirmer</Link>
+            <Link href={`/decisions?asin=${p.asin}`} className={fresh.state === "STALE" ? "btn-primary" : "btn-ghost"}><RefreshCw size={15} /> Reconfirmer</Link>
             <Link href={`/decisions?asin=${p.asin}`} className="btn-ghost"><Gavel size={15} /> Décider</Link>
             <Link href={`/cogs/${p.asin}`} className="btn-ghost"><Receipt size={15} /> COGS & factures</Link>
             {fresh.state !== "STALE" && <AddToCartButton productId={p.id} />}

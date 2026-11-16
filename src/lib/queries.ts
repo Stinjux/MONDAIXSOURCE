@@ -277,16 +277,10 @@ export async function lastSuccessfulSync() {
 export async function navCounts(now = new Date(), me: UserKey = "owner") {
   const current = weekKey(now);
   const { buyActionCount } = await import("./buyQueries");
-  const [duplicates, review, backInStock, active, purchased] = await Promise.all([
+  const [duplicates, review, backInStock] = await Promise.all([
     prisma.product.findMany({ where: { lastDuplicateAt: { not: null } }, select: { lastDuplicateAt: true, duplicateAckAt: true } }),
     prisma.product.count({ where: { countsTowardGoal: true, goalWeek: { lte: current }, reviewStatus: { in: ["TO_REVIEW", "IN_PROGRESS"] } } }),
     prisma.supplierOffer.findMany({ where: { stockStatus: "IN_STOCK", backInStockAt: { not: null } }, select: { backInStockAt: true, backInStockAckAt: true } }),
-    // Leads à reconfirmer : mêmes règles que l'écran « À reconfirmer » (hors rejetés et achetés)
-    prisma.product.findMany({
-      where: { reviewStatus: { not: "REJECTED" } },
-      select: { id: true, lastSeenAt: true, confirmedAt: true, occurrences: { select: { source: true, discoveredAt: true, exportDate: true } } },
-    }),
-    purchasedProducts(),
   ]);
   const approvals = await buyActionCount(me);
   return {
@@ -294,6 +288,5 @@ export async function navCounts(now = new Date(), me: UserKey = "owner") {
     duplicates: duplicates.filter((p) => duplicateAlertActive(p.lastDuplicateAt, p.duplicateAckAt)).length,
     review,
     backInStock: backInStock.filter((o) => duplicateAlertActive(o.backInStockAt, o.backInStockAckAt)).length,
-    reconfirm: active.filter((p) => !purchased.has(p.id) && freshness(freshSince(lastExportDate(withExportDates(p.occurrences, now), p.lastSeenAt), p.confirmedAt), now).state === "STALE").length,
   };
 }
