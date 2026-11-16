@@ -18,7 +18,8 @@ import type { CartState } from "./Cart";
 import { FilterPanel, VerdictChips, countVerdicts, readSaved, useDecisionFilters, writeSaved } from "./DecisionFilters";
 import { FreshnessPill } from "./Freshness";
 import { ProductImage } from "./ProductImage";
-import { Badge, EmptyState, Supplier, cn } from "./ui";
+import { Badge, EmptyState, Supplier, UserAvatar, cn } from "./ui";
+import { useUser } from "./UserContext";
 
 const ICONS: Record<Stage, React.ReactNode> = {
   NEW: <Inbox size={15} />,
@@ -304,6 +305,7 @@ function LeadCard({
   onDragStart: () => void;
   onDragEnd: () => void;
 }) {
+  const { profiles } = useUser();
   const draggable = stage !== "BOUGHT";
   return (
     <article
@@ -337,6 +339,7 @@ function LeadCard({
         <Badge tone={VERDICT_TONE[r.verdict]}>{VERDICT_LABELS[r.verdict]}</Badge>
         {stage !== "BOUGHT" && stage !== "REJECTED" && <FreshnessPill fresh={r.fresh} compact />}
         {r.unavailable && <Badge tone="critical">Rupture</Badge>}
+        {r.reviewedBy && r.reviewStatus !== "TO_REVIEW" && <UserAvatar profile={profiles[r.reviewedBy]} size={18} title={`Décidé par ${profiles[r.reviewedBy].name}`} />}
         {r.restricted && <Badge tone="serious" icon={<Lock size={10} />}>Restreint</Badge>}
         {inCart > 0 && <Badge tone="accent" icon={<ShoppingCart size={10} />}>× {inCart}</Badge>}
       </div>

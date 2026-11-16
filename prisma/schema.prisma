@@ -45,6 +45,8 @@ model Product {
   reviewTags       String[]  @default([])
   reviewChecklist  Json?
   reviewedAt       DateTime?
+  /// Compte qui a fixé le statut de revue (owner | partner) ; null = avant les comptes (propriétaire)
+  reviewedBy       String?
 
   // --- Données Amazon vérifiées manuellement (jamais importées) ---
   verifiedSalePrice Float?
@@ -55,6 +57,8 @@ model Product {
   /// Dernière reconfirmation complète du lead (écran « À reconfirmer »). Les données sont
   /// à reconfirmer 30 jours après le dernier export LEADS ou cette date.
   confirmedAt       DateTime?
+  /// Compte qui a reconfirmé le lead (owner | partner)
+  confirmedBy       String?
 
   // --- Alertes de doublons ---
   lastDuplicateAt DateTime?
@@ -215,6 +219,8 @@ model Purchase {
   source      String         @default("CART")
   /// N° de commande chez le fournisseur (achats saisis dans COGS)
   orderNumber String?
+  /// Compte qui a confirmé ou saisi l'achat (owner | partner) ; null = avant les comptes
+  createdBy   String?
   items       PurchaseItem[]
 
   @@index([createdAt])
@@ -276,6 +282,8 @@ model ProductDocument {
   hasPreview Boolean   @default(false)
   note       String?
   uploadedAt DateTime  @default(now())
+  /// Compte qui a déposé le document (owner | partner)
+  uploadedBy String?
   archivedAt DateTime?
 
   @@index([asin])
@@ -434,4 +442,23 @@ model SupplierOrder {
 
   @@index([orderedAt])
   @@index([supplierKey])
+}
+
+/// Décision d'achat d'un compte sur un lead (achat confirmé à deux) : BUY = j'approuve l'achat,
+/// NO = je refuse. Une ligne par décision, jamais modifiée ni supprimée : la plus récente de chaque
+/// compte fait foi ; l'historique montre qui a décidé quoi et quand.
+model BuyVote {
+  id        String   @id @default(cuid())
+  productId String
+  /// owner | partner
+  user      String
+  /// BUY | NO
+  vote      String
+  /// Quantité proposée (facultatif)
+  quantity  Int?
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([productId, createdAt])
+  @@index([createdAt])
 }

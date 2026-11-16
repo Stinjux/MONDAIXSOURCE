@@ -4,6 +4,7 @@ import { buyScore, type DecisionMetrics } from "./decision";
 import { NO_TAX, pick, preliminaryProfit, type TaxConfig } from "./profit";
 import { freshness, type Freshness } from "./freshness";
 import type { OfferView, ProductView } from "./queries";
+import type { UserKey } from "./users";
 
 export type DecisionRow = DecisionMetrics & {
   productId: string;
@@ -29,6 +30,8 @@ export type DecisionRow = DecisionMetrics & {
   unavailable: boolean;
   restricted: boolean;
   reviewStatus: string;
+  /** Compte qui a fixé le statut de revue */
+  reviewedBy: UserKey | null;
   /** Notes de revue (aperçu dans Buy Decisions) */
   notes: string | null;
   /** Motifs de la décision (modèles de notes) */
@@ -94,6 +97,7 @@ export function toDecisionRows(products: ProductView[], tax: TaxConfig = NO_TAX,
         unavailable: best.unavailable,
         restricted: p.restriction === "GATED" || p.restriction === "APPROVAL_PENDING",
         reviewStatus: p.reviewStatus,
+        reviewedBy: p.reviewedBy,
         notes: p.reviewNotes,
         tags: p.reviewTags,
         goalWeek: p.goalWeek,

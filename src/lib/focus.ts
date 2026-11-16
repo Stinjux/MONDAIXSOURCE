@@ -4,6 +4,8 @@ import { buyScore, type DecisionMetrics } from "./decision";
 import type { DecisionRow } from "./decisionRows";
 import { NO_TAX, pick, preliminaryProfit, type TaxConfig } from "./profit";
 import type { ProductView } from "./queries";
+import type { BuyStatus } from "./buyApproval";
+import type { UserKey } from "./users";
 
 export type Availability = "IN_STOCK" | "OUT_OF_STOCK";
 
@@ -37,6 +39,11 @@ export type FocusLead = {
   row: DecisionRow;
   /** Dernier achat confirmé (non annulé) */
   purchased: { lastAt: string; units: number } | null;
+  /** Qui a revu / reconfirmé le lead */
+  reviewedBy?: UserKey | null;
+  confirmedBy?: UserKey | null;
+  /** Décision d'achat à deux (null = personne n'a encore proposé l'achat) */
+  buy?: BuyStatus | null;
 };
 
 /** Valeurs saisies à l'écran ; absent = inchangé. */
@@ -78,6 +85,8 @@ export function toFocusLeads(products: ProductView[], rows: DecisionRow[], purch
         })),
         row,
         purchased: purchased.get(p.id) ?? null,
+        reviewedBy: p.reviewedBy,
+        confirmedBy: p.confirmedBy,
       },
     ];
   });

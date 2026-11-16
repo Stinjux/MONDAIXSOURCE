@@ -10,13 +10,14 @@ export async function login(_prev: { error?: string } | undefined, form: FormDat
     return { error: "ADMIN_PASSWORD n'est pas configuré sur ce service Railway (ajoutez la variable au service web puis redéployez)." };
   if (loginRateLimited(ip)) return { error: "Trop de tentatives. Réessayez dans 15 minutes." };
   const password = String(form.get("password") ?? "");
-  if (!checkPassword(password)) {
+  const user = checkPassword(password);
+  if (!user) {
     recordFailedLogin(ip);
     await new Promise((r) => setTimeout(r, 400));
-    return { error: "Mot de passe incorrect. Il doit être identique à la valeur de ADMIN_PASSWORD dans Railway (majuscules comprises)." };
+    return { error: "Mot de passe incorrect. Il doit être identique à votre variable Railway (ADMIN_PASSWORD ou PARTNER_PASSWORD), majuscules comprises." };
   }
   clearFailedLogins(ip);
-  const value = createSessionValue();
+  const value = createSessionValue(user);
   if (!value) return { error: "Configuration invalide." };
   const https = (h.get("x-forwarded-proto") ?? "").split(",")[0].trim() === "https";
   (await cookies()).set(SESSION_COOKIE, value, sessionCookieOptions(https));

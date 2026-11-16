@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import {
   ArrowLeft, ArrowRight, CheckCircle2, CircleSlash, ExternalLink, Eye, Keyboard, LineChart, Lock, Minus, PackageCheck, Plus, RefreshCw, ShoppingCart, Star, StickyNote,
 } from "lucide-react";
-import { reconfirmLead, saveLeadNotes, setReviewStatus } from "@/app/(app)/actions";
+import { castBuyVote, reconfirmLead, saveLeadNotes, setReviewStatus } from "@/app/(app)/actions";
 import type { NoteTemplates } from "@/lib/noteTemplates";
 import { NotePicker } from "./NotePicker";
 import { VERDICT_LABELS, type Thresholds, type Verdict } from "@/lib/decision";
@@ -23,7 +23,10 @@ import { readSaved, useDecisionFilters, writeSaved } from "./DecisionFilters";
 import { FreshnessPill } from "./Freshness";
 import { ProductImage } from "./ProductImage";
 import { storeName } from "@/lib/stores";
-import { Badge, EmptyState, PriceE, Supplier, cn } from "./ui";
+import { Badge, ByUser, EmptyState, PriceE, Supplier, cn } from "./ui";
+import { BuyStateBadge } from "./BuyVotePanel";
+import { useUser } from "./UserContext";
+import { otherUser } from "@/lib/users";
 
 //  - review    : Weekly Review rapide (Valider / À suivre / Rejeter), leads et ordre choisis par la page
 export type FocusMode = "reconfirm" | "decide" | "review";
@@ -296,6 +299,7 @@ function LeadPanel({
     }
     return fn();
   };
+  const { me, profiles, partnerEnabled } = useUser();
   const restoreStatus = () => setReviewStatus(lead.productId, lead.reviewStatus);
   const addToCart = (n: number) => {
     if (cartApi) return cartApi.add(lead.productId, n);
@@ -314,14 +318,29 @@ function LeadPanel({
     );
   const reject = () => run(() => withNotes(() => setReviewStatus(lead.productId, "REJECTED")), () => onDone("rejected", restoreStatus));
   const later = () => run(() => withNotes(() => setReviewStatus(lead.productId, "FOLLOW_UP")), () => onDone("later", restoreStatus));
+  // « Acheter » : au panier, et l'approbation d'achat du compte connecté (achat confirmé à deux)
   const buy = () => {
     const n = qty;
     const undo = async () => {
       addToCart(-n);
+      if (partnerEnabled) {
+        const res = await castBuyVote({ productId: lead.productId, vote: "NONE" });
+        if (!res.ok) return res;
+      }
       return lead.reviewStatus === "VALIDATED" ? { ok: true } : restoreStatus();
     };
     addToCart(n);
-    run(() => withNotes(() => (lead.reviewStatus === "VALIDATED" ? Promise.resolve({ ok: true }) : setReviewStatus(lead.productId, "VALIDATED"))), () => onDone("bought", undo));
+    run(
+      () =>
+        withNotes(async () => {
+          if (partnerEnabled) {
+            const res = await castBuyVote({ productId: lead.productId, vote: "BUY", quantity: n });
+            if (!res.ok) return res;
+          }
+          return lead.reviewStatus === "VALIDATED" ? { ok: true } : setReviewStatus(lead.productId, "VALIDATED");
+        }),
+      () => onDone("bought", undo),
+    );
   };
   // Weekly Review : valider (les valeurs modifiées sont d'abord enregistrées comme vérifiées)
   const validate = () =>
@@ -384,6 +403,8 @@ function LeadPanel({
                 <span className="font-mono text-xs text-ink-2">{lead.asin}</span>
                 <FreshnessPill fresh={confirmedNow ? { ...lead.row.fresh, state: "FRESH", ageDays: 0, daysLeft: 30 } : lead.row.fresh} />
                 <Badge>{REVIEW_LABELS[lead.reviewStatus as ReviewStatus] ?? lead.reviewStatus}</Badge>
+                {lead.reviewedBy && lead.reviewStatus !== "TO_REVIEW" && <ByUser profile={profiles[lead.reviewedBy]} />}
+                {partnerEnabled && lead.buy && <BuyStateBadge status={lead.buy} />}
                 {lead.restricted && <Badge tone="serious" icon={<Lock size={10} />}>Restreint</Badge>}
                 {inCart > 0 && <Badge tone="accent" icon={<ShoppingCart size={10} />}>{inCart} au panier</Badge>}
                 {outcome && <Badge tone="good">{OUTCOME_LABEL[outcome]}</Badge>}
@@ -529,9 +550,20 @@ function LeadPanel({
                 <Kbd>Entrée</Kbd>
               </button>
             ) : (
-              <button type="button" className="btn-primary w-full justify-center py-2.5" disabled={pending || best?.cost == null} onClick={buy}>
-                <ShoppingCart size={16} /> Acheter × {qty} <Kbd>A</Kbd>
-              </button>
+              <>
+                <button type="button" className="btn-primary w-full justify-center py-2.5" disabled={pending || best?.cost == null} onClick={buy}>
+                  <ShoppingCart size={16} /> {partnerEnabled && lead.buy?.waitingFor === me ? "Approuver l'achat" : "Acheter"} × {qty} <Kbd>A</Kbd>
+                </button>
+                {partnerEnabled && (
+                  <p className="text-[11px] leading-snug text-ink-3">
+                    {lead.buy?.waitingFor === me && lead.buy.latest[otherUser(me)]
+                      ? `${profiles[otherUser(me)].name} a proposé cet achat${lead.buy.latest[otherUser(me)]!.quantity ? ` (${lead.buy.latest[otherUser(me)]!.quantity} u.)` : ""} : votre approbation le confirme.`
+                      : lead.buy?.state === "APPROVED"
+                        ? "Achat déjà approuvé par vous deux."
+                        : `« Acheter » enregistre votre approbation ; l'achat est confirmé quand ${profiles[otherUser(me)].name} approuve aussi.`}
+                  </p>
+                )}
+              </>
             )}
             <div className={cn("grid gap-2", mode !== "reconfirm" ? "grid-cols-2" : "grid-cols-1")}>
               {mode !== "reconfirm" && (

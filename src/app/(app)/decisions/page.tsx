@@ -5,12 +5,13 @@ import { toDecisionRows } from "@/lib/decisionRows";
 import { toFocusLeads } from "@/lib/focus";
 import { loadProducts, purchasedProducts } from "@/lib/queries";
 import { getNoteTemplates } from "@/lib/settings";
+import { loadBuyStatuses } from "@/lib/buyQueries";
 
 export const metadata = { title: "Buy Decisions" };
 
 export default async function DecisionsPage({ searchParams }: { searchParams: Promise<{ asin?: string; vue?: string }> }) {
   const now = new Date();
-  const [{ products, tax }, purchased, { asin, vue }, templates] = await Promise.all([loadProducts(now), purchasedProducts(), searchParams, getNoteTemplates()]);
+  const [{ products, tax }, purchased, { asin, vue }, templates, buy] = await Promise.all([loadProducts(now), purchasedProducts(), searchParams, getNoteTemplates(), loadBuyStatuses()]);
   const rows = toDecisionRows(products, tax, now);
   return (
     <>
@@ -20,7 +21,7 @@ export default async function DecisionsPage({ searchParams }: { searchParams: Pr
       />
       <DecisionWorkspace
         rows={rows}
-        leads={toFocusLeads(products, rows, purchased)}
+        leads={toFocusLeads(products, rows, purchased).map((l) => ({ ...l, buy: buy.get(l.productId) ?? null }))}
         tax={tax}
         templates={templates}
         currentWeek={weekKey(now)}

@@ -5,7 +5,11 @@ import { FreshnessPill } from "@/components/Freshness";
 import { ProductImage } from "@/components/ProductImage";
 import { freshness, freshnessText } from "@/lib/freshness";
 import { AddToCartButton, BackButton, LeadEditor } from "@/components/LeadActions";
-import { Badge, Card, DuplicateBadges, EmptyState, PageHeader, PriceE, ReviewBadge, SourceBadges, StockBadge, Supplier } from "@/components/ui";
+import { Badge, ByUser, Card, DuplicateBadges, EmptyState, PageHeader, PriceE, ReviewBadge, SourceBadges, StockBadge, Supplier, UserAvatar } from "@/components/ui";
+import { BuyVotePanel } from "@/components/BuyVotePanel";
+import { loadBuyStatuses } from "@/lib/buyQueries";
+import { getProfiles } from "@/lib/settings";
+import { actorKey } from "@/lib/users";
 import { ACTION_LABELS, describeChange } from "@/lib/changes";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { cad, num, pct } from "@/lib/format";
@@ -19,16 +23,17 @@ export const metadata = { title: "Fiche ASIN" };
 
 export default async function LeadPage({ params }: { params: Promise<{ asin: string }> }) {
   const asin = decodeURIComponent((await params).asin).trim().toUpperCase();
-  const [{ products, tax }, templates] = await Promise.all([loadProducts(new Date(), { asin }), getNoteTemplates()]);
+  const [{ products, tax }, templates, profiles] = await Promise.all([loadProducts(new Date(), { asin }), getNoteTemplates(), getProfiles()]);
   const p = products[0];
   if (!p) notFound();
   const offerIds = p.offers.map((o) => o.id);
 
-  const [occurrences, snapshots, changes, purchases] = await Promise.all([
+  const [occurrences, snapshots, changes, purchases, buyStatuses] = await Promise.all([
     prisma.occurrence.findMany({ where: { productId: p.id }, orderBy: [{ source: "asc" }, { sheetRow: "asc" }], include: { offer: { select: { supplierName: true, supplierKey: true } } } }),
     prisma.priceSnapshot.findMany({ where: { offerId: { in: offerIds } }, orderBy: { capturedAt: "desc" }, take: 40, include: { offer: { select: { supplierName: true, supplierKey: true } } } }),
     prisma.changeLog.findMany({ where: { entityId: { in: [p.id, ...offerIds] } }, orderBy: { createdAt: "desc" }, take: 50 }),
     prisma.purchaseItem.findMany({ where: { asin: p.asin }, include: { purchase: true }, orderBy: { purchase: { createdAt: "desc" } } }),
+    loadBuyStatuses([p.id]),
   ]);
   const bought = purchases.filter((i) => !i.purchase.cancelledAt);
   const fresh = freshness(p.freshSince, new Date());
@@ -42,6 +47,8 @@ export default async function LeadPage({ params }: { params: Promise<{ asin: str
           <span className="flex flex-wrap items-center gap-2">
             <ProductImage asin={p.asin} size={56} />
             <ReviewBadge status={p.reviewStatus} />
+            {p.reviewedBy && p.reviewStatus !== "TO_REVIEW" && <ByUser profile={profiles[p.reviewedBy]} />}
+            {p.confirmedBy && <ByUser profile={profiles[p.confirmedBy]} prefix="reconfirmé par" />}
             <span title={freshnessText(fresh)}><FreshnessPill fresh={fresh} /></span>
             <SourceBadges sources={p.sources} />
             {p.dup.any && <DuplicateBadges dup={p.dup} compact />}
@@ -123,6 +130,8 @@ export default async function LeadPage({ params }: { params: Promise<{ asin: str
           )}
         </Card>
 
+        <BuyVotePanel productId={p.id} status={buyStatuses.get(p.id) ?? null} />
+
         <Card title="Historique des modifications" padded={false}>
           {changes.length === 0 ? (
             <EmptyState title="Aucune modification manuelle" />
@@ -130,15 +139,22 @@ export default async function LeadPage({ params }: { params: Promise<{ asin: str
             <ul className="max-h-96 divide-y divide-line overflow-y-auto">
               {changes.map((c) => {
                 const lines = describeChange(c.before, c.after);
+                const who = actorKey(c.actor);
                 return (
-                  <li key={c.id} className="px-4 py-2.5 text-xs">
+                  <li key={c.id} className="flex gap-2.5 px-4 py-2.5 text-xs">
+                    {who ? <UserAvatar profile={profiles[who]} size={22} /> : <span className="size-[22px] shrink-0" />}
+                    <div className="min-w-0 flex-1">
                     <div className="flex justify-between gap-2">
-                      <span className="font-medium text-ink">{ACTION_LABELS[c.action] ?? c.action}</span>
+                      <span className="font-medium text-ink">
+                        {ACTION_LABELS[c.action] ?? c.action}
+                        {who && <span className="font-normal text-ink-3"> · {profiles[who].name}</span>}
+                      </span>
                       <span className="text-ink-3">{formatDateTime(c.createdAt)}</span>
                     </div>
                     {lines.map((l, i) => (
                       <div key={i} className="mt-0.5 text-ink-2">{l}</div>
                     ))}
+                    </div>
                   </li>
                 );
               })}

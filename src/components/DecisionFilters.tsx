@@ -7,15 +7,14 @@ import { Filter, RotateCcw, X } from "lucide-react";
 import { DEFAULT_THRESHOLDS, VERDICT_LABELS, type Thresholds, type Verdict } from "@/lib/decision";
 import { DEFAULT_FILTERS, PERIODS, STRATEGIES, hasRangeFilters, parseFilters, type DecisionFilters, type Period, type VerdictFilter } from "@/lib/decisionFilters";
 import { amount } from "@/lib/normalize";
-import { PREFS_STORAGE_KEY } from "@/lib/prefsBoot";
+import { currentPrefsKey } from "@/lib/prefsBoot";
 import { cn } from "./ui";
 
-const STORAGE_KEY = PREFS_STORAGE_KEY;
 const EVENT = "mondaix:decision-filters";
 
 export function readSaved(): Record<string, unknown> {
   try {
-    const v = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+    const v = JSON.parse(localStorage.getItem(currentPrefsKey()) ?? "{}");
     return v && typeof v === "object" ? v : {};
   } catch {
     return {};
@@ -25,7 +24,7 @@ export function readSaved(): Record<string, unknown> {
 /** Écrit seulement les champs fournis (n'efface pas budget / quantités / autres filtres), puis les envoie à la base. */
 export function writeSaved(patch: Record<string, unknown>) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...readSaved(), ...patch, updatedAt: Date.now() }));
+    localStorage.setItem(currentPrefsKey(), JSON.stringify({ ...readSaved(), ...patch, updatedAt: Date.now() }));
     window.dispatchEvent(new Event(EVENT));
     schedulePush();
   } catch {

@@ -10,6 +10,7 @@ import { amazonPrice, columnEPrice, preliminaryProfit, type ProfitResult } from 
 import { getTaxConfig } from "./settings";
 import { needsRecheck } from "./stock";
 import { freshSince, freshness, lastExportDate } from "./freshness";
+import { actorKey, type UserKey } from "./users";
 
 const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
 
@@ -65,6 +66,10 @@ export type ProductView = {
   reviewTags: string[];
   reviewChecklist: Checklist;
   reviewedAt: string | null;
+  /** Compte qui a fixé le statut de revue (null = avant les comptes : le propriétaire) */
+  reviewedBy: UserKey | null;
+  /** Compte qui a reconfirmé le lead */
+  confirmedBy: UserKey | null;
   verifiedSalePrice: number | null;
   verifiedFbaFee: number | null;
   restriction: string;
@@ -165,6 +170,8 @@ export async function loadProducts(now = new Date(), filter: { asin?: string } =
       reviewTags: p.reviewTags,
       reviewChecklist: parseChecklist(p.reviewChecklist),
       reviewedAt: iso(p.reviewedAt),
+      reviewedBy: p.reviewedAt ? (actorKey(p.reviewedBy) ?? "owner") : null,
+      confirmedBy: p.confirmedAt ? (actorKey(p.confirmedBy) ?? "owner") : null,
       verifiedSalePrice: p.verifiedSalePrice,
       verifiedFbaFee: p.verifiedFbaFee,
       restriction: p.restriction,
@@ -267,8 +274,9 @@ export async function lastSuccessfulSync() {
 }
 
 /** Compteurs affichés dans la navigation latérale. */
-export async function navCounts(now = new Date()) {
+export async function navCounts(now = new Date(), me: UserKey = "owner") {
   const current = weekKey(now);
+  const { buyActionCount } = await import("./buyQueries");
   const [duplicates, review, backInStock, active, purchased] = await Promise.all([
     prisma.product.findMany({ where: { lastDuplicateAt: { not: null } }, select: { lastDuplicateAt: true, duplicateAckAt: true } }),
     prisma.product.count({ where: { countsTowardGoal: true, goalWeek: { lte: current }, reviewStatus: { in: ["TO_REVIEW", "IN_PROGRESS"] } } }),
@@ -280,7 +288,9 @@ export async function navCounts(now = new Date()) {
     }),
     purchasedProducts(),
   ]);
+  const approvals = await buyActionCount(me);
   return {
+    approvals,
     duplicates: duplicates.filter((p) => duplicateAlertActive(p.lastDuplicateAt, p.duplicateAckAt)).length,
     review,
     backInStock: backInStock.filter((o) => duplicateAlertActive(o.backInStockAt, o.backInStockAckAt)).length,

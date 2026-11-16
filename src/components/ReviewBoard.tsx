@@ -10,7 +10,8 @@ import { CHECKLIST, REVIEW_LABELS, REVIEW_STATUSES, RESTRICTIONS, RESTRICTION_LA
 import { amount } from "@/lib/normalize";
 import { NO_TAX, pick, preliminaryProfit, type TaxConfig } from "@/lib/profit";
 import type { OfferView, ProductView } from "@/lib/queries";
-import { Asin, Badge, DuplicateBadges, EmptyState, OriginTag, ReviewBadge, SourceBadges, StockBadge, Supplier, cn } from "./ui";
+import { Asin, Badge, ByUser, DuplicateBadges, EmptyState, OriginTag, ReviewBadge, SourceBadges, StockBadge, Supplier, cn } from "./ui";
+import { useUser } from "./UserContext";
 
 const STATUS_STYLE: Record<ReviewStatus, string> = {
   TO_REVIEW: "data-[on=true]:border-warning/60 data-[on=true]:bg-warning/10 data-[on=true]:text-warning",
@@ -116,6 +117,7 @@ export function ReviewCard({
   defaultOpen?: boolean;
   templates?: NoteTemplates;
 }) {
+  const { profiles } = useUser();
   const [open, setOpen] = useState(defaultOpen);
   const [status, setStatus] = useState(p.reviewStatus as ReviewStatus);
   const [notes, setNotes] = useState(p.reviewNotes ?? "");
@@ -175,6 +177,7 @@ export function ReviewCard({
           <span className="flex flex-wrap items-center gap-2">
             <span className="truncate font-medium text-ink">{p.name}</span>
             <ReviewBadge status={p.reviewStatus} />
+            {p.reviewedBy && p.reviewStatus !== "TO_REVIEW" && <ByUser profile={profiles[p.reviewedBy]} />}
             {p.dup.any && <DuplicateBadges dup={p.dup} compact />}
           </span>
           <span className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-3">

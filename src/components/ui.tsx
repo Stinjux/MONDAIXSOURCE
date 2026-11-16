@@ -166,6 +166,31 @@ export function EmptyState({ title, children, icon }: { title: string; children?
   );
 }
 
+/** Avatar d'un compte : initiales sur sa couleur, avec son nom en infobulle (jamais la couleur seule). */
+export function UserAvatar({ profile, size = 22, title }: { profile: { name: string; initials: string; color: string }; size?: number; title?: string }) {
+  return (
+    <span
+      className="inline-grid shrink-0 place-items-center rounded-full font-semibold text-white"
+      style={{ width: size, height: size, background: profile.color, fontSize: Math.max(9, Math.round(size * 0.42)) }}
+      title={title ?? profile.name}
+      aria-label={title ?? profile.name}
+    >
+      {profile.initials}
+    </span>
+  );
+}
+
+/** « par Marc » : avatar + nom, pour attribuer une décision ou une action. */
+export function ByUser({ profile, prefix = "par", className }: { profile: { name: string; initials: string; color: string }; prefix?: string; className?: string }) {
+  return (
+    <span className={cn("inline-flex items-center gap-1 text-[11px] text-ink-2", className)}>
+      {prefix && <span className="text-ink-3">{prefix}</span>}
+      <UserAvatar profile={profile} size={16} />
+      <span className="font-medium text-ink">{profile.name}</span>
+    </span>
+  );
+}
+
 /** Sale Price (colonne E de la Sheet), en petit sous le prix Buy Box 90 j. */
 export function PriceE({ value }: { value: number | null | undefined }) {
   if (value == null) return null;

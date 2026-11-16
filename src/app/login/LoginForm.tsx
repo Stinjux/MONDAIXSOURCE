@@ -8,7 +8,7 @@ export function LoginForm() {
   return (
     <form action={action} className="flex flex-col gap-3">
       <label htmlFor="password" className="text-xs font-medium text-ink-2">
-        Mot de passe administrateur
+        Mot de passe
       </label>
       <input id="password" name="password" type="password" autoComplete="current-password" required autoFocus className="field" />
       {state?.error && (

@@ -29,6 +29,11 @@ déjà stockées.**
 - Historique : `ChangeLog` (modifications manuelles), `PriceSnapshot`, `StockCheck`,
   `ImportRun` / `ImportIssue` ne sont jamais modifiés ni supprimés.
 - La synchronisation ne supprime rien : une ligne retirée d'une Sheet passe à `present = false`.
+- Comptes : `owner` (ADMIN_PASSWORD) et `partner` (PARTNER_PASSWORD). Toute action manuelle enregistre son
+  auteur (`ChangeLog.actor`, `reviewedBy`, `confirmedBy`, `createdBy`, `uploadedBy`) ; « admin » ou vide =
+  avant les comptes = propriétaire, à afficher ainsi sans réécrire l'historique.
+- `BuyVote` (achat confirmé à deux) : une ligne par décision, jamais modifiée ni supprimée ; la plus
+  récente de chaque compte fait foi (`NONE` = décision retirée).
 - `SupplierOrder` (Sheet COMMANDES) : jamais modifié ni supprimé ; une ligne retirée ou corrigée dans la
   Sheet passe à `present = false` et la version corrigée est ajoutée. `taxRate` (TPS + TVQ) est figé à l'import.
 

@@ -26,6 +26,7 @@ export function envStatus() {
   const names = [
     ["DATABASE_URL", true],
     ["ADMIN_PASSWORD", true],
+    ["PARTNER_PASSWORD", false],
     ["SYNC_SECRET", true],
     ["GOOGLE_SERVICE_ACCOUNT_JSON_BASE64", true],
     ["LEADS_SHEET_ID", true],

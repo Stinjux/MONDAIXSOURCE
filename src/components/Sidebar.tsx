@@ -4,15 +4,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  BarChart3, CalendarCheck, ChevronsLeft, ChevronsRight, Copy, History, KanbanSquare, LayoutDashboard, LogOut, Menu, PackageX, Receipt, RefreshCw, Rows3, Rows4,
+  BarChart3, CalendarCheck, ChevronsLeft, ChevronsRight, Copy, Handshake, History, KanbanSquare, LayoutDashboard, LogOut, Menu, PackageX, Receipt, RefreshCw, Rows3, Rows4,
   Search, Settings, ShoppingBag, ShoppingBasket, ShoppingCart, Store, Table2, X,
 } from "lucide-react";
 import { logout } from "@/app/(app)/actions";
-import { cn } from "./ui";
+import { UserAvatar, cn } from "./ui";
+import { useUser } from "./UserContext";
 import { readUi, setUi, type UiPrefs } from "./uiPrefs";
 
-type Counts = { duplicates: number; review: number; backInStock: number; reconfirm: number };
-type Item = { href: string; label: string; icon: typeof LayoutDashboard; count?: keyof Counts };
+type Counts = { duplicates: number; review: number; backInStock: number; reconfirm: number; approvals: number };
+type Item = { href: string; label: string; icon: typeof LayoutDashboard; count?: keyof Counts; partnerOnly?: boolean };
 
 export const NAV_SECTIONS: { title: string; items: Item[] }[] = [
   {
@@ -21,6 +22,7 @@ export const NAV_SECTIONS: { title: string; items: Item[] }[] = [
       { href: "/", label: "Dashboard", icon: LayoutDashboard },
       { href: "/pipeline", label: "Pipeline", icon: KanbanSquare },
       { href: "/decisions", label: "Buy Decisions", icon: ShoppingCart },
+      { href: "/achats-a-deux", label: "Achats à deux", icon: Handshake, count: "approvals", partnerOnly: true },
       { href: "/purchased", label: "Panier potentiel", icon: ShoppingBasket },
       { href: "/weekly-review", label: "Weekly Review", icon: CalendarCheck, count: "review" },
       { href: "/reconfirm", label: "À reconfirmer", icon: RefreshCw, count: "reconfirm" },
@@ -83,6 +85,7 @@ function SearchButton() {
 
 function NavLinks({ counts, onNavigate }: { counts: Counts; onNavigate?: () => void }) {
   const pathname = usePathname();
+  const { partnerEnabled } = useUser();
   return (
     <nav className="flex flex-col gap-4" aria-label="Navigation principale">
       {NAV_SECTIONS.map((section) => (
@@ -90,7 +93,7 @@ function NavLinks({ counts, onNavigate }: { counts: Counts; onNavigate?: () => v
           <div className="rail-hide mb-1 px-2.5 text-[10px] font-semibold tracking-[0.16em] text-nav-ink/60 uppercase">{section.title}</div>
           <div className="rail-only mx-3 mb-1 border-t border-nav-line" aria-hidden />
           <div className="flex flex-col gap-0.5">
-            {section.items.map(({ href, label, icon: Icon, count }) => {
+            {section.items.filter((i) => !i.partnerOnly || partnerEnabled).map(({ href, label, icon: Icon, count }) => {
               const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
               const n = count ? counts[count] : 0;
               return (
@@ -125,9 +128,18 @@ function NavLinks({ counts, onNavigate }: { counts: Counts; onNavigate?: () => v
 
 function Footer({ ui, onToggleRail }: { ui: UiPrefs; onToggleRail?: () => void }) {
   const compact = ui.density === "compact";
+  const { me, profiles, partnerEnabled } = useUser();
   const row = "rail-center flex w-full items-center gap-3 px-2.5 py-2 text-sm text-nav-ink transition hover:bg-white/5 hover:text-white";
   return (
     <div className="flex flex-col border-t border-nav-line pt-2">
+      {/* Compte connecté : toutes les actions sont enregistrées à son nom */}
+      <div className="rail-center mb-1 flex items-center gap-2.5 px-2.5 py-2" title={`Connecté : ${profiles[me].name}`}>
+        <UserAvatar profile={profiles[me]} size={28} />
+        <span className="rail-hide min-w-0 leading-tight">
+          <span className="block truncate text-sm font-semibold text-white">{profiles[me].name}</span>
+          <span className="block text-[10px] tracking-[0.12em] text-nav-ink/70 uppercase">{partnerEnabled ? (me === "owner" ? "Propriétaire" : "Partenaire") : "Connecté"}</span>
+        </span>
+      </div>
       <button type="button" className={row} onClick={() => setUi({ density: compact ? "comfort" : "compact" })} title={compact ? "Affichage confortable" : "Affichage compact"}>
         {compact ? <Rows3 size={16} className="shrink-0" /> : <Rows4 size={16} className="shrink-0" />}
         <span className="rail-hide">{compact ? "Affichage confortable" : "Affichage compact"}</span>

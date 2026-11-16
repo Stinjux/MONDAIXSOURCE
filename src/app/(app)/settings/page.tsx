@@ -3,6 +3,7 @@ import { Card, PageHeader } from "@/components/ui";
 import { config, envStatus } from "@/lib/config";
 import { TIME_ZONE } from "@/lib/dates";
 import { sheetConfig } from "@/lib/google";
+import { UsersForm } from "@/components/UsersForm";
 import { getNoteTemplates, getTaxConfig } from "@/lib/settings";
 import { NoteTemplatesForm } from "@/components/NoteTemplatesForm";
 import { TaxSettingsForm } from "@/components/TaxSettingsForm";
@@ -71,6 +72,14 @@ export default async function SettingsPage() {
               Créez une tâche planifiée Railway le dimanche (ex. <code className="font-mono text-xs">0 13 * * 0</code> = 9 h HAE / 8 h HNE, Railway utilise l&apos;UTC) avec la commande
               <code className="mx-1 font-mono text-xs">npm run reminder</code>. Le rappel est envoyé au webhook <code className="font-mono text-xs">REMINDER_WEBHOOK_URL</code> (Slack, Discord ou ntfy) s&apos;il est configuré.
             </p>
+          </Card>
+
+          <Card title="Comptes">
+            <p className="mb-3 text-sm text-ink-2">
+              Deux comptes aux accès identiques. Chacun se connecte avec son mot de passe (variables Railway <code className="font-mono text-xs">ADMIN_PASSWORD</code> et{" "}
+              <code className="font-mono text-xs">PARTNER_PASSWORD</code>) ; chaque action est enregistrée à son nom et affichée « par … ». Avec le compte partenaire actif, chaque achat doit être approuvé par vous deux (page Achats à deux).
+            </p>
+            <UsersForm />
           </Card>
 
           <Card title="Modèles de notes">

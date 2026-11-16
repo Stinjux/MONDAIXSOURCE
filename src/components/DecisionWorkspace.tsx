@@ -70,6 +70,7 @@ export function DecisionWorkspace({
   }, []);
 
   const byId = useMemo(() => new Map(rows.map((r) => [r.productId, r])), [rows]);
+  const approvals = useMemo(() => Object.fromEntries(leads.map((l) => [l.productId, l.buy ?? null])), [leads]);
   const lines = Object.entries(cart).filter(([id]) => byId.has(id));
   const units = lines.reduce((n, [, l]) => n + l.qty, 0);
   const total = lines.reduce((n, [id, l]) => n + (cartLineValues(byId.get(id)!, l, tax).subtotal ?? 0), 0);
@@ -174,7 +175,7 @@ export function DecisionWorkspace({
             <button type="button" className="btn-ghost self-end px-2 py-1 text-xs" onClick={() => setCartOpen(false)}>
               <X size={14} /> Fermer <span className="text-ink-3">(Échap)</span>
             </button>
-            <Cart rows={rows} cart={cart} setCart={setCart} budget={budget} setBudget={setBudget} tax={tax} />
+            <Cart rows={rows} cart={cart} setCart={setCart} budget={budget} setBudget={setBudget} tax={tax} approvals={approvals} />
           </div>
         </div>
       )}

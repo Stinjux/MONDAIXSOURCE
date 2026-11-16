@@ -3,6 +3,14 @@
 
 export const PREFS_STORAGE_KEY = "mondaix.buyDecisions.v1";
 
+/** Clé du navigateur propre à chaque compte (le propriétaire garde la clé d'origine). */
+export const prefsStorageKeyFor = (user: "owner" | "partner") => (user === "partner" ? `${PREFS_STORAGE_KEY}.partner` : PREFS_STORAGE_KEY);
+
+/** Clé du compte connecté, fixée par le script de démarrage (navigateur). */
+export function currentPrefsKey(): string {
+  return (typeof window !== "undefined" && (window as unknown as { __mondaixPrefsKey?: string }).__mondaixPrefsKey) || PREFS_STORAGE_KEY;
+}
+
 /**
  * Script exécuté avant l'affichage : applique la version la plus récente (base ou navigateur).
  * Un panier enregistré dans ce navigateur avant la synchronisation est fusionné, jamais perdu.
@@ -10,7 +18,7 @@ export const PREFS_STORAGE_KEY = "mondaix.buyDecisions.v1";
  */
 export function prefsBootScript(server: { data: Record<string, unknown>; updatedAt: number } | null, key = PREFS_STORAGE_KEY) {
   const s = JSON.stringify(server).replace(/</g, "\\u003c");
-  return `try{var k=${JSON.stringify(key)},s=${s},l=JSON.parse(localStorage.getItem(k)||"null");
+  return `try{var k=${JSON.stringify(key)};window.__mondaixPrefsKey=k;var s=${s},l=JSON.parse(localStorage.getItem(k)||"null");
 if(l&&!l.updatedAt&&s&&s.data){var m=s.data,lc=l.cart||{};m.cart=m.cart||{};for(var id in lc){if(!m.cart[id])m.cart[id]=lc[id]}m.updatedAt=Date.now();localStorage.setItem(k,JSON.stringify(m));window.__mondaixPushPrefs=true}
 else if(s&&s.data&&(!l||!(l.updatedAt>=s.updatedAt))){var d=s.data;d.updatedAt=s.updatedAt;localStorage.setItem(k,JSON.stringify(d))}
 else if(l&&(!s||l.updatedAt>s.updatedAt)){window.__mondaixPushPrefs=true}}catch(e){}`;

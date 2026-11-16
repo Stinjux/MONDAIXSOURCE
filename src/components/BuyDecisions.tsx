@@ -11,7 +11,8 @@ import { FilterPanel, VerdictChips, countVerdicts, readSaved, useDecisionFilters
 import type { DecisionRow } from "@/lib/decisionRows";
 import { cad, num, pct } from "@/lib/format";
 import { NO_TAX, maxCost, type TaxConfig } from "@/lib/profit";
-import { Asin, Badge, EmptyState, ReviewBadge, Supplier, cn } from "./ui";
+import { Asin, Badge, EmptyState, ReviewBadge, Supplier, UserAvatar, cn } from "./ui";
+import { useUser } from "./UserContext";
 import { ProductImage } from "./ProductImage";
 import { TagChips } from "./NotePicker";
 import type { NoteTemplates } from "@/lib/noteTemplates";
@@ -100,6 +101,7 @@ export function BuyDecisions({
     () => new Map(ranked.map((r) => [r.productId, maxCost({ salePrice: r.amazonPrice, fbaFee: r.fees }, thresholds, tax)])),
     [ranked, thresholds, tax],
   );
+  const { me, profiles } = useUser();
   const statusOf = (r: (typeof ranked)[number]) =>
     decided[r.productId] ?? (r.reviewStatus === "VALIDATED" || r.reviewStatus === "REJECTED" ? r.reviewStatus : null);
 
@@ -395,6 +397,11 @@ export function BuyDecisions({
                             <Badge tone={decision === "VALIDATED" ? "good" : "critical"} icon={decision === "VALIDATED" ? <ShoppingCart size={11} /> : <CircleSlash size={11} />}>
                               {decision === "VALIDATED" ? "Achat" : "Rejeté"}
                             </Badge>
+                            {(decided[r.productId] ? me : r.reviewedBy) && (
+                              <span className="ml-1 align-middle">
+                                <UserAvatar profile={profiles[(decided[r.productId] ? me : r.reviewedBy)!]} size={18} title={`Décidé par ${profiles[(decided[r.productId] ? me : r.reviewedBy)!].name}`} />
+                              </span>
+                            )}
                           </a>
                         ) : (
                           <span className="flex gap-1">
