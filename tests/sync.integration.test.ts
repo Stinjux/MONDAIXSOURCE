@@ -308,3 +308,24 @@ test("commandes : un onglet LEADS lu par erreur n'importe rien", { skip }, async
   assert.match(res.message ?? "", /ressemble à LEADS/);
   assert.equal(await db.supplierOrder.count(), 0);
 });
+
+test("migration : la décision la plus récente l'emporte, LEADS et OUT OF STOCK confondus", { skip }, async () => {
+  const lead = (id: string, source: string, asin: string, reviewStatus: string, reviewedAt: string) => ({
+    id, source, sourceRow: Number(id.slice(1)) + 1, key: id, asin, supplierKey: id, name: `Ancien ${asin}`, supplierUrl: `https://www.walmart.ca/ip/${id}`,
+    firstSeenAt: new Date("2026-09-01T14:00:00Z"), reviewStatus, reviewedAt: new Date(reviewedAt),
+  });
+  await db.legacyLead.createMany({
+    data: [
+      // Validé puis rejeté plus tard (même Sheet)
+      lead("l1", "LEADS", "B0MMMMMMM1", "REVIEWED", "2026-09-05T14:00:00Z"),
+      lead("l2", "LEADS", "B0MMMMMMM1", "REJECTED", "2026-09-20T14:00:00Z"),
+      // Rejeté dans LEADS, puis validé plus tard dans OUT OF STOCK
+      lead("l3", "LEADS", "B0MMMMMMM2", "REJECTED", "2026-09-05T14:00:00Z"),
+      lead("l4", "OUT_OF_STOCK", "B0MMMMMMM2", "REVIEWED", "2026-09-25T14:00:00Z"),
+    ],
+  });
+  await run({ LEADS: BASE_LEADS, OUT_OF_STOCK: BASE_OOS });
+  const status = async (asin: string) => (await db.product.findUniqueOrThrow({ where: { asin } })).reviewStatus;
+  assert.equal(await status("B0MMMMMMM1"), "REJECTED");
+  assert.equal(await status("B0MMMMMMM2"), "VALIDATED");
+});

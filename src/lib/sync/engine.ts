@@ -519,6 +519,7 @@ export async function migrateLegacy(opts: SyncOptions = {}): Promise<SyncResult[
   if (await db.appSetting.findUnique({ where: { key: "legacy.migratedAt" } })) return [];
   const legacy = await db.legacyLead.findMany({ orderBy: [{ sourceRow: "asc" }] });
   const results: SyncResult[] = [];
+  const decisions: { asin: string; status: string; at: Date | null }[] = [];
   for (const source of ["LEADS", "OUT_OF_STOCK"] as SheetSource[]) {
     const leads = legacy.filter((l) => l.source === source);
     if (!leads.length) continue;
@@ -550,18 +551,18 @@ export async function migrateLegacy(opts: SyncOptions = {}): Promise<SyncResult[
     );
     await ing.finish({ markMissing: false, validRows: items.length });
 
-    // Statuts de revue : la décision la plus récente par ASIN
-    const decided = items
-      .filter((i) => LEGACY_STATUS[i.lead.reviewStatus])
-      .sort((a, b) => (a.lead.reviewedAt?.getTime() ?? 0) - (b.lead.reviewedAt?.getTime() ?? 0));
-    for (const i of decided) {
-      await db.product.updateMany({
-        where: { asin: i.row.asin, reviewStatus: "TO_REVIEW" },
-        data: { reviewStatus: LEGACY_STATUS[i.lead.reviewStatus], reviewedAt: i.lead.reviewedAt ?? now },
-      });
-    }
+    decisions.push(...items.filter((i) => LEGACY_STATUS[i.lead.reviewStatus]).map((i) => ({ asin: i.row.asin, status: i.lead.reviewStatus, at: i.lead.reviewedAt })));
     await db.importRun.update({ where: { id: run.id }, data: { ...ing.counters, status: "SUCCESS", finishedAt: new Date(), details: `${leads.length} lignes migrées depuis la table historique Lead` } });
     results.push({ source, runId: run.id, status: "SUCCESS", ...ing.counters });
+  }
+  // Statuts de revue : pour chaque ASIN, la décision la plus récente, LEADS et OUT OF STOCK confondus.
+  // Les plus récentes d'abord : le filtre « encore à revoir » empêche une plus ancienne de la remplacer.
+  decisions.sort((a, b) => (b.at?.getTime() ?? 0) - (a.at?.getTime() ?? 0));
+  for (const d of decisions) {
+    await db.product.updateMany({
+      where: { asin: d.asin, reviewStatus: "TO_REVIEW" },
+      data: { reviewStatus: LEGACY_STATUS[d.status], reviewedAt: d.at ?? now },
+    });
   }
   await db.appSetting.upsert({ where: { key: "legacy.migratedAt" }, create: { key: "legacy.migratedAt", value: now.toISOString() }, update: {} });
   return results;

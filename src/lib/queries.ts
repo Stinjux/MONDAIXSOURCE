@@ -3,7 +3,7 @@
 import "server-only";
 import { prisma } from "./prisma";
 import { config } from "./config";
-import { recentWeekKeys, weekBoundsFromKey, weekKey } from "./dates";
+import { parseSheetDate, recentWeekKeys, weekBoundsFromKey, weekKey } from "./dates";
 import { duplicateAlertActive, duplicateFlags, type DuplicateFlags } from "./duplicates";
 import { isDecided, parseChecklist, type Checklist } from "./labels";
 import { amazonPrice, columnEPrice, preliminaryProfit, type ProfitResult } from "./profit";
@@ -88,6 +88,11 @@ export type ProductView = {
 
 export type DuplicateEvent = { productId: string; kind: string; source: string; firstImportedAt: string };
 
+/** Export Date actuelle (colonne G) de chaque ligne, lue comme à la synchronisation. */
+function withExportDates<T extends { exportDate: string | null }>(occurrences: T[], now: Date) {
+  return occurrences.map((o) => ({ ...o, exportedAt: parseSheetDate(o.exportDate, { order: config.dateOrder, now }) }));
+}
+
 export async function loadProducts(now = new Date(), filter: { asin?: string } = {}) {
   const tax = await getTaxConfig();
   const products = await prisma.product.findMany({
@@ -96,7 +101,7 @@ export async function loadProducts(now = new Date(), filter: { asin?: string } =
     include: {
       offers: { orderBy: { firstSeenAt: "asc" } },
       occurrences: {
-        select: { offerId: true, source: true, present: true, kind: true, discoveredAt: true, firstImportedAt: true, lastImportedAt: true, availability: true, notes: true, sheetRoi: true, sheetProfit: true },
+        select: { offerId: true, source: true, present: true, kind: true, discoveredAt: true, exportDate: true, firstImportedAt: true, lastImportedAt: true, availability: true, notes: true, sheetRoi: true, sheetProfit: true },
       },
     },
   });
@@ -143,7 +148,7 @@ export async function loadProducts(now = new Date(), filter: { asin?: string } =
         profit: preliminaryProfit({ ...o, salePrice: amazonPrice(o) }, tax),
       };
     });
-    const exportedAt = lastExportDate(p.occurrences, p.lastSeenAt);
+    const exportedAt = lastExportDate(withExportDates(p.occurrences, now), p.lastSeenAt);
     const ranked = offers.filter((o) => o.profit.roi !== null).sort((a, b) => b.profit.roi! - a.profit.roi!);
     return {
       id: p.id,
@@ -271,7 +276,7 @@ export async function navCounts(now = new Date()) {
     // Leads à reconfirmer : mêmes règles que l'écran « À reconfirmer » (hors rejetés et achetés)
     prisma.product.findMany({
       where: { reviewStatus: { not: "REJECTED" } },
-      select: { id: true, lastSeenAt: true, confirmedAt: true, occurrences: { select: { source: true, discoveredAt: true } } },
+      select: { id: true, lastSeenAt: true, confirmedAt: true, occurrences: { select: { source: true, discoveredAt: true, exportDate: true } } },
     }),
     purchasedProducts(),
   ]);
@@ -279,6 +284,6 @@ export async function navCounts(now = new Date()) {
     duplicates: duplicates.filter((p) => duplicateAlertActive(p.lastDuplicateAt, p.duplicateAckAt)).length,
     review,
     backInStock: backInStock.filter((o) => duplicateAlertActive(o.backInStockAt, o.backInStockAckAt)).length,
-    reconfirm: active.filter((p) => !purchased.has(p.id) && freshness(freshSince(lastExportDate(p.occurrences, p.lastSeenAt), p.confirmedAt), now).state === "STALE").length,
+    reconfirm: active.filter((p) => !purchased.has(p.id) && freshness(freshSince(lastExportDate(withExportDates(p.occurrences, now), p.lastSeenAt), p.confirmedAt), now).state === "STALE").length,
   };
 }

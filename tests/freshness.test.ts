@@ -26,3 +26,11 @@ test("fraîcheur : dernier export LEADS, puis reconfirmation", () => {
   // Produit vu seulement dans OUT OF STOCK : sa date d'import sert de repère
   assert.equal(lastExportDate([{ source: "OUT_OF_STOCK", discoveredAt: daysAgo(5) }])?.toISOString(), daysAgo(5).toISOString());
 });
+
+test("fraîcheur : une ligne déjà connue ré-exportée (colonne G plus récente) redevient à jour", () => {
+  const occs = [{ source: "LEADS", discoveredAt: daysAgo(40), exportedAt: daysAgo(2) }];
+  assert.equal(lastExportDate(occs)?.toISOString(), daysAgo(2).toISOString());
+  assert.equal(freshness(freshSince(lastExportDate(occs), null), NOW).state, "FRESH");
+  // Export Date illisible : la date de découverte reste le repère
+  assert.equal(lastExportDate([{ source: "LEADS", discoveredAt: daysAgo(40), exportedAt: null }])?.toISOString(), daysAgo(40).toISOString());
+});

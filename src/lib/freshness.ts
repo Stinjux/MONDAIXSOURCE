@@ -22,9 +22,17 @@ const latest = (dates: (Date | string | null | undefined)[]): Date | null => {
   return best;
 };
 
-/** Date du dernier export : lignes LEADS d'abord, sinon toute ligne importée. */
-export function lastExportDate(occurrences: { source: string; discoveredAt: Date | string }[], fallback?: Date | string | null): Date | null {
-  return latest(occurrences.filter((o) => o.source === "LEADS").map((o) => o.discoveredAt)) ?? latest(occurrences.map((o) => o.discoveredAt)) ?? latest([fallback]);
+/**
+ * Date du dernier export : lignes LEADS d'abord, sinon toute ligne importée. Pour une ligne déjà connue,
+ * `exportedAt` est son Export Date actuelle (colonne G, lue à chaque synchronisation) : une ligne
+ * ré-exportée redevient donc à jour, même si elle a été découverte il y a plus de 30 jours.
+ */
+export function lastExportDate(
+  occurrences: { source: string; discoveredAt: Date | string; exportedAt?: Date | string | null }[],
+  fallback?: Date | string | null,
+): Date | null {
+  const dates = (os: typeof occurrences) => os.flatMap((o) => [o.discoveredAt, o.exportedAt]);
+  return latest(dates(occurrences.filter((o) => o.source === "LEADS"))) ?? latest(dates(occurrences)) ?? latest([fallback]);
 }
 
 /** Date de référence : la plus récente entre le dernier export et la dernière reconfirmation. */
