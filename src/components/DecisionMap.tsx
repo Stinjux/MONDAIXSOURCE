@@ -7,7 +7,9 @@ import { CartesianGrid, ReferenceArea, ReferenceLine, ResponsiveContainer, Scatt
 import { ExternalLink, Maximize2, ShoppingCart, SquareStack, X } from "lucide-react";
 import { VERDICT_LABELS, type Verdict } from "@/lib/decision";
 import { evaluateRow, inScope, matchesVerdict, type DecisionFilters } from "@/lib/decisionFilters";
-import { DEFAULT_MAP, MAP_METRICS, MAP_METRIC_KEYS, mapPoints, parseMapConfig, type MapConfig, type MapMetric, type MapPoint } from "@/lib/decisionMap";
+import { DEFAULT_MAP, MAP_METRICS, MAP_METRIC_KEYS, MAP_PERIODS, mapPoints, niceDomain, parseMapConfig, type MapConfig, type MapMetric, type MapPeriod, type MapPoint } from "@/lib/decisionMap";
+import { weekKey } from "@/lib/dates";
+import { amount } from "@/lib/normalize";
 import type { DecisionRow } from "@/lib/decisionRows";
 import { readSaved, writeSaved } from "./DecisionFilters";
 import { ProductImage } from "./ProductImage";
@@ -119,10 +121,16 @@ export function DecisionMap({
 
   const t = filters.thresholds;
   const pool = useMemo(
-    () => rows.map((r) => evaluateRow(r, t)).filter((r) => r.reviewStatus !== "REJECTED" && inScope(r, filters, currentWeek) && matchesVerdict(r.verdict, filters.verdict)),
+    () =>
+      rows
+        .map((r) => ({ ...evaluateRow(r, t), week: r.goalWeek ?? weekKey(new Date(r.firstSeenAt)) }))
+        .filter((r) => r.reviewStatus !== "REJECTED" && inScope(r, filters, currentWeek) && matchesVerdict(r.verdict, filters.verdict)),
     [rows, t, filters, currentWeek],
   );
-  const { points, missing, trimmed } = useMemo(() => mapPoints(pool, config), [pool, config]);
+  const { points, missing, trimmed, outOfPeriod, aboveRoiMax } = useMemo(() => mapPoints(pool, config, currentWeek), [pool, config, currentWeek]);
+  // Champ ROI max saisi librement, appliqué dès qu'il est lisible (vide = pas de limite)
+  const [roiMaxText, setRoiMaxText] = useState("");
+  useEffect(() => setRoiMaxText(config.roiMax == null ? "" : String(config.roiMax)), [config.roiMax]);
   const visible = points.filter((p) => !hidden.has(p.row.verdict));
   const maxZ = Math.max(0, ...visible.map((p) => p.z));
   const radius = (p: MapPoint) => (config.size === "none" || maxZ <= 0 ? 7 : 5 + Math.sqrt(p.z / maxZ) * 17);
@@ -133,11 +141,42 @@ export function DecisionMap({
   const my = MAP_METRICS[config.y];
   const tx = mx.threshold?.(t);
   const ty = my.threshold?.(t);
+  const dx = niceDomain([...visible.map((p) => p.x), ...(tx != null ? [tx] : [])]);
+  const dy = niceDomain([...visible.map((p) => p.y), ...(ty != null ? [ty] : [])]);
+  const ticksOf = (d: { min: number; max: number; step: number }) => Array.from({ length: Math.round((d.max - d.min) / d.step) + 1 }, (_, i) => d.min + i * d.step);
 
   return (
     <div className="flex flex-col gap-3">
       {/* Paramètres */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border border-line bg-surface px-3 py-2.5">
+        <label className="flex items-center gap-1.5 text-xs text-ink-2">
+          <span className="font-semibold tracking-[0.06em] uppercase">Période</span>
+          <select className="field w-auto py-1 text-sm" value={config.period} onChange={(e) => set({ period: e.target.value as MapPeriod })}>
+            {MAP_PERIODS.map((p) => (
+              <option key={p.key} value={p.key}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-1.5 text-xs text-ink-2" title="Les leads au ROI plus élevé ne sont pas placés : ils écrasent l'échelle de la carte">
+          <span className="font-semibold tracking-[0.06em] uppercase">ROI max</span>
+          <span className="relative">
+            <input
+              className="field w-20 py-1 pr-6 text-right text-sm tabular-nums"
+              inputMode="decimal"
+              placeholder="aucun"
+              value={roiMaxText}
+              onChange={(e) => {
+                setRoiMaxText(e.target.value);
+                const v = e.target.value.trim() ? amount(e.target.value) : null;
+                if (v === null || (v !== undefined && v > 0)) set({ roiMax: v ?? null });
+              }}
+              aria-label="ROI maximum affiché"
+            />
+            <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-xs text-ink-3">%</span>
+          </span>
+        </label>
         <MetricSelect label="Axe vertical" value={config.y} onChange={(v) => set({ y: v as MapMetric })} />
         <MetricSelect label="Axe horizontal" value={config.x} onChange={(v) => set({ x: v as MapMetric })} />
         <MetricSelect label="Taille" value={config.size} onChange={(v) => set({ size: v })} allowNone />
@@ -179,13 +218,13 @@ export function DecisionMap({
               <ScatterChart margin={{ top: 16, right: 16, bottom: 28, left: 8 }}>
                 <CartesianGrid stroke={GRID} strokeDasharray="3 4" />
                 {/* Zone où les deux critères minimum sont atteints */}
-                {/* Sans x2 la zone va jusqu'au bord droit ; y2 très grand puis rogné au cadre : jusqu'en haut */}
-                {tx != null && ty != null && <ReferenceArea x1={tx} y1={ty} y2={1e9} fill="#1b7a3d" fillOpacity={0.06} stroke="none" ifOverflow="hidden" />}
+                {tx != null && ty != null && <ReferenceArea x1={tx} x2={dx.max} y1={ty} y2={dy.max} fill="#1b7a3d" fillOpacity={0.06} stroke="none" />}
                 <XAxis
                   type="number"
                   dataKey="x"
                   name={mx.label}
-                  domain={["auto", "auto"]}
+                  domain={[dx.min, dx.max]}
+                  ticks={ticksOf(dx)}
                   tickFormatter={tick(config.x)}
                   stroke={AXIS}
                   tick={{ fill: AXIS, fontSize: 11 }}
@@ -197,7 +236,8 @@ export function DecisionMap({
                   type="number"
                   dataKey="y"
                   name={my.label}
-                  domain={["auto", "auto"]}
+                  domain={[dy.min, dy.max]}
+                  ticks={ticksOf(dy)}
                   tickFormatter={tick(config.y)}
                   stroke={AXIS}
                   tick={{ fill: AXIS, fontSize: 11 }}
@@ -207,10 +247,10 @@ export function DecisionMap({
                   label={{ value: my.label, angle: -90, position: "insideLeft", offset: 10, fill: "#46566c", fontSize: 12, style: { textAnchor: "middle" } }}
                 />
                 {tx != null && (
-                  <ReferenceLine x={tx} stroke={AXIS} strokeDasharray="5 4" ifOverflow="extendDomain" label={{ value: `min ${mx.format(tx)}`, position: "top", fill: AXIS, fontSize: 11 }} />
+                  <ReferenceLine x={tx} stroke={AXIS} strokeDasharray="5 4" label={{ value: `min ${mx.format(tx)}`, position: "top", fill: AXIS, fontSize: 11 }} />
                 )}
                 {ty != null && (
-                  <ReferenceLine y={ty} stroke={AXIS} strokeDasharray="5 4" ifOverflow="extendDomain" label={{ value: `min ${my.format(ty)}`, position: "insideTopRight", fill: AXIS, fontSize: 11 }} />
+                  <ReferenceLine y={ty} stroke={AXIS} strokeDasharray="5 4" label={{ value: `min ${my.format(ty)}`, position: "insideTopRight", fill: AXIS, fontSize: 11 }} />
                 )}
                 <Tooltip
                   cursor={{ strokeDasharray: "3 3", stroke: AXIS }}
@@ -255,6 +295,8 @@ export function DecisionMap({
           )}
           <p className="mt-1 text-[11px] text-ink-3">
             {visible.length} lead{visible.length > 1 ? "s" : ""} sur la carte
+            {config.period !== "all" && ` (${MAP_PERIODS.find((p) => p.key === config.period)!.label.toLowerCase()}, ${outOfPeriod} plus ancien${outOfPeriod > 1 ? "s" : ""} non affiché${outOfPeriod > 1 ? "s" : ""})`}
+            {aboveRoiMax > 0 && ` · ${aboveRoiMax} au-dessus de ${config.roiMax} % de ROI masqué${aboveRoiMax > 1 ? "s" : ""}`}
             {missing > 0 && ` · ${missing} sans ${[mx, my].map((m) => lower(m.label)).join(" ou ")}, non placé${missing > 1 ? "s" : ""}`}
             {trimmed > 0 && ` · ${trimmed} valeur${trimmed > 1 ? "s" : ""} extrême${trimmed > 1 ? "s" : ""} masquée${trimmed > 1 ? "s" : ""}`}
             {tx != null && ty != null && " · zone verte : vos deux critères minimum atteints"}. Filtres et critères : bouton « Classement et critères ».
