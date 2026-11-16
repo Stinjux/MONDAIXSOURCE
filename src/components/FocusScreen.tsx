@@ -5,7 +5,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import {
-  ArrowLeft, ArrowRight, CheckCircle2, CircleSlash, ExternalLink, Eye, Keyboard, LineChart, Lock, Minus, PackageCheck, Plus, RefreshCw, ShoppingCart, Star, StickyNote,
+  AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, ChevronDown, CircleSlash, ExternalLink, Eye, Keyboard, LineChart, Lock, Minus, PackageCheck, Plus, RefreshCw, ShoppingCart, Star, StickyNote,
 } from "lucide-react";
 import { castBuyVote, reconfirmLead, saveLeadNotes, setReviewStatus } from "@/app/(app)/actions";
 import type { NoteTemplates } from "@/lib/noteTemplates";
@@ -46,6 +46,7 @@ type Undo = { label: string; name: string; index: number; productId: string; und
 export function FocusScreen({
   leads, mode, tax, currentWeek, startAsin, cartApi, templates,
 }: { leads: FocusLead[]; mode: FocusMode; tax: TaxConfig; currentWeek: string; startAsin?: string | null; cartApi?: CartApi; templates?: NoteTemplates }) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const { filters, loaded } = useDecisionFilters();
   const latest = useMemo(() => new Map(leads.map((l) => [l.productId, l])), [leads]);
   // Copie des leads de la file : un lead décidé peut disparaître des données de la page
@@ -190,6 +191,8 @@ export function FocusScreen({
           }}
           onSkip={() => setIndex((i) => i + 1)}
           onPrev={index > 0 ? () => setIndex((i) => i - 1) : undefined}
+          detailsOpen={detailsOpen}
+          onDetails={setDetailsOpen}
         />
       )}
       {last && (
@@ -207,7 +210,7 @@ export function FocusScreen({
 }
 
 function LeadPanel({
-  lead, mode, tax, thresholds, outcome, rows, cartApi, templates, onDone, onSkip, onPrev,
+  lead, mode, tax, thresholds, outcome, rows, cartApi, templates, onDone, onSkip, onPrev, detailsOpen = false, onDetails = () => {},
 }: {
   lead: FocusLead;
   mode: FocusMode;
@@ -220,6 +223,9 @@ function LeadPanel({
   onDone: (o: Outcome, undo?: () => Promise<{ ok: boolean; error?: string }>) => void;
   onSkip: () => void;
   onPrev?: () => void;
+  /** Buy Decisions : menu « Détails » ouvert (fermé au départ, garde son état d'un lead à l'autre) */
+  detailsOpen?: boolean;
+  onDetails?: (open: boolean) => void;
 }) {
   const initialCost = (o: FocusLead["offers"][number]) => toField(o.verifiedCost ?? o.importedCost);
   const [sale, setSale] = useState(toField(lead.row.amazonPrice));
@@ -390,203 +396,274 @@ function LeadPanel({
 
   const keepa = `https://keepa.com/#!product/6-${lead.asin}`;
 
+  // Blocs de l'écran (réutilisés par les deux dispositions)
+  const productBlock = (
+    <>
+      {/* Produit */}
+      <section className="rounded-md border border-line bg-surface p-4">
+        <div className="flex gap-4">
+          <ProductImage asin={lead.asin} size={112} />
+          <div className="min-w-0 flex-1">
+            <Link href={`/leads/${lead.asin}`} className="line-clamp-2 text-lg font-semibold text-ink hover:text-accent hover:underline">{lead.name}</Link>
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              <span className="font-mono text-xs text-ink-2">{lead.asin}</span>
+              <FreshnessPill fresh={confirmedNow ? { ...lead.row.fresh, state: "FRESH", ageDays: 0, daysLeft: 30 } : lead.row.fresh} />
+              <Badge>{REVIEW_LABELS[lead.reviewStatus as ReviewStatus] ?? lead.reviewStatus}</Badge>
+              {lead.reviewedBy && lead.reviewStatus !== "TO_REVIEW" && <ByUser profile={profiles[lead.reviewedBy]} />}
+              {partnerEnabled && lead.buy && <BuyStateBadge status={lead.buy} />}
+              {lead.restricted && <Badge tone="serious" icon={<Lock size={10} />}>Restreint</Badge>}
+              {inCart > 0 && <Badge tone="accent" icon={<ShoppingCart size={10} />}>{inCart} au panier</Badge>}
+              {outcome && <Badge tone="good">{OUTCOME_LABEL[outcome]}</Badge>}
+            </div>
+            <p className="mt-1 text-xs text-ink-3">{confirmedNow ? "Reconfirmé à l'instant" : freshnessText(lead.row.fresh)}</p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <a href={lead.amazonUrl} target="_blank" rel="noreferrer" className="btn-ghost px-2 py-1 text-xs"><ExternalLink size={12} /> Amazon.ca</a>
+              <a href={keepa} target="_blank" rel="noreferrer" className="btn-ghost px-2 py-1 text-xs"><LineChart size={12} /> Keepa</a>
+              {lead.offers.filter((o) => o.url).map((o) => (
+                <a key={o.id} href={o.url!} target="_blank" rel="noreferrer" className="btn-ghost max-w-48 px-2 py-1 text-xs"><ExternalLink size={12} /> <span className="truncate">{storeName({ supplierName: o.supplier, supplierUrl: o.url })}</span></a>
+              ))}
+            </div>
+          </div>
+        </div>
+        {!templates && lead.notes && (
+          <p className="mt-3 flex items-start gap-1.5 rounded-sm bg-page/60 px-3 py-2 text-xs text-ink-2">
+            <StickyNote size={12} className="mt-0.5 shrink-0 text-warning" /> {lead.notes}
+          </p>
+        )}
+      </section>
+
+    </>
+  );
+  const valuesBlock = (
+    <>
+      {/* Valeurs à vérifier */}
+      <section className="rounded-md border border-line bg-surface p-4">
+        <h2 className="text-sm font-semibold text-ink">Amazon</h2>
+        <div className="mt-2 grid gap-3 sm:grid-cols-2">
+          <MoneyField label="Prix Amazon (Buy Box)" value={sale} onChange={setSale} initial={toField(lead.row.amazonPrice)} hint={lead.row.priceE} />
+          <MoneyField label="Total Fees" value={fees} onChange={setFees} initial={toField(lead.row.fees)} />
+        </div>
+        <h2 className="mt-4 text-sm font-semibold text-ink">Fournisseurs</h2>
+        <ul className="mt-2 flex flex-col gap-2">
+          {offers.map((r) => {
+            const o = r.offer;
+            const isBest = best?.offer.id === o.id && offers.length > 1;
+            return (
+              <li key={o.id} className={cn("grid items-end gap-2 rounded-sm border p-2.5 sm:grid-cols-[minmax(0,1fr)_140px_auto_64px]", isBest ? "border-accent/50 bg-accent/5" : "border-line")}>
+                <div className="min-w-0 text-sm">
+                  <span className="flex items-center gap-1 font-medium text-ink">
+                    {isBest && <Star size={12} className="shrink-0 fill-accent text-accent" aria-label="Meilleure offre" />}
+                    <span className="min-w-0 truncate"><Supplier name={o.supplier} url={o.url} product={lead.name} /></span>
+                  </span>
+                  {r.unavailable && <span className="text-[11px] text-critical">En rupture</span>}
+                  {o.currency !== "CAD" && costs[o.id] === initialCost(o) && <span className="text-[11px] text-warning">Coût en {o.currency}</span>}
+                </div>
+                <MoneyField label="Coût" value={costs[o.id]} onChange={(v) => setCosts((c) => ({ ...c, [o.id]: v }))} initial={initialCost(o)} compact />
+                <div className="flex gap-1" role="group" aria-label={`Disponibilité chez ${o.supplier}`}>
+                  {(["IN_STOCK", "OUT_OF_STOCK"] as const).map((a) => (
+                    <button
+                      key={a}
+                      type="button"
+                      aria-pressed={avail[o.id] === a}
+                      onClick={() => setAvail((s) => ({ ...s, [o.id]: s[o.id] === a ? null : a }))}
+                      className={cn(
+                        "rounded-sm border px-2 py-1.5 text-xs whitespace-nowrap",
+                        avail[o.id] === a ? (a === "IN_STOCK" ? "border-good/60 bg-good/15 text-good" : "border-critical/60 bg-critical/15 text-critical") : "border-line text-ink-3 hover:text-ink",
+                      )}
+                    >
+                      {a === "IN_STOCK" ? "En stock" : "Rupture"}
+                    </button>
+                  ))}
+                </div>
+                <span className={cn("text-right text-sm font-semibold tabular-nums", r.metrics.roi != null && r.metrics.roi < thresholds.minRoi ? "text-critical" : "text-good")} title="ROI avec ce fournisseur">
+                  {pct(r.metrics.roi, 0)}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+        <p className="mt-2 text-[11px] text-ink-3">Modifiez seulement ce qui a changé : les nouvelles valeurs sont enregistrées comme vérifiées, les valeurs de la Sheet restent intactes.</p>
+      </section>
+
+    </>
+  );
+  const notesBlock = (
+    <>
+      {templates && (
+        <section className="rounded-md border border-line bg-surface p-4">
+          <div className="mb-2.5 flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-ink">Notes et motifs</h2>
+            {notesDirty && <span className="text-[11px] text-accent">Enregistrés avec votre décision</span>}
+          </div>
+          <NotePicker templates={templates} tags={tags} onTags={setTags} notes={notes} onNotes={setNotes} />
+        </section>
+      )}
+    </>
+  );
+  const resultBlock = (
+    <>
+      <section className="rounded-md border border-line bg-surface p-4">
+        <div className="flex items-center justify-between gap-2">
+          <Badge tone={VERDICT_TONE[evaluated.verdict]}>{VERDICT_LABELS[evaluated.verdict]}</Badge>
+          {best?.score != null && <span className="text-xs text-ink-3">Score <b className="text-base text-ink tabular-nums">{best.score}</b>/100</span>}
+        </div>
+        {evaluated.reasons.length > 0 && <p className="mt-1.5 text-[11px] leading-snug text-ink-3">{evaluated.reasons.join(" · ")}</p>}
+        {best?.issue && <p className="mt-1.5 text-[11px] text-warning">{best.issue}</p>}
+        <div className="mt-3 flex flex-col gap-2.5">
+          <Gauge label="ROI" value={metrics.roi} before={before?.metrics.roi} threshold={thresholds.minRoi} format={(v) => pct(v, 0)} />
+          <Gauge label="Marge" value={metrics.margin} before={before?.metrics.margin} threshold={thresholds.minMargin} format={(v) => pct(v, 0)} />
+          <Gauge label="Profit / unité" value={metrics.profit} before={before?.metrics.profit} threshold={thresholds.minProfit} format={cad} />
+          <Gauge label="Ventes / mois" value={metrics.estimatedSales} threshold={thresholds.minSales} format={(v) => num(v)} />
+        </div>
+        <div className="mt-3 flex items-baseline justify-between border-t border-line pt-3 text-xs">
+          <span className="text-ink-3">Profit mensuel (annonce)</span>
+          <span className="text-sm font-semibold tabular-nums text-ink">{cad(metrics.monthlyProfit)}</span>
+        </div>
+      </section>
+
+    </>
+  );
+  const actionsBlock = (
+    <>
+      <section className="rounded-md border border-line bg-surface p-4">
+        {mode === "decide" && (
+          <>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-ink-2">Quantité</span>
+              <span className="flex items-center gap-1">
+                <button type="button" className="btn-ghost px-2 py-1" aria-label="Moins" onClick={() => setQty((q) => Math.max(1, q - 1))}><Minus size={13} /></button>
+                <input className="field w-16 py-1 text-center tabular-nums" inputMode="numeric" value={qty} onChange={(e) => setQty(Math.max(1, Math.min(999, Math.floor(Number(e.target.value) || 1))))} aria-label="Quantité" />
+                <button type="button" className="btn-ghost px-2 py-1" aria-label="Plus" onClick={() => setQty((q) => Math.min(999, q + 1))}><Plus size={13} /></button>
+              </span>
+            </div>
+            <div className="mt-2 flex justify-between text-xs">
+              <span className="text-ink-3">Cette ligne</span>
+              <span className="tabular-nums"><b className="text-ink">{cad(thisCost)}</b> · profit <span className="text-good">{cad(metrics.profit == null ? null : metrics.profit * qty)}</span></span>
+            </div>
+            {budget != null && budget > 0 && (
+              <div className="mt-2">
+                <div className="flex justify-between text-[11px] text-ink-3">
+                  <span>Budget : panier {cad(cartCost)} + {cad(thisCost)}</span>
+                  <span className={cn("tabular-nums", cartCost + thisCost > budget ? "text-critical" : "text-ink-2")}>/ {cad(budget)}</span>
+                </div>
+                <div className="mt-1 flex h-2 overflow-hidden rounded-full bg-surface-3">
+                  <div className="h-full bg-accent" style={{ width: `${Math.min(100, (cartCost / budget) * 100)}%` }} />
+                  <div className={cn("h-full", cartCost + thisCost > budget ? "bg-critical" : "bg-accent/50")} style={{ width: `${Math.max(0, Math.min(100 - (cartCost / budget) * 100, (thisCost / budget) * 100))}%` }} />
+                </div>
+              </div>
+            )}
+            {stale && (
+                <p className="mt-3 rounded-sm border border-critical/40 bg-critical/10 px-2.5 py-2 text-[11px] text-critical">
+                  Données de plus de 30 jours : vérifiez les prix{" "}
+                  {detailsOpen ? "dans les détails" : (
+                    <button type="button" className="font-semibold underline" onClick={() => onDetails(true)}>
+                      (ouvrir les détails)
+                    </button>
+                  )}
+                  , puis reconfirmez pour pouvoir acheter.
+                </p>
+              )}
+          </>
+        )}
+
+        <div className={cn("flex flex-col gap-2", mode === "decide" && "mt-3")}>
+          {mode === "review" ? (
+            <button type="button" className="btn-primary w-full justify-center py-2.5" disabled={pending || invalid} onClick={validate}>
+              <CheckCircle2 size={16} /> {dirty ? "Enregistrer et valider" : "Valider"} <Kbd>Entrée</Kbd>
+            </button>
+          ) : mustConfirm ? (
+            <button type="button" className="btn-primary w-full justify-center py-2.5" disabled={pending || invalid} onClick={confirm}>
+              {dirty ? <RefreshCw size={16} /> : <CheckCircle2 size={16} />}
+              {dirty ? "Enregistrer et reconfirmer" : mode === "reconfirm" ? "Toujours bon" : "Reconfirmer"}
+              <Kbd>Entrée</Kbd>
+            </button>
+          ) : (
+            <>
+              <button type="button" className="btn-primary w-full justify-center py-2.5" disabled={pending || best?.cost == null} onClick={buy}>
+                <ShoppingCart size={16} /> {partnerEnabled && lead.buy?.waitingFor === me ? "Approuver l'achat" : "Acheter"} × {qty} <Kbd>A</Kbd>
+              </button>
+              {partnerEnabled && (
+                <p className="text-[11px] leading-snug text-ink-3">
+                  {lead.buy?.waitingFor === me && lead.buy.latest[otherUser(me)]
+                    ? `${profiles[otherUser(me)].name} a proposé cet achat${lead.buy.latest[otherUser(me)]!.quantity ? ` (${lead.buy.latest[otherUser(me)]!.quantity} u.)` : ""} : votre approbation le confirme.`
+                    : lead.buy?.state === "APPROVED"
+                      ? "Achat déjà approuvé par vous deux."
+                      : `« Acheter » enregistre votre approbation ; l'achat est confirmé quand ${profiles[otherUser(me)].name} approuve aussi.`}
+                </p>
+              )}
+            </>
+          )}
+          <div className={cn("grid gap-2", mode !== "reconfirm" ? "grid-cols-2" : "grid-cols-1")}>
+            {mode !== "reconfirm" && (
+              <button type="button" className="btn-ghost justify-center" disabled={pending} onClick={later} title="Mettre en veille (statut « À suivre »)">
+                <Eye size={14} /> À suivre <Kbd>P</Kbd>
+              </button>
+            )}
+            <button type="button" className="btn-ghost justify-center hover:border-critical/60 hover:text-critical" disabled={pending} onClick={reject}>
+              <CircleSlash size={14} /> Rejeter <Kbd>R</Kbd>
+            </button>
+          </div>
+          <div className="flex justify-between">
+            <button type="button" className="btn-ghost px-2 py-1 text-xs" disabled={!onPrev} onClick={onPrev}><ArrowLeft size={13} /> Précédent</button>
+            <button type="button" className="btn-ghost px-2 py-1 text-xs" onClick={onSkip}>Passer <ArrowRight size={13} /></button>
+          </div>
+        </div>
+        {invalid && <p className="mt-2 text-[11px] text-critical">Un montant saisi est invalide.</p>}
+        {error && <p className="mt-2 text-[11px] text-critical">{error}</p>}
+        <p className="mt-3 flex items-center gap-1.5 text-[10px] text-ink-3">
+          <Keyboard size={11} /> Entrée {mode === "reconfirm" ? "reconfirme" : "valide"}{mode === "review" ? " (ou V)" : ""} · Échap sort d&apos;un champ · R rejette
+          {mode === "decide" ? " · P à suivre · A achète · +/− quantité" : mode === "review" ? " · P à suivre" : ""} · ←/→ précédent / suivant
+        </p>
+      </section>
+    </>
+  );
+
+  // Buy Decisions : vue épurée — l'essentiel au centre, le reste dans « Détails » (fermé au départ)
+  if (mode === "decide") {
+    return (
+      <article className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+        {productBlock}
+        <DecisionHero metrics={metrics} thresholds={thresholds} verdict={evaluated.verdict} reasons={evaluated.reasons} score={best?.score ?? null} issue={best?.issue ?? null} />
+        <div className="mx-auto w-full max-w-xl">{actionsBlock}</div>
+        <section className="rounded-md border border-line bg-surface">
+          <button
+            type="button"
+            onClick={() => onDetails(!detailsOpen)}
+            aria-expanded={detailsOpen}
+            className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-semibold text-ink hover:bg-surface-2"
+          >
+            <ChevronDown size={16} className={cn("text-ink-3 transition", detailsOpen && "rotate-180")} />
+            Détails
+            <span className="font-normal text-ink-3">· prix Amazon et frais, fournisseurs, marge, notes</span>
+            {(dirty || notesDirty) && <span className="ml-auto text-[11px] font-medium text-accent">Modifications en cours</span>}
+          </button>
+          {detailsOpen && (
+            <div className="flex flex-col gap-4 border-t border-line p-4">
+              {/* Seule mesure absente du centre : la marge */}
+              <section className="rounded-md border border-line bg-surface p-4">
+                <Gauge label="Marge" value={metrics.margin} before={before?.metrics.margin} threshold={thresholds.minMargin} format={(v) => pct(v, 0)} />
+              </section>
+              {valuesBlock}
+              {notesBlock}
+            </div>
+          )}
+        </section>
+      </article>
+    );
+  }
+
   return (
     <article className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
       <div className="flex min-w-0 flex-col gap-4">
-        {/* Produit */}
-        <section className="rounded-md border border-line bg-surface p-4">
-          <div className="flex gap-4">
-            <ProductImage asin={lead.asin} size={112} />
-            <div className="min-w-0 flex-1">
-              <Link href={`/leads/${lead.asin}`} className="line-clamp-2 text-lg font-semibold text-ink hover:text-accent hover:underline">{lead.name}</Link>
-              <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                <span className="font-mono text-xs text-ink-2">{lead.asin}</span>
-                <FreshnessPill fresh={confirmedNow ? { ...lead.row.fresh, state: "FRESH", ageDays: 0, daysLeft: 30 } : lead.row.fresh} />
-                <Badge>{REVIEW_LABELS[lead.reviewStatus as ReviewStatus] ?? lead.reviewStatus}</Badge>
-                {lead.reviewedBy && lead.reviewStatus !== "TO_REVIEW" && <ByUser profile={profiles[lead.reviewedBy]} />}
-                {partnerEnabled && lead.buy && <BuyStateBadge status={lead.buy} />}
-                {lead.restricted && <Badge tone="serious" icon={<Lock size={10} />}>Restreint</Badge>}
-                {inCart > 0 && <Badge tone="accent" icon={<ShoppingCart size={10} />}>{inCart} au panier</Badge>}
-                {outcome && <Badge tone="good">{OUTCOME_LABEL[outcome]}</Badge>}
-              </div>
-              <p className="mt-1 text-xs text-ink-3">{confirmedNow ? "Reconfirmé à l'instant" : freshnessText(lead.row.fresh)}</p>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                <a href={lead.amazonUrl} target="_blank" rel="noreferrer" className="btn-ghost px-2 py-1 text-xs"><ExternalLink size={12} /> Amazon.ca</a>
-                <a href={keepa} target="_blank" rel="noreferrer" className="btn-ghost px-2 py-1 text-xs"><LineChart size={12} /> Keepa</a>
-                {lead.offers.filter((o) => o.url).map((o) => (
-                  <a key={o.id} href={o.url!} target="_blank" rel="noreferrer" className="btn-ghost max-w-48 px-2 py-1 text-xs"><ExternalLink size={12} /> <span className="truncate">{storeName({ supplierName: o.supplier, supplierUrl: o.url })}</span></a>
-                ))}
-              </div>
-            </div>
-          </div>
-          {!templates && lead.notes && (
-            <p className="mt-3 flex items-start gap-1.5 rounded-sm bg-page/60 px-3 py-2 text-xs text-ink-2">
-              <StickyNote size={12} className="mt-0.5 shrink-0 text-warning" /> {lead.notes}
-            </p>
-          )}
-        </section>
-
-        {/* Valeurs à vérifier */}
-        <section className="rounded-md border border-line bg-surface p-4">
-          <h2 className="text-sm font-semibold text-ink">Amazon</h2>
-          <div className="mt-2 grid gap-3 sm:grid-cols-2">
-            <MoneyField label="Prix Amazon (Buy Box)" value={sale} onChange={setSale} initial={toField(lead.row.amazonPrice)} hint={lead.row.priceE} />
-            <MoneyField label="Total Fees" value={fees} onChange={setFees} initial={toField(lead.row.fees)} />
-          </div>
-          <h2 className="mt-4 text-sm font-semibold text-ink">Fournisseurs</h2>
-          <ul className="mt-2 flex flex-col gap-2">
-            {offers.map((r) => {
-              const o = r.offer;
-              const isBest = best?.offer.id === o.id && offers.length > 1;
-              return (
-                <li key={o.id} className={cn("grid items-end gap-2 rounded-sm border p-2.5 sm:grid-cols-[minmax(0,1fr)_140px_auto_64px]", isBest ? "border-accent/50 bg-accent/5" : "border-line")}>
-                  <div className="min-w-0 text-sm">
-                    <span className="flex items-center gap-1 font-medium text-ink">
-                      {isBest && <Star size={12} className="shrink-0 fill-accent text-accent" aria-label="Meilleure offre" />}
-                      <span className="min-w-0 truncate"><Supplier name={o.supplier} url={o.url} product={lead.name} /></span>
-                    </span>
-                    {r.unavailable && <span className="text-[11px] text-critical">En rupture</span>}
-                    {o.currency !== "CAD" && costs[o.id] === initialCost(o) && <span className="text-[11px] text-warning">Coût en {o.currency}</span>}
-                  </div>
-                  <MoneyField label="Coût" value={costs[o.id]} onChange={(v) => setCosts((c) => ({ ...c, [o.id]: v }))} initial={initialCost(o)} compact />
-                  <div className="flex gap-1" role="group" aria-label={`Disponibilité chez ${o.supplier}`}>
-                    {(["IN_STOCK", "OUT_OF_STOCK"] as const).map((a) => (
-                      <button
-                        key={a}
-                        type="button"
-                        aria-pressed={avail[o.id] === a}
-                        onClick={() => setAvail((s) => ({ ...s, [o.id]: s[o.id] === a ? null : a }))}
-                        className={cn(
-                          "rounded-sm border px-2 py-1.5 text-xs whitespace-nowrap",
-                          avail[o.id] === a ? (a === "IN_STOCK" ? "border-good/60 bg-good/15 text-good" : "border-critical/60 bg-critical/15 text-critical") : "border-line text-ink-3 hover:text-ink",
-                        )}
-                      >
-                        {a === "IN_STOCK" ? "En stock" : "Rupture"}
-                      </button>
-                    ))}
-                  </div>
-                  <span className={cn("text-right text-sm font-semibold tabular-nums", r.metrics.roi != null && r.metrics.roi < thresholds.minRoi ? "text-critical" : "text-good")} title="ROI avec ce fournisseur">
-                    {pct(r.metrics.roi, 0)}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-          <p className="mt-2 text-[11px] text-ink-3">Modifiez seulement ce qui a changé : les nouvelles valeurs sont enregistrées comme vérifiées, les valeurs de la Sheet restent intactes.</p>
-        </section>
-
-        {templates && (
-          <section className="rounded-md border border-line bg-surface p-4">
-            <div className="mb-2.5 flex items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-ink">Notes et motifs</h2>
-              {notesDirty && <span className="text-[11px] text-accent">Enregistrés avec votre décision</span>}
-            </div>
-            <NotePicker templates={templates} tags={tags} onTags={setTags} notes={notes} onNotes={setNotes} />
-          </section>
-        )}
+        {productBlock}
+        {valuesBlock}
+        {notesBlock}
       </div>
 
       {/* Résultat et actions */}
       <aside className="flex flex-col gap-4 lg:sticky lg:top-4">
-        <section className="rounded-md border border-line bg-surface p-4">
-          <div className="flex items-center justify-between gap-2">
-            <Badge tone={VERDICT_TONE[evaluated.verdict]}>{VERDICT_LABELS[evaluated.verdict]}</Badge>
-            {best?.score != null && <span className="text-xs text-ink-3">Score <b className="text-base text-ink tabular-nums">{best.score}</b>/100</span>}
-          </div>
-          {evaluated.reasons.length > 0 && <p className="mt-1.5 text-[11px] leading-snug text-ink-3">{evaluated.reasons.join(" · ")}</p>}
-          {best?.issue && <p className="mt-1.5 text-[11px] text-warning">{best.issue}</p>}
-          <div className="mt-3 flex flex-col gap-2.5">
-            <Gauge label="ROI" value={metrics.roi} before={before?.metrics.roi} threshold={thresholds.minRoi} format={(v) => pct(v, 0)} />
-            <Gauge label="Marge" value={metrics.margin} before={before?.metrics.margin} threshold={thresholds.minMargin} format={(v) => pct(v, 0)} />
-            <Gauge label="Profit / unité" value={metrics.profit} before={before?.metrics.profit} threshold={thresholds.minProfit} format={cad} />
-            <Gauge label="Ventes / mois" value={metrics.estimatedSales} threshold={thresholds.minSales} format={(v) => num(v)} />
-          </div>
-          <div className="mt-3 flex items-baseline justify-between border-t border-line pt-3 text-xs">
-            <span className="text-ink-3">Profit mensuel (annonce)</span>
-            <span className="text-sm font-semibold tabular-nums text-ink">{cad(metrics.monthlyProfit)}</span>
-          </div>
-        </section>
-
-        <section className="rounded-md border border-line bg-surface p-4">
-          {mode === "decide" && (
-            <>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs text-ink-2">Quantité</span>
-                <span className="flex items-center gap-1">
-                  <button type="button" className="btn-ghost px-2 py-1" aria-label="Moins" onClick={() => setQty((q) => Math.max(1, q - 1))}><Minus size={13} /></button>
-                  <input className="field w-16 py-1 text-center tabular-nums" inputMode="numeric" value={qty} onChange={(e) => setQty(Math.max(1, Math.min(999, Math.floor(Number(e.target.value) || 1))))} aria-label="Quantité" />
-                  <button type="button" className="btn-ghost px-2 py-1" aria-label="Plus" onClick={() => setQty((q) => Math.min(999, q + 1))}><Plus size={13} /></button>
-                </span>
-              </div>
-              <div className="mt-2 flex justify-between text-xs">
-                <span className="text-ink-3">Cette ligne</span>
-                <span className="tabular-nums"><b className="text-ink">{cad(thisCost)}</b> · profit <span className="text-good">{cad(metrics.profit == null ? null : metrics.profit * qty)}</span></span>
-              </div>
-              {budget != null && budget > 0 && (
-                <div className="mt-2">
-                  <div className="flex justify-between text-[11px] text-ink-3">
-                    <span>Budget : panier {cad(cartCost)} + {cad(thisCost)}</span>
-                    <span className={cn("tabular-nums", cartCost + thisCost > budget ? "text-critical" : "text-ink-2")}>/ {cad(budget)}</span>
-                  </div>
-                  <div className="mt-1 flex h-2 overflow-hidden rounded-full bg-surface-3">
-                    <div className="h-full bg-accent" style={{ width: `${Math.min(100, (cartCost / budget) * 100)}%` }} />
-                    <div className={cn("h-full", cartCost + thisCost > budget ? "bg-critical" : "bg-accent/50")} style={{ width: `${Math.max(0, Math.min(100 - (cartCost / budget) * 100, (thisCost / budget) * 100))}%` }} />
-                  </div>
-                </div>
-              )}
-              {stale && <p className="mt-3 rounded-sm border border-critical/40 bg-critical/10 px-2.5 py-2 text-[11px] text-critical">Données de plus de 30 jours : vérifiez les prix ci-contre, puis reconfirmez pour pouvoir acheter.</p>}
-            </>
-          )}
-
-          <div className={cn("flex flex-col gap-2", mode === "decide" && "mt-3")}>
-            {mode === "review" ? (
-              <button type="button" className="btn-primary w-full justify-center py-2.5" disabled={pending || invalid} onClick={validate}>
-                <CheckCircle2 size={16} /> {dirty ? "Enregistrer et valider" : "Valider"} <Kbd>Entrée</Kbd>
-              </button>
-            ) : mustConfirm ? (
-              <button type="button" className="btn-primary w-full justify-center py-2.5" disabled={pending || invalid} onClick={confirm}>
-                {dirty ? <RefreshCw size={16} /> : <CheckCircle2 size={16} />}
-                {dirty ? "Enregistrer et reconfirmer" : mode === "reconfirm" ? "Toujours bon" : "Reconfirmer"}
-                <Kbd>Entrée</Kbd>
-              </button>
-            ) : (
-              <>
-                <button type="button" className="btn-primary w-full justify-center py-2.5" disabled={pending || best?.cost == null} onClick={buy}>
-                  <ShoppingCart size={16} /> {partnerEnabled && lead.buy?.waitingFor === me ? "Approuver l'achat" : "Acheter"} × {qty} <Kbd>A</Kbd>
-                </button>
-                {partnerEnabled && (
-                  <p className="text-[11px] leading-snug text-ink-3">
-                    {lead.buy?.waitingFor === me && lead.buy.latest[otherUser(me)]
-                      ? `${profiles[otherUser(me)].name} a proposé cet achat${lead.buy.latest[otherUser(me)]!.quantity ? ` (${lead.buy.latest[otherUser(me)]!.quantity} u.)` : ""} : votre approbation le confirme.`
-                      : lead.buy?.state === "APPROVED"
-                        ? "Achat déjà approuvé par vous deux."
-                        : `« Acheter » enregistre votre approbation ; l'achat est confirmé quand ${profiles[otherUser(me)].name} approuve aussi.`}
-                  </p>
-                )}
-              </>
-            )}
-            <div className={cn("grid gap-2", mode !== "reconfirm" ? "grid-cols-2" : "grid-cols-1")}>
-              {mode !== "reconfirm" && (
-                <button type="button" className="btn-ghost justify-center" disabled={pending} onClick={later} title="Mettre en veille (statut « À suivre »)">
-                  <Eye size={14} /> À suivre <Kbd>P</Kbd>
-                </button>
-              )}
-              <button type="button" className="btn-ghost justify-center hover:border-critical/60 hover:text-critical" disabled={pending} onClick={reject}>
-                <CircleSlash size={14} /> Rejeter <Kbd>R</Kbd>
-              </button>
-            </div>
-            <div className="flex justify-between">
-              <button type="button" className="btn-ghost px-2 py-1 text-xs" disabled={!onPrev} onClick={onPrev}><ArrowLeft size={13} /> Précédent</button>
-              <button type="button" className="btn-ghost px-2 py-1 text-xs" onClick={onSkip}>Passer <ArrowRight size={13} /></button>
-            </div>
-          </div>
-          {invalid && <p className="mt-2 text-[11px] text-critical">Un montant saisi est invalide.</p>}
-          {error && <p className="mt-2 text-[11px] text-critical">{error}</p>}
-          <p className="mt-3 flex items-center gap-1.5 text-[10px] text-ink-3">
-            <Keyboard size={11} /> Entrée {mode === "reconfirm" ? "reconfirme" : "valide"}{mode === "review" ? " (ou V)" : ""} · Échap sort d&apos;un champ · R rejette
-            {mode === "decide" ? " · P à suivre · A achète · +/− quantité" : mode === "review" ? " · P à suivre" : ""} · ←/→ précédent / suivant
-          </p>
-        </section>
+        {resultBlock}
+        {actionsBlock}
       </aside>
     </article>
   );
@@ -640,5 +717,72 @@ function Gauge({ label, value, before, threshold, format }: { label: string; val
         <span className="absolute top-[-3px] h-[14px] w-0.5 rounded bg-ink/70" style={{ left: "50%" }} aria-hidden />
       </div>
     </div>
+  );
+}
+
+/**
+ * Buy Decisions : les quatre chiffres qui décident, au centre et en grand. L'état par rapport à vos
+ * critères est écrit (icône + texte), jamais porté par la couleur seule.
+ */
+function DecisionHero({
+  metrics, thresholds, verdict, reasons, score, issue,
+}: {
+  metrics: { roi: number | null; profit: number | null; monthlyProfit: number | null; estimatedSales: number | null };
+  thresholds: Thresholds;
+  verdict: Verdict;
+  reasons: string[];
+  score: number | null;
+  issue: string | null;
+}) {
+  const tiles: { label: string; value: string; raw: number | null; min?: number; minText?: string; hint?: string }[] = [
+    { label: "ROI", value: pct(metrics.roi, 0), raw: metrics.roi, min: thresholds.minRoi, minText: pct(thresholds.minRoi, 0) },
+    { label: "Ventes / mois", value: num(metrics.estimatedSales), raw: metrics.estimatedSales, min: thresholds.minSales, minText: `${thresholds.minSales}` },
+    { label: "Profit / unité", value: cad(metrics.profit), raw: metrics.profit, min: thresholds.minProfit, minText: cad(thresholds.minProfit) },
+    { label: "Profit mensuel estimé", value: cad(metrics.monthlyProfit), raw: metrics.monthlyProfit, hint: "profit / unité × ventes / mois" },
+  ];
+  return (
+    <section className="rounded-md border border-line bg-surface p-5" aria-label="Rentabilité">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge tone={VERDICT_TONE[verdict]}>{VERDICT_LABELS[verdict]}</Badge>
+        {reasons.length > 0 && <span className="text-xs text-ink-3">{reasons.join(" · ")}</span>}
+        {score != null && (
+          <span className="ml-auto text-xs text-ink-3">
+            Score <b className="text-base text-ink tabular-nums">{score}</b>/100
+          </span>
+        )}
+      </div>
+      {issue && <p className="mt-1.5 text-xs text-warning">{issue}</p>}
+      <dl className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {tiles.map((t) => {
+          const ok = t.min == null || t.raw == null ? null : t.raw >= t.min;
+          const fill = t.min && t.raw != null ? Math.max(0, Math.min(1, t.raw / (t.min * 2))) : null;
+          return (
+            <div key={t.label} className={cn("min-w-0 rounded-md border px-2 py-3.5 text-center sm:px-4", t.min == null ? "border-accent/30 bg-accent-soft" : "border-line bg-surface-2/60")}>
+              <dt className="text-[11px] font-semibold tracking-[0.08em] text-ink-2 uppercase">{t.label}</dt>
+              <dd className={cn("mt-1 font-serif text-[22px] leading-none font-semibold whitespace-nowrap tabular-nums sm:text-[30px] xl:text-[34px]", t.raw != null && t.raw < 0 ? "text-critical" : "text-ink")}>{t.value}</dd>
+              {fill != null && (
+                <div className="relative mx-auto mt-3 h-1.5 w-4/5 overflow-hidden rounded-full bg-surface-3" aria-hidden>
+                  <div className={cn("h-full rounded-full", ok ? "bg-good" : "bg-critical")} style={{ width: `${fill * 100}%` }} />
+                  <div className="absolute inset-y-0 left-1/2 w-px bg-ink-3" />
+                </div>
+              )}
+              <dd className="mt-2 text-[11px]">
+                {ok === null ? (
+                  <span className="text-ink-3">{t.hint ?? "—"}</span>
+                ) : ok ? (
+                  <span className="inline-flex items-center gap-1 font-medium text-good">
+                    <CheckCircle2 size={12} /> min. {t.minText} atteint
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 font-medium text-critical">
+                    <AlertTriangle size={12} /> sous le min. {t.minText}
+                  </span>
+                )}
+              </dd>
+            </div>
+          );
+        })}
+      </dl>
+    </section>
   );
 }
