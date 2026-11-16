@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { setReviewStatus } from "@/app/(app)/actions";
 import { VERDICT_LABELS, type Verdict } from "@/lib/decision";
-import { STRATEGIES, compareRows, evaluateRow, matchesVerdict } from "@/lib/decisionFilters";
+import { PERIODS, STRATEGIES, compareRows, evaluateRow, inPeriod, matchesVerdict, rowWeek } from "@/lib/decisionFilters";
 import type { DecisionRow } from "@/lib/decisionRows";
 import { formatDate } from "@/lib/dates";
 import { cad, pct } from "@/lib/format";
@@ -103,9 +103,14 @@ export function PipelineBoard({ rows, purchased, currentWeek, initialView = null
   const pool = useMemo(() => {
     const q = query.trim().toLowerCase();
     return evaluated.filter(
-      (r) => (!q || `${r.asin} ${r.name} ${r.supplierName ?? ""} ${r.supplierKey}`.toLowerCase().includes(q)) && (!filters.weekOnly || (r.countsTowardGoal && r.goalWeek === currentWeek)),
+      (r) => {
+        if (q && !`${r.asin} ${r.name} ${r.supplierName ?? ""} ${r.supplierKey}`.toLowerCase().includes(q)) return false;
+        // Période de découverte, partagée avec Buy Decisions (les plages ROI / ventes / coût n'y s'appliquent pas)
+        const week = rowWeek(r);
+        return filters.period === "all" || (!!week && inPeriod(week, filters.period, currentWeek));
+      },
     );
-  }, [evaluated, query, filters.weekOnly, currentWeek]);
+  }, [evaluated, query, filters.period, currentWeek]);
   const counts = useMemo(() => countVerdicts(pool), [pool]);
 
   const { columns, hidden } = useMemo(() => {
@@ -173,7 +178,7 @@ export function PipelineBoard({ rows, purchased, currentWeek, initialView = null
         </div>
         <div className="flex flex-wrap items-center gap-1.5 border-t border-line px-3 py-2">
           <VerdictChips value={filters.verdict} onChange={(v) => update({ verdict: v })} counts={counts} total={pool.length} />
-          <span className="ml-auto text-[11px] text-ink-3">Tri : {STRATEGY_LABEL[filters.strategy]}{filters.weekOnly && " · cette semaine"}</span>
+          <span className="ml-auto text-[11px] text-ink-3">Tri : {STRATEGY_LABEL[filters.strategy]}{filters.period !== "all" && ` · ${PERIODS.find((p) => p.key === filters.period)!.label.toLowerCase()}`}</span>
         </div>
       </div>
       {showFilters && <FilterPanel filters={filters} update={update} />}
@@ -250,7 +255,7 @@ export function PipelineBoard({ rows, purchased, currentWeek, initialView = null
                 {hidden[s] > 0 && (
                   <p className="mt-1 text-[11px] text-ink-3">
                     + {hidden[s]} masqué{hidden[s] > 1 ? "s" : ""} ·{" "}
-                    <button type="button" className="text-accent hover:underline" onClick={() => { update({ verdict: "ALL", weekOnly: false }); setQuery(""); }}>tout afficher</button>
+                    <button type="button" className="text-accent hover:underline" onClick={() => { update({ verdict: "ALL", period: "all" }); setQuery(""); }}>tout afficher</button>
                   </p>
                 )}
               </header>

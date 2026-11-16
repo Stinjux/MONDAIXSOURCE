@@ -127,7 +127,7 @@ export function FocusScreen({
           <EmptyState title="Rien à reconfirmer" icon={<CheckCircle2 size={22} />}>Tous vos leads actifs ont des données de moins de 23 jours.</EmptyState>
         ) : (
           <EmptyState title="Aucun lead à décider" icon={<PackageCheck size={22} />}>
-            Aucun lead ne correspond à vos filtres de <Link href="/decisions" className="link">Buy Decisions</Link> (avis, semaine, ruptures).
+            Aucun lead ne correspond à vos filtres : barre « Afficher seulement » (période, ROI, ventes, coût) et avis choisi dans « Classement et critères ». « Tout afficher » retire les filtres de la barre.
           </EmptyState>
         )}
       </div>

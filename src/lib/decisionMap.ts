@@ -18,26 +18,7 @@ export type MapRow = {
   monthlyProfit: number | null;
   amazonPrice: number | null;
   score: number | null;
-  /** Semaine de découverte du lead (lundi, AAAA-MM-JJ) */
-  week: string;
 };
-
-export type MapPeriod = "week" | "4w" | "12w" | "all";
-export const MAP_PERIODS: { key: MapPeriod; label: string }[] = [
-  { key: "week", label: "Cette semaine" },
-  { key: "4w", label: "4 dernières semaines" },
-  { key: "12w", label: "12 dernières semaines" },
-  { key: "all", label: "Tous les leads" },
-];
-
-/** Le lead a-t-il été découvert dans la période (semaines du lundi, la semaine en cours comprise) ? */
-export function inPeriod(week: string, period: MapPeriod, currentWeek: string): boolean {
-  if (period === "all") return true;
-  const weeks = period === "week" ? 1 : period === "4w" ? 4 : 12;
-  const start = new Date(`${currentWeek}T12:00:00Z`);
-  start.setUTCDate(start.getUTCDate() - 7 * (weeks - 1));
-  return week >= start.toISOString().slice(0, 10) && week <= currentWeek;
-}
 
 export const MAP_METRICS: Record<MapMetric, { label: string; short: string; format: (v: number | null) => string; threshold?: (t: Thresholds) => number; hint?: string }> = {
   roi: { label: "ROI", short: "ROI", format: (v) => pct(v, 0), threshold: (t) => t.minRoi },
@@ -56,11 +37,9 @@ export type MapConfig = {
   y: MapMetric;
   size: MapMetric | "none";
   trim: boolean;
-  period: MapPeriod;
-  /** ROI maximum affiché (%), null = pas de limite : écarte les leads extrêmes qui écrasent la carte */
-  roiMax: number | null;
 };
-export const DEFAULT_MAP: MapConfig = { x: "estimatedSales", y: "roi", size: "monthlyProfit", trim: false, period: "all", roiMax: null };
+// Période et ROI max : filtres communs à toutes les vues de Buy Decisions (barre « Afficher seulement »)
+export const DEFAULT_MAP: MapConfig = { x: "estimatedSales", y: "roi", size: "monthlyProfit", trim: false };
 
 export function parseMapConfig(v: unknown): MapConfig {
   const o = (v && typeof v === "object" ? v : {}) as Partial<MapConfig>;
@@ -70,8 +49,6 @@ export function parseMapConfig(v: unknown): MapConfig {
     y: ok(o.y) ? o.y : DEFAULT_MAP.y,
     size: o.size === "none" || ok(o.size) ? o.size : DEFAULT_MAP.size,
     trim: o.trim === true,
-    period: MAP_PERIODS.some((p) => p.key === o.period) ? (o.period as MapPeriod) : DEFAULT_MAP.period,
-    roiMax: typeof o.roiMax === "number" && Number.isFinite(o.roiMax) ? o.roiMax : null,
   };
 }
 
@@ -84,13 +61,7 @@ const quantile = (sorted: number[], p: number) => sorted[Math.min(sorted.length 
  * Points de la carte. Un lead sans valeur sur l'axe X ou Y n'est pas placé (compté dans `missing`).
  * `trim` masque les valeurs extrêmes (au-delà de 3 % / 97 % sur chaque axe, dès 20 leads) pour lire le gros du nuage.
  */
-export function mapPoints(
-  all: MapRow[],
-  c: MapConfig,
-  currentWeek: string,
-): { points: MapPoint[]; missing: number; trimmed: number; outOfPeriod: number; aboveRoiMax: number } {
-  const dated = all.filter((r) => inPeriod(r.week, c.period, currentWeek));
-  const rows = c.roiMax == null ? dated : dated.filter((r) => r.roi == null || r.roi <= c.roiMax!);
+export function mapPoints(rows: MapRow[], c: MapConfig): { points: MapPoint[]; missing: number; trimmed: number } {
   const placed = rows.filter((r) => r[c.x] != null && r[c.y] != null && Number.isFinite(r[c.x]) && Number.isFinite(r[c.y]));
   let kept = placed;
   if (c.trim && placed.length >= 20) {
@@ -103,8 +74,6 @@ export function mapPoints(
     points: kept.map((row) => ({ row, x: row[c.x] as number, y: row[c.y] as number, z: c.size === "none" ? 1 : Math.max(0, row[c.size] ?? 0) })),
     missing: rows.length - placed.length,
     trimmed: placed.length - kept.length,
-    outOfPeriod: all.length - dated.length,
-    aboveRoiMax: dated.length - rows.length,
   };
 }
 
