@@ -59,6 +59,8 @@ model Product {
   confirmedAt       DateTime?
   /// Compte qui a reconfirmé le lead (owner | partner)
   confirmedBy       String?
+  /// Dernière interrogation Keepa (même sans données), pour répartir les jetons entre les leads
+  keepaCheckedAt    DateTime?
 
   // --- Alertes de doublons ---
   lastDuplicateAt DateTime?
@@ -461,4 +463,32 @@ model BuyVote {
 
   @@index([productId, createdAt])
   @@index([createdAt])
+}
+
+/// Données Amazon.ca lues chez Keepa pour un lead, à une date donnée. Une ligne par mise à jour,
+/// jamais modifiée ni supprimée : la plus récente sert aux calculs (après les valeurs vérifiées,
+/// avant celles de la Sheet) ; les valeurs de la Sheet restent intactes.
+model KeepaSnapshot {
+  id             String   @id @default(cuid())
+  productId      String
+  asin           String
+  capturedAt     DateTime @default(now())
+  /// Buy Box actuelle et moyenne 90 jours ($ CA)
+  buyBox         Float?
+  buyBoxAvg90    Float?
+  amazonPrice    Float?
+  amazonSelling  Boolean  @default(false)
+  newOffers      Int?
+  fbaOffers      Int?
+  salesRank      Int?
+  salesRankAvg90 Int?
+  /// « X achetés le mois dernier » selon Amazon
+  monthlySold    Int?
+  /// Frais FBA ($) et commission Amazon (%)
+  fbaFee         Float?
+  referralPct    Float?
+  runId          String?
+
+  @@index([productId, capturedAt])
+  @@index([capturedAt])
 }

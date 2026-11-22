@@ -110,6 +110,17 @@ Chaque commande passée chez un fournisseur, lue dans une troisième Google Shee
 
 Tous les produits regroupés par fournisseur (magasin), avec le logo du commerce (icône de son site, sinon ses initiales) et une barre de répartition par étape (à traiter, à reconfirmer, prêts, achetés, en veille) qui sert aussi de filtre. Partout dans l'app, un fournisseur s'affiche par le seul nom du commerce (« Canadian Tire »), surligné en bleu et cliquable, sans l'URL ni le « .ca ». Regroupement : une URL walmart.ca et la boutique « Walmart » de la Sheet OUT OF STOCK forment un seul fournisseur. Pour chacun : produits actifs, à revoir, prêts à acheter, en rupture, ROI moyen et **« Commandé ici »** (montant, commandes et unités de la Sheet COMMANDES). Ses produits s'affichent avec leur étape dans le Pipeline, le coût et le ROI chez ce fournisseur, « meilleure offre » quand c'est le fournisseur retenu dans Buy Decisions, et le lien vers la page du produit. Recherche, et option pour afficher les rejetés.
 
+### Keepa : mise à jour automatique des leads
+
+Avec la variable `KEEPA_API_KEY`, chaque lead actif (ni rejeté ni acheté) est mis à jour depuis **Keepa (Amazon.ca)** au plus une fois par jour : Buy Box actuelle et moyenne 90 jours, prix et présence d'Amazon comme vendeur, vendeurs FBA et offres neuves, classement des ventes, « achetés le mois dernier », frais FBA et commission.
+
+- **Calculs** : valeur vérifiée à la main, puis **Keepa**, puis Sheet. Prix Amazon = Buy Box moyenne 90 j (sinon actuelle) ; frais = commission × prix + frais FBA ; ventes / mois = achats du mois dernier publiés par Amazon (sinon la Sheet). Les valeurs de la Sheet restent conservées et visibles. Une mise à jour Keepa remet à jour la fraîcheur du lead (côté Amazon).
+- **Alerte « Prix en baisse »** : Buy Box actuelle au moins 10 % sous sa moyenne 90 jours (Un par un, liste, Pipeline, fiche lead). Le ROI affiché reste calculé sur la moyenne 90 jours : le badge signale l'écart.
+- **Quota** : environ 3 jetons par lead (requête + Buy Box). Chaque passage vérifie d'abord les jetons (gratuit), n'envoie que ce qu'il peut payer (100 ASIN au plus par requête) et s'arrête proprement quand le quota est atteint ; les leads jamais mis à jour passent en premier, puis les plus anciens. Avec 1 jeton par minute : environ 480 leads par jour, à condition de passer souvent (les jetons inutilisés ne s'accumulent pas longtemps).
+- **Tâche planifiée** : service Railway avec `railway/keepa-cron.json` (`npm run keepa:cron`, toutes les 15 minutes) et `KEEPA_API_KEY`. Ou un ordonnanceur externe : `POST /api/keepa` avec `Authorization: Bearer $SYNC_SECRET`.
+- **Fiche lead** : carte « Keepa · Amazon.ca » (valeurs, historique des 10 dernières mises à jour, bouton « Mettre à jour depuis Keepa »). **Settings** : leads à jour dans les dernières 24 h, dernier passage, bouton « Tester Keepa » (jetons disponibles ; la clé n'est jamais affichée). Chaque passage apparaît dans Import History (« Keepa »).
+- **Données** : une ligne `KeepaSnapshot` par mise à jour, jamais modifiée ni supprimée ; seul `Product.keepaCheckedAt` avance.
+
 ### Fraîcheur et reconfirmation
 
 Les données d'un lead (prix Amazon, frais, coût, stock) sont **à reconfirmer 30 jours après son dernier export** dans LEADS ou sa dernière reconfirmation : pastille verte (à jour), orange (7 derniers jours), rouge (à reconfirmer). Un lead périmé ne peut pas être mis au panier ni acheté : il se **reconfirme directement dans Buy Decisions** (vue Un par un, bouton « Reconfirmer » ; les valeurs modifiées dans « Détails » sont enregistrées comme vérifiées, les valeurs de la Sheet restent intactes). Les boutons « Reconfirmer » du Pipeline, de la liste, du panier et de la fiche lead y mènent. L'ancienne section « À reconfirmer » a été retirée du menu ; son adresse `/reconfirm` redirige vers Buy Decisions.
@@ -169,6 +180,9 @@ curl -X POST https://<app>.up.railway.app/api/sync -H "Authorization: Bearer $SY
 ```
 
 Une seule synchronisation s'exécute à la fois (verrou en base). Le bouton **Synchroniser les Sheets** du dashboard déclenche la même opération côté serveur ; aucun secret n'est envoyé au navigateur.
+
+### 2 bis. Keepa (optionnel)
+Un troisième service depuis le même dépôt, avec les mêmes variables plus `KEEPA_API_KEY`, et `railway/keepa-cron.json` (commande `npm run keepa:cron`, toutes les 15 minutes). La clé ne s'écrit que dans Railway.
 
 ### 3. Rappel de la Weekly Review (optionnel)
 Troisième service cron avec `railway/reminder-cron.json` (`npm run reminder`, dimanche 12:45 UTC ≈ 8 h 45 au Québec). Définir `REMINDER_WEBHOOK_URL` (Slack, Discord ou ntfy) pour recevoir le message. `GET /api/reminder` (Bearer `SYNC_SECRET`) affiche le contenu sans l'envoyer.

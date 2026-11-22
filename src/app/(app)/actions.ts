@@ -570,3 +570,33 @@ export async function saveProfileNames(input: z.input<typeof namesSchema>): Prom
     return { ok: false, error: e instanceof Error ? e.message : "Noms non enregistrés" };
   }
 }
+
+/** Met à jour un lead depuis Keepa, tout de suite (environ 3 jetons). */
+export async function refreshKeepaLead(asin: string): Promise<ActionResult & { message?: string }> {
+  try {
+    const actor = await guard();
+    const { runKeepa } = await import("@/lib/keepaSync");
+    const product = await prisma.product.findUnique({ where: { asin: asin.trim().toUpperCase() }, select: { id: true, asin: true } });
+    if (!product) return { ok: false, error: "Lead introuvable" };
+    const r = await runKeepa({ asins: [product.asin], trigger: "MANUAL" });
+    if (r.status === "FAILED") return { ok: false, error: r.message ?? "Mise à jour Keepa impossible" };
+    if (r.status === "SKIPPED" || !r.requested) return { ok: false, error: r.message ?? "Aucune mise à jour" };
+    await prisma.changeLog.create({ data: { actor, entity: "Product", entityId: product.id, action: "KEEPA_REFRESH", after: json({ updated: r.updated, tokensLeft: r.tokensLeft }) } });
+    refresh();
+    return { ok: true, message: r.updated ? "Données Keepa mises à jour" : "Keepa n'a pas de données pour cet ASIN" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Mise à jour Keepa impossible" };
+  }
+}
+
+/** Teste la clé Keepa : jetons disponibles et recharge par minute (vérification gratuite chez Keepa). */
+export async function testKeepa(): Promise<{ ok: true; tokensLeft: number; refillRate: number } | { ok: false; error: string }> {
+  try {
+    await guard();
+    const { keepaTokenStatus } = await import("@/lib/keepa");
+    const t = await keepaTokenStatus();
+    return { ok: true, tokensLeft: t.tokensLeft, refillRate: t.refillRate };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Keepa ne répond pas" };
+  }
+}

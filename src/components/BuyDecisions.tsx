@@ -11,7 +11,7 @@ import { FilterPanel, VerdictChips, countVerdicts, readSaved, useDecisionFilters
 import type { DecisionRow } from "@/lib/decisionRows";
 import { cad, num, pct } from "@/lib/format";
 import { NO_TAX, maxCost, type TaxConfig } from "@/lib/profit";
-import { Asin, Badge, EmptyState, ReviewBadge, Supplier, UserAvatar, cn } from "./ui";
+import { Asin, Badge, EmptyState, KeepaBadges, ReviewBadge, Supplier, UserAvatar, cn } from "./ui";
 import { useUser } from "./UserContext";
 import { ProductImage } from "./ProductImage";
 import { TagChips } from "./NotePicker";
@@ -328,6 +328,7 @@ export function BuyDecisions({
                           {r.offerCount > 1 && <Badge tone="accent">{r.offerCount} fourn.</Badge>}
                           {r.verifiedCount > 0 && <Badge tone="good" icon={<CheckCircle2 size={10} />}>{r.verifiedCount} vérifié{r.verifiedCount > 1 ? "s" : ""}</Badge>}
                           {r.restricted && <Badge tone="serious" icon={<Lock size={10} />}>Restreint</Badge>}
+                          <KeepaBadges keepa={r.keepa} compact />
                           {r.fresh.state !== "FRESH" && <FreshnessPill fresh={r.fresh} />}
                         </div>
                         {r.tags.length > 0 && (

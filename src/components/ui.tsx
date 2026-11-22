@@ -1,6 +1,7 @@
 // Composants d'interface sans état (utilisables côté serveur et client).
 import type { ReactNode } from "react";
-import { AlertTriangle, CheckCircle2, CircleDashed, CircleSlash, Clock, Copy, Eye, HelpCircle, Layers, Repeat, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CircleDashed, CircleSlash, Clock, Copy, Eye, HelpCircle, Layers, Repeat, TrendingDown, XCircle } from "lucide-react";
+import { formatAgo } from "@/lib/dates";
 import { REVIEW_LABELS, SOURCE_LABELS, type ReviewStatus } from "@/lib/labels";
 import { STOCK_LABELS, type StockStatus } from "@/lib/stock";
 import { storeName } from "@/lib/stores";
@@ -163,6 +164,25 @@ export function EmptyState({ title, children, icon }: { title: string; children?
       <div className="text-sm font-medium text-ink">{title}</div>
       {children && <div className="max-w-md text-sm text-ink-3">{children}</div>}
     </div>
+  );
+}
+
+/** Données Keepa d'un lead : « Keepa · il y a 3 h » et, s'il y a lieu, « Prix en baisse −13 % ». */
+export function KeepaBadges({ keepa, compact }: { keepa: { at: string; priceDrop: number | null } | null | undefined; compact?: boolean }) {
+  if (!keepa) return null;
+  return (
+    <>
+      {keepa.priceDrop != null && (
+        <Badge tone="serious" icon={<TrendingDown size={10} />} title="Buy Box actuelle sous sa moyenne 90 jours (Keepa)">
+          Prix en baisse −{keepa.priceDrop} %
+        </Badge>
+      )}
+      {!compact && (
+        <span className="text-[11px] text-ink-3" title="Prix Amazon, frais et ventes mis à jour depuis Keepa">
+          Keepa · {formatAgo(keepa.at)}
+        </span>
+      )}
+    </>
   );
 }
 

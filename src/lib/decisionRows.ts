@@ -44,6 +44,8 @@ export type DecisionRow = DecisionMetrics & {
   confirmedAt: string | null;
   /** Fraîcheur des données (30 jours après le dernier export ou la dernière reconfirmation) */
   fresh: Freshness;
+  /** Dernière mise à jour Keepa et alerte « Prix en baisse » (en %), null si jamais mis à jour */
+  keepa: { at: string; priceDrop: number | null } | null;
 };
 
 /** Rentabilité d'une offre fournisseur, valeurs vérifiées en priorité. */
@@ -107,6 +109,7 @@ export function toDecisionRows(products: ProductView[], tax: TaxConfig = NO_TAX,
         exportedAt: p.exportedAt,
         confirmedAt: p.confirmedAt,
         fresh: freshness(p.freshSince, now),
+        keepa: p.keepa ? { at: p.keepa.capturedAt, priceDrop: p.keepa.priceDrop } : null,
       };
     });
 }

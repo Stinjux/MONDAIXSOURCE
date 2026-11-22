@@ -5,8 +5,10 @@ import { FreshnessPill } from "@/components/Freshness";
 import { ProductImage } from "@/components/ProductImage";
 import { freshness, freshnessText } from "@/lib/freshness";
 import { AddToCartButton, BackButton, LeadEditor } from "@/components/LeadActions";
-import { Badge, ByUser, Card, DuplicateBadges, EmptyState, PageHeader, PriceE, ReviewBadge, SourceBadges, StockBadge, Supplier, UserAvatar } from "@/components/ui";
+import { Badge, ByUser, Card, KeepaBadges, DuplicateBadges, EmptyState, PageHeader, PriceE, ReviewBadge, SourceBadges, StockBadge, Supplier, UserAvatar } from "@/components/ui";
 import { BuyVotePanel } from "@/components/BuyVotePanel";
+import { KeepaRefreshButton } from "@/components/KeepaButtons";
+import { keepaKey } from "@/lib/keepa";
 import { loadBuyStatuses } from "@/lib/buyQueries";
 import { getProfiles } from "@/lib/settings";
 import { actorKey } from "@/lib/users";
@@ -28,13 +30,15 @@ export default async function LeadPage({ params }: { params: Promise<{ asin: str
   if (!p) notFound();
   const offerIds = p.offers.map((o) => o.id);
 
-  const [occurrences, snapshots, changes, purchases, buyStatuses] = await Promise.all([
+  const [occurrences, snapshots, changes, purchases, buyStatuses, keepaHistory] = await Promise.all([
     prisma.occurrence.findMany({ where: { productId: p.id }, orderBy: [{ source: "asc" }, { sheetRow: "asc" }], include: { offer: { select: { supplierName: true, supplierKey: true } } } }),
     prisma.priceSnapshot.findMany({ where: { offerId: { in: offerIds } }, orderBy: { capturedAt: "desc" }, take: 40, include: { offer: { select: { supplierName: true, supplierKey: true } } } }),
     prisma.changeLog.findMany({ where: { entityId: { in: [p.id, ...offerIds] } }, orderBy: { createdAt: "desc" }, take: 50 }),
     prisma.purchaseItem.findMany({ where: { asin: p.asin }, include: { purchase: true }, orderBy: { purchase: { createdAt: "desc" } } }),
     loadBuyStatuses([p.id]),
+    prisma.keepaSnapshot.findMany({ where: { productId: p.id }, orderBy: { capturedAt: "desc" }, take: 10 }),
   ]);
+  const k = p.keepa;
   const bought = purchases.filter((i) => !i.purchase.cancelledAt);
   const fresh = freshness(p.freshSince, new Date());
 
@@ -50,6 +54,7 @@ export default async function LeadPage({ params }: { params: Promise<{ asin: str
             {p.reviewedBy && p.reviewStatus !== "TO_REVIEW" && <ByUser profile={profiles[p.reviewedBy]} />}
             {p.confirmedBy && <ByUser profile={profiles[p.confirmedBy]} prefix="reconfirmé par" />}
             <span title={freshnessText(fresh)}><FreshnessPill fresh={fresh} /></span>
+            <KeepaBadges keepa={p.keepa ? { at: p.keepa.capturedAt, priceDrop: p.keepa.priceDrop } : null} />
             <SourceBadges sources={p.sources} />
             {p.dup.any && <DuplicateBadges dup={p.dup} compact />}
             <span className="text-ink-3">Découvert le {formatDate(p.firstSeenAt)}</span>
@@ -131,6 +136,67 @@ export default async function LeadPage({ params }: { params: Promise<{ asin: str
         </Card>
 
         <BuyVotePanel productId={p.id} status={buyStatuses.get(p.id) ?? null} />
+
+        <Card title="Keepa · Amazon.ca" action={keepaKey() ? <KeepaRefreshButton asin={p.asin} /> : <span className="text-[11px] text-ink-3">KEEPA_API_KEY non configurée</span>}>
+          {!k ? (
+            <p className="text-sm text-ink-3">Pas encore mis à jour depuis Keepa. Les leads actifs le sont automatiquement, au plus une fois par jour.</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-ink-2">
+                <span>Mis à jour le {formatDateTime(k.capturedAt)}</span>
+                {k.priceDrop != null && <Badge tone="serious">Prix en baisse −{k.priceDrop} %</Badge>}
+                {k.amazonSelling && <Badge tone="critical">Amazon vend ce produit</Badge>}
+              </div>
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
+                {[
+                  ["Buy Box actuelle", cad(k.buyBox)],
+                  ["Buy Box moyenne 90 j", cad(k.buyBoxAvg90)],
+                  ["Prix Amazon (vendeur)", k.amazonPrice != null ? cad(k.amazonPrice) : "Amazon ne vend pas"],
+                  ["Vendeurs FBA", num(k.fbaOffers)],
+                  ["Offres neuves", num(k.newOffers)],
+                  ["Achats le mois dernier", k.monthlySold != null ? num(k.monthlySold) : "non publié"],
+                  ["Classement des ventes", k.salesRank != null ? `#${num(k.salesRank)}` : "—"],
+                  ["Classement moyen 90 j", k.salesRankAvg90 != null ? `#${num(k.salesRankAvg90)}` : "—"],
+                  ["Frais FBA · commission", `${cad(k.fbaFee)} · ${k.referralPct != null ? `${k.referralPct} %` : "—"}`],
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <dt className="text-[11px] text-ink-3">{label}</dt>
+                    <dd className="font-medium tabular-nums text-ink">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+              <p className="text-[11px] text-ink-3">
+                Dans les calculs : Buy Box moyenne 90 j, frais (commission + FBA) et achats du mois dernier de Keepa passent avant la Sheet ; vos valeurs vérifiées passent avant tout. Les valeurs de la Sheet restent conservées.
+              </p>
+              {keepaHistory.length > 1 && (
+                <div className="overflow-x-auto">
+                  <table className="table-base text-xs">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th className="text-right">Buy Box</th>
+                        <th className="text-right">Moy. 90 j</th>
+                        <th className="text-right">Vendeurs FBA</th>
+                        <th className="text-right">Achats / mois</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {keepaHistory.map((s) => (
+                        <tr key={s.id}>
+                          <td className="text-ink-2">{formatDateTime(s.capturedAt)}</td>
+                          <td className="text-right tabular-nums">{cad(s.buyBox)}</td>
+                          <td className="text-right tabular-nums">{cad(s.buyBoxAvg90)}</td>
+                          <td className="text-right tabular-nums">{num(s.fbaOffers)}</td>
+                          <td className="text-right tabular-nums">{num(s.monthlySold)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
 
         <Card title="Historique des modifications" padded={false}>
           {changes.length === 0 ? (

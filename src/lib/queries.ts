@@ -10,6 +10,7 @@ import { amazonPrice, columnEPrice, preliminaryProfit, type ProfitResult } from 
 import { getTaxConfig } from "./settings";
 import { needsRecheck } from "./stock";
 import { freshSince, freshness, lastExportDate } from "./freshness";
+import { keepaSalePrice, keepaTotalFees, priceDrop, type KeepaFacts } from "./keepa";
 import { actorKey, type UserKey } from "./users";
 
 const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
@@ -23,8 +24,10 @@ export type OfferView = {
   lastSeenAt: string;
   salePrice: number | null;
   buyBox90: number | null;
-  /** Prix Amazon retenu : Buy Box 90 j, sinon Sale Price */
+  /** Prix Amazon retenu : Keepa (Buy Box moyenne 90 j) s'il est connu, sinon Buy Box 90 j de la Sheet, sinon Sale Price */
   amazonPrice: number | null;
+  /** D'où viennent le prix, les frais et les ventes utilisés dans les calculs */
+  origin: { price: "keepa" | "sheet"; fees: "keepa" | "sheet"; sales: "keepa" | "sheet" };
   /** Sale Price (colonne E) affiché sous la Buy Box ; null si la Buy Box est vide */
   priceE: number | null;
   fbaFee: number | null;
@@ -78,8 +81,10 @@ export type ProductView = {
   exportedAt: string | null;
   /** Dernière reconfirmation complète */
   confirmedAt: string | null;
-  /** Référence de fraîcheur : la plus récente des deux dates ci-dessus */
+  /** Référence de fraîcheur : la plus récente des deux dates ci-dessus et de la dernière mise à jour Keepa */
   freshSince: string | null;
+  /** Dernières données Keepa (Amazon.ca), null si le lead n'a jamais été mis à jour */
+  keepa: KeepaView | null;
   lastDuplicateAt: string | null;
   duplicateAlert: boolean;
   dup: DuplicateFlags;
@@ -98,8 +103,35 @@ function withExportDates<T extends { exportDate: string | null }>(occurrences: T
   return occurrences.map((o) => ({ ...o, exportedAt: parseSheetDate(o.exportDate, { order: config.dateOrder, now }) }));
 }
 
+export type KeepaView = Omit<KeepaFacts, "title" | "asin"> & {
+  capturedAt: string;
+  /** Baisse de la Buy Box actuelle sous sa moyenne 90 j (en %), si au moins 10 % */
+  priceDrop: number | null;
+};
+
+/** Dernière mise à jour Keepa de chaque lead. */
+async function latestKeepa(productIds?: string[]): Promise<Map<string, KeepaView>> {
+  const rows = await prisma.keepaSnapshot.findMany({
+    where: productIds ? { productId: { in: productIds } } : undefined,
+    distinct: ["productId"],
+    orderBy: [{ productId: "asc" }, { capturedAt: "desc" }],
+  });
+  return new Map(
+    rows.map((k) => [
+      k.productId,
+      {
+        buyBox: k.buyBox, buyBoxAvg90: k.buyBoxAvg90, amazonPrice: k.amazonPrice, amazonSelling: k.amazonSelling, newOffers: k.newOffers, fbaOffers: k.fbaOffers,
+        salesRank: k.salesRank, salesRankAvg90: k.salesRankAvg90, monthlySold: k.monthlySold, fbaFee: k.fbaFee, referralPct: k.referralPct,
+        capturedAt: k.capturedAt.toISOString(), priceDrop: priceDrop(k),
+      },
+    ]),
+  );
+}
+
 export async function loadProducts(now = new Date(), filter: { asin?: string } = {}) {
   const tax = await getTaxConfig();
+  const keepaFor = filter.asin ? (await prisma.product.findUnique({ where: { asin: filter.asin }, select: { id: true } }))?.id : undefined;
+  const keepa = await latestKeepa(filter.asin ? (keepaFor ? [keepaFor] : []) : undefined);
   const products = await prisma.product.findMany({
     where: filter.asin ? { asin: filter.asin } : undefined,
     orderBy: { firstSeenAt: "desc" },
@@ -115,8 +147,14 @@ export async function loadProducts(now = new Date(), filter: { asin?: string } =
 
   const views: ProductView[] = products.map((p) => {
     for (const o of p.occurrences) if (o.kind !== "NEW_PRODUCT") duplicateEvents.push({ productId: p.id, kind: o.kind, source: o.source, firstImportedAt: o.firstImportedAt.toISOString() });
+    const k = keepa.get(p.id) ?? null;
     const offers: OfferView[] = p.offers.map((o) => {
       const occs = p.occurrences.filter((x) => x.offerId === o.id);
+      // Keepa passe avant la Sheet (les valeurs vérifiées passent avant les deux, plus loin)
+      const kPrice = k ? keepaSalePrice(k) : null;
+      const price = kPrice ?? amazonPrice(o);
+      const kFees = k ? keepaTotalFees(k, price) : null;
+      const kSales = k?.monthlySold ?? null;
       const latestOos = occs.filter((x) => x.source === "OUT_OF_STOCK").sort((a, b) => Number(b.present) - Number(a.present) || b.lastImportedAt.getTime() - a.lastImportedAt.getTime())[0];
       return {
         id: o.id,
@@ -127,11 +165,12 @@ export async function loadProducts(now = new Date(), filter: { asin?: string } =
         lastSeenAt: o.lastSeenAt.toISOString(),
         salePrice: o.salePrice,
         buyBox90: o.buyBox90,
-        amazonPrice: amazonPrice(o),
+        amazonPrice: price,
+        origin: { price: kPrice != null ? "keepa" : "sheet", fees: kFees != null ? "keepa" : "sheet", sales: kSales != null ? "keepa" : "sheet" },
         priceE: columnEPrice(o),
-        fbaFee: o.fbaFee,
+        fbaFee: kFees ?? o.fbaFee,
         costPrice: o.costPrice,
-        estimatedSales: o.estimatedSales,
+        estimatedSales: kSales ?? o.estimatedSales,
         currency: o.currency,
         valuesSource: o.valuesSource,
         stockStatus: o.stockStatus,
@@ -150,7 +189,7 @@ export async function loadProducts(now = new Date(), filter: { asin?: string } =
         oosNotes: latestOos?.notes ?? null,
         sheetRoi: latestOos?.sheetRoi ?? null,
         sheetProfit: latestOos?.sheetProfit ?? null,
-        profit: preliminaryProfit({ ...o, salePrice: amazonPrice(o) }, tax),
+        profit: preliminaryProfit({ ...o, salePrice: price, fbaFee: kFees ?? o.fbaFee, estimatedSales: kSales ?? o.estimatedSales }, tax),
       };
     });
     const exportedAt = lastExportDate(withExportDates(p.occurrences, now), p.lastSeenAt);
@@ -178,7 +217,8 @@ export async function loadProducts(now = new Date(), filter: { asin?: string } =
       verifiedAt: iso(p.verifiedAt),
       exportedAt: iso(exportedAt),
       confirmedAt: iso(p.confirmedAt),
-      freshSince: iso(freshSince(exportedAt, p.confirmedAt)),
+      freshSince: iso(freshSince(exportedAt, p.confirmedAt, k?.capturedAt)),
+      keepa: k,
       lastDuplicateAt: iso(p.lastDuplicateAt),
       duplicateAlert: duplicateAlertActive(p.lastDuplicateAt, p.duplicateAckAt),
       dup: duplicateFlags(p.offers.map((o) => o.id), p.occurrences),

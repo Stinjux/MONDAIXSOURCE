@@ -13,6 +13,7 @@ export const ACTION_LABELS: Record<string, string> = {
   UPDATE: "Mise à jour",
   CONFIRM: "Lead reconfirmé",
   BUY_VOTE: "Décision d'achat",
+  KEEPA_REFRESH: "Mise à jour Keepa",
 };
 
 const FIELD_LABELS: Record<string, string> = {

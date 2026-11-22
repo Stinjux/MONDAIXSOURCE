@@ -23,7 +23,7 @@ import { readSaved, useDecisionFilters, writeSaved } from "./DecisionFilters";
 import { FreshnessPill } from "./Freshness";
 import { ProductImage } from "./ProductImage";
 import { storeName } from "@/lib/stores";
-import { Badge, ByUser, EmptyState, PriceE, Supplier, cn } from "./ui";
+import { Badge, ByUser, EmptyState, KeepaBadges, PriceE, Supplier, cn } from "./ui";
 import { BuyStateBadge } from "./BuyVotePanel";
 import { useUser } from "./UserContext";
 import { otherUser } from "@/lib/users";
@@ -412,6 +412,7 @@ function LeadPanel({
               {lead.reviewedBy && lead.reviewStatus !== "TO_REVIEW" && <ByUser profile={profiles[lead.reviewedBy]} />}
               {partnerEnabled && lead.buy && <BuyStateBadge status={lead.buy} />}
               {lead.restricted && <Badge tone="serious" icon={<Lock size={10} />}>Restreint</Badge>}
+              <KeepaBadges keepa={lead.row.keepa} />
               {inCart > 0 && <Badge tone="accent" icon={<ShoppingCart size={10} />}>{inCart} au panier</Badge>}
               {outcome && <Badge tone="good">{OUTCOME_LABEL[outcome]}</Badge>}
             </div>

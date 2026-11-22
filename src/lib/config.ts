@@ -33,6 +33,7 @@ export function envStatus() {
     ["LEADS_SHEET_RANGE", false],
     ["OOS_SHEET_ID", true],
     ["OOS_SHEET_RANGE", false],
+    ["KEEPA_API_KEY", false],
     ["ORDERS_SHEET_ID", false],
     ["ORDERS_SHEET_RANGE", false],
     ["REMINDER_WEBHOOK_URL", false],

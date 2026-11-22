@@ -4,6 +4,8 @@ import { config, envStatus } from "@/lib/config";
 import { TIME_ZONE } from "@/lib/dates";
 import { sheetConfig } from "@/lib/google";
 import { UsersForm } from "@/components/UsersForm";
+import { KeepaTestButton } from "@/components/KeepaButtons";
+import { keepaKey } from "@/lib/keepa";
 import { getNoteTemplates, getTaxConfig } from "@/lib/settings";
 import { NoteTemplatesForm } from "@/components/NoteTemplatesForm";
 import { TaxSettingsForm } from "@/components/TaxSettingsForm";
@@ -21,6 +23,14 @@ export default async function SettingsPage() {
     : [];
   const backupCount = backups.length ? await prisma.dataBackup.count() : 0;
   const env = envStatus();
+  // Keepa : couverture des leads actifs et dernier passage
+  const since = new Date(Date.now() - 24 * 3600_000);
+  const [keepaActive, keepaFresh, keepaLastRun] = await Promise.all([
+    prisma.product.count({ where: { reviewStatus: { not: "REJECTED" } } }),
+    prisma.product.count({ where: { reviewStatus: { not: "REJECTED" }, keepaCheckedAt: { gte: since } } }),
+    prisma.importRun.findFirst({ where: { source: "KEEPA" }, orderBy: { startedAt: "desc" }, select: { startedAt: true, status: true, imported: true, details: true } }),
+  ]);
+  const keepa = { active: keepaActive, fresh24h: keepaFresh, lastRun: keepaLastRun };
   const leads = sheetConfig("LEADS");
   const oos = sheetConfig("OUT_OF_STOCK");
   const orders = sheetConfig("ORDERS");
@@ -72,6 +82,32 @@ export default async function SettingsPage() {
               Créez une tâche planifiée Railway le dimanche (ex. <code className="font-mono text-xs">0 13 * * 0</code> = 9 h HAE / 8 h HNE, Railway utilise l&apos;UTC) avec la commande
               <code className="mx-1 font-mono text-xs">npm run reminder</code>. Le rappel est envoyé au webhook <code className="font-mono text-xs">REMINDER_WEBHOOK_URL</code> (Slack, Discord ou ntfy) s&apos;il est configuré.
             </p>
+          </Card>
+
+          <Card title="Keepa · mise à jour automatique des leads">
+            {keepaKey() ? (
+              <div className="flex flex-col gap-3 text-sm text-ink-2">
+                <p>
+                  Leads actifs mis à jour depuis Keepa dans les dernières 24 h : <b className="text-ink tabular-nums">{keepa.fresh24h}</b> sur{" "}
+                  <b className="text-ink tabular-nums">{keepa.active}</b>.
+                  {keepa.lastRun && (
+                    <>
+                      {" "}Dernier passage : {formatDateTime(keepa.lastRun.startedAt)} · {keepa.lastRun.imported} mis à jour
+                      {keepa.lastRun.status === "FAILED" ? <span className="text-critical"> · échec : {keepa.lastRun.details}</span> : keepa.lastRun.details ? ` · ${keepa.lastRun.details}` : ""}.
+                    </>
+                  )}
+                </p>
+                <KeepaTestButton />
+                <p className="text-xs text-ink-3">
+                  Tâche planifiée Railway toutes les 15 minutes (<code className="font-mono">*/15 * * * *</code>), commande <code className="font-mono">npm run keepa:cron</code>, avec
+                  la variable <code className="font-mono">KEEPA_API_KEY</code>. Chaque passage dépense les jetons disponibles (environ 3 par lead) ; avec 1 jeton par minute, environ 480 leads par jour.
+                </p>
+              </div>
+            ) : (
+              <p className="text-sm text-ink-2">
+                Ajoutez la variable Railway <code className="font-mono text-xs">KEEPA_API_KEY</code> (service web et service de la tâche planifiée), puis redéployez. Ne la copiez jamais ailleurs.
+              </p>
+            )}
           </Card>
 
           <Card title="Comptes">
