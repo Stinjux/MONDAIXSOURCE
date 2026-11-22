@@ -25,12 +25,14 @@ export default async function SettingsPage() {
   const env = envStatus();
   // Keepa : couverture des leads actifs et dernier passage
   const since = new Date(Date.now() - 24 * 3600_000);
-  const [keepaActive, keepaFresh, keepaLastRun] = await Promise.all([
+  const [keepaActive, keepaFresh, keepaLastRun, keepaStatusRow] = await Promise.all([
     prisma.product.count({ where: { reviewStatus: { not: "REJECTED" } } }),
     prisma.product.count({ where: { reviewStatus: { not: "REJECTED" }, keepaCheckedAt: { gte: since } } }),
     prisma.importRun.findFirst({ where: { source: "KEEPA" }, orderBy: { startedAt: "desc" }, select: { startedAt: true, status: true, imported: true, details: true } }),
+    prisma.appSetting.findUnique({ where: { key: "keepa.status" } }),
   ]);
-  const keepa = { active: keepaActive, fresh24h: keepaFresh, lastRun: keepaLastRun };
+  const keepaStatus = keepaStatusRow?.value as { at: string; status: string; updated: number; message: string | null } | undefined;
+  const keepa = { active: keepaActive, fresh24h: keepaFresh, lastRun: keepaLastRun, status: keepaStatus };
   const leads = sheetConfig("LEADS");
   const oos = sheetConfig("OUT_OF_STOCK");
   const orders = sheetConfig("ORDERS");
@@ -97,10 +99,16 @@ export default async function SettingsPage() {
                     </>
                   )}
                 </p>
+                {keepa.status && (
+                  <p className={keepa.status.status === "FAILED" ? "rounded-sm border border-critical/40 bg-critical/[0.06] px-3 py-2 text-critical" : "text-ink-2"}>
+                    Dernier passage automatique : {formatDateTime(keepa.status.at)} ·{" "}
+                    {keepa.status.status === "FAILED" ? `échec — ${keepa.status.message}` : `${keepa.status.updated} lead${keepa.status.updated > 1 ? "s" : ""} mis à jour${keepa.status.message ? ` · ${keepa.status.message}` : ""}`}
+                  </p>
+                )}
                 <KeepaTestButton />
                 <p className="text-xs text-ink-3">
-                  Tâche planifiée Railway toutes les 15 minutes (<code className="font-mono">*/15 * * * *</code>), commande <code className="font-mono">npm run keepa:cron</code>, avec
-                  la variable <code className="font-mono">KEEPA_API_KEY</code>. Chaque passage dépense les jetons disponibles (environ 3 par lead) ; avec 1 jeton par minute, environ 480 leads par jour.
+                  Le site lance la mise à jour tout seul toutes les 15 minutes : rien d&apos;autre à configurer que <code className="font-mono">KEEPA_API_KEY</code>. Chaque lead est mis à jour au plus
+                  une fois par jour ; chaque passage dépense les jetons disponibles (environ 3 par lead), soit environ 480 leads par jour avec 1 jeton par minute.
                 </p>
               </div>
             ) : (

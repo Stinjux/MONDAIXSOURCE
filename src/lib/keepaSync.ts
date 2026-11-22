@@ -3,19 +3,21 @@
 // Garanties :
 //  * Respecte le quota : vérifie d'abord les jetons (gratuit), n'envoie que ce qu'il peut payer,
 //    s'arrête dès que Keepa répond « plus de jetons ». Pensée pour tourner toutes les 15 minutes.
-//  * Chaque lead actif est mis à jour au plus une fois toutes les 20 h ; les leads jamais mis à jour,
-//    puis ceux mis à jour il y a le plus longtemps, passent en premier.
+//  * Chaque lead actif est mis à jour au plus une fois par jour (jour calendaire, heure du Québec) ;
+//    les leads jamais mis à jour, puis ceux mis à jour il y a le plus longtemps, passent en premier.
 //  * N'efface ni ne modifie rien : une ligne KeepaSnapshot par mise à jour, les valeurs de la Sheet
 //    restent intactes ; seul Product.keepaCheckedAt (colonne propre à Keepa) avance.
 //  * Un seul passage à la fois (verrou en base qui expire seul, jamais supprimé).
 
 import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultDb } from "./prisma";
+import { localDateKey } from "./dates";
 import { KEEPA_DEFAULT_COST, KEEPA_MAX_ASINS, KeepaError, keepaKey, keepaProducts, keepaTokenStatus, type KeepaFacts } from "./keepa";
 
-export const KEEPA_MIN_AGE_HOURS = 20;
 const LOCK_KEY = "keepa.lock";
 const COST_KEY = "keepa.cost";
+/** Résultat du dernier passage (affiché dans Settings), y compris une erreur avant tout appel (clé invalide…) */
+export const KEEPA_STATUS_KEY = "keepa.status";
 
 export type KeepaRunResult = {
   status: "SUCCESS" | "FAILED" | "SKIPPED";
@@ -33,11 +35,14 @@ export function batchSize(tokensLeft: number, costPerAsin: number, remaining: nu
   return Math.max(0, Math.min(KEEPA_MAX_ASINS, remaining, Math.floor(tokensLeft / Math.max(1, costPerAsin))));
 }
 
-/** Leads à mettre à jour, dans l'ordre : jamais interrogés (les plus récents d'abord), puis les plus anciens. */
-export function dueOrder<T extends { keepaCheckedAt: Date | null; firstSeenAt: Date }>(items: T[], now: Date, minAgeHours = KEEPA_MIN_AGE_HOURS): T[] {
-  const limit = now.getTime() - minAgeHours * 3_600_000;
+/**
+ * Leads à mettre à jour, dans l'ordre : jamais interrogés (les plus récents d'abord), puis les plus anciens.
+ * Un lead déjà interrogé aujourd'hui (heure du Québec) n'est jamais repris le même jour.
+ */
+export function dueOrder<T extends { keepaCheckedAt: Date | null; firstSeenAt: Date }>(items: T[], now: Date): T[] {
+  const today = localDateKey(now);
   return items
-    .filter((p) => !p.keepaCheckedAt || p.keepaCheckedAt.getTime() <= limit)
+    .filter((p) => !p.keepaCheckedAt || localDateKey(p.keepaCheckedAt) < today)
     .sort((a, b) => {
       if (!a.keepaCheckedAt !== !b.keepaCheckedAt) return a.keepaCheckedAt ? 1 : -1;
       if (!a.keepaCheckedAt) return b.firstSeenAt.getTime() - a.firstSeenAt.getTime();
@@ -63,12 +68,22 @@ export type KeepaRunOptions = {
   fetch?: typeof fetch;
   now?: Date;
   trigger?: string;
-  /** Mise à jour à la demande de ces ASIN (ignore le délai de 20 h) */
+  /** Mise à jour à la demande de ces ASIN (bouton de la fiche lead : passe outre la règle d'un passage par jour) */
   asins?: string[];
   maxBatches?: number;
 };
 
 export async function runKeepa(opts: KeepaRunOptions = {}): Promise<KeepaRunResult> {
+  const db = opts.db ?? defaultDb;
+  const r = await runKeepaInner(opts);
+  if (r.status !== "SKIPPED" || /jetons/i.test(r.message ?? "")) {
+    const value = { at: (opts.now ?? new Date()).toISOString(), status: r.status, updated: r.updated, tokensLeft: r.tokensLeft, message: r.message ?? null };
+    await db.appSetting.upsert({ where: { key: KEEPA_STATUS_KEY }, create: { key: KEEPA_STATUS_KEY, value }, update: { value } }).catch(() => undefined);
+  }
+  return r;
+}
+
+async function runKeepaInner(opts: KeepaRunOptions): Promise<KeepaRunResult> {
   const db = opts.db ?? defaultDb;
   const now = opts.now ?? new Date();
   const fetchImpl = opts.fetch ?? fetch;
@@ -139,7 +154,7 @@ export async function runKeepa(opts: KeepaRunOptions = {}): Promise<KeepaRunResu
             },
           });
         }
-        // Interrogés, avec ou sans données : on ne les redemande pas avant 20 h
+        // Interrogés, avec ou sans données : pas redemandés avant demain
         await tx.product.updateMany({ where: { asin: { in: batch } }, data: { keepaCheckedAt: now } });
       });
       result.requested += batch.length;

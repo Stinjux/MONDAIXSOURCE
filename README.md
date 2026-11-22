@@ -116,8 +116,8 @@ Avec la variable `KEEPA_API_KEY`, chaque lead actif (ni rejeté ni acheté) est 
 
 - **Calculs** : valeur vérifiée à la main, puis **Keepa**, puis Sheet. Prix Amazon = Buy Box moyenne 90 j (sinon actuelle) ; frais = commission × prix + frais FBA ; ventes / mois = achats du mois dernier publiés par Amazon (sinon la Sheet). Les valeurs de la Sheet restent conservées et visibles. Une mise à jour Keepa remet à jour la fraîcheur du lead (côté Amazon).
 - **Alerte « Prix en baisse »** : Buy Box actuelle au moins 10 % sous sa moyenne 90 jours (Un par un, liste, Pipeline, fiche lead). Le ROI affiché reste calculé sur la moyenne 90 jours : le badge signale l'écart.
-- **Quota** : environ 3 jetons par lead (requête + Buy Box). Chaque passage vérifie d'abord les jetons (gratuit), n'envoie que ce qu'il peut payer (100 ASIN au plus par requête) et s'arrête proprement quand le quota est atteint ; les leads jamais mis à jour passent en premier, puis les plus anciens. Avec 1 jeton par minute : environ 480 leads par jour, à condition de passer souvent (les jetons inutilisés ne s'accumulent pas longtemps).
-- **Tâche planifiée** : service Railway avec `railway/keepa-cron.json` (`npm run keepa:cron`, toutes les 15 minutes) et `KEEPA_API_KEY`. Ou un ordonnanceur externe : `POST /api/keepa` avec `Authorization: Bearer $SYNC_SECRET`.
+- **Quota** : environ 3 jetons par lead (requête + Buy Box). Chaque passage vérifie d'abord les jetons (gratuit), n'envoie que ce qu'il peut payer (100 ASIN au plus par requête) et s'arrête proprement quand le quota est atteint ; les leads jamais mis à jour passent en premier, puis les plus anciens. Avec 1 jeton par minute : environ 480 leads par jour, d'où un passage toutes les 15 minutes (les jetons inutilisés ne s'accumulent pas longtemps).
+- **Automatique** : le site lance la mise à jour tout seul toutes les 15 minutes dès que `KEEPA_API_KEY` existe (`src/instrumentation.ts`) ; rien d'autre à configurer. **Jamais deux fois le même lead le même jour** (jour calendaire, heure du Québec) ; seul le bouton de la fiche lead passe outre. Résultat du dernier passage (ou l'erreur, ex. clé invalide) dans Settings. Facultatif : service Railway `railway/keepa-cron.json` (`npm run keepa:cron`) ou `POST /api/keepa` avec `Authorization: Bearer $SYNC_SECRET` ; le verrou empêche deux passages simultanés.
 - **Fiche lead** : carte « Keepa · Amazon.ca » (valeurs, historique des 10 dernières mises à jour, bouton « Mettre à jour depuis Keepa »). **Settings** : leads à jour dans les dernières 24 h, dernier passage, bouton « Tester Keepa » (jetons disponibles ; la clé n'est jamais affichée). Chaque passage apparaît dans Import History (« Keepa »).
 - **Données** : une ligne `KeepaSnapshot` par mise à jour, jamais modifiée ni supprimée ; seul `Product.keepaCheckedAt` avance.
 
@@ -182,7 +182,7 @@ curl -X POST https://<app>.up.railway.app/api/sync -H "Authorization: Bearer $SY
 Une seule synchronisation s'exécute à la fois (verrou en base). Le bouton **Synchroniser les Sheets** du dashboard déclenche la même opération côté serveur ; aucun secret n'est envoyé au navigateur.
 
 ### 2 bis. Keepa (optionnel)
-Un troisième service depuis le même dépôt, avec les mêmes variables plus `KEEPA_API_KEY`, et `railway/keepa-cron.json` (commande `npm run keepa:cron`, toutes les 15 minutes). La clé ne s'écrit que dans Railway.
+Ajouter `KEEPA_API_KEY` aux variables du service web suffit : le site met les leads à jour tout seul toutes les 15 minutes. La clé ne s'écrit que dans Railway.
 
 ### 3. Rappel de la Weekly Review (optionnel)
 Troisième service cron avec `railway/reminder-cron.json` (`npm run reminder`, dimanche 12:45 UTC ≈ 8 h 45 au Québec). Définir `REMINDER_WEBHOOK_URL` (Slack, Discord ou ntfy) pour recevoir le message. `GET /api/reminder` (Bearer `SYNC_SECRET`) affiche le contenu sans l'envoyer.

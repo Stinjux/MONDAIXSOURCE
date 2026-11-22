@@ -10,12 +10,13 @@ test("Keepa : taille des paquets selon les jetons", () => {
   assert.equal(batchSize(-5, 3, 10), 0);
 });
 
-test("Keepa : jamais interrogés d'abord (les plus récents), puis les plus anciens, pas avant 20 h", () => {
-  const now = new Date("2026-11-22T12:00:00Z");
+test("Keepa : jamais interrogés d'abord (les plus récents), puis les plus anciens, jamais deux fois le même jour", () => {
+  const now = new Date("2026-11-22T22:00:00Z"); // 17 h au Québec
   const h = (n: number) => new Date(now.getTime() - n * 3600_000);
   const items = [
     { id: "vieux", keepaCheckedAt: h(48), firstSeenAt: h(500) },
     { id: "recent", keepaCheckedAt: h(5), firstSeenAt: h(500) },
+    { id: "ce-matin", keepaCheckedAt: new Date("2026-11-22T06:00:00Z"), firstSeenAt: h(500) }, // 1 h du matin au Québec : même jour
     { id: "jamais-ancien", keepaCheckedAt: null, firstSeenAt: h(300) },
     { id: "jamais-nouveau", keepaCheckedAt: null, firstSeenAt: h(2) },
     { id: "hier", keepaCheckedAt: h(21), firstSeenAt: h(500) },

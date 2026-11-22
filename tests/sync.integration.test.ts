@@ -352,7 +352,7 @@ function fakeKeepa(start: number, opts: { throttleAfter?: number } = {}) {
   return { impl, asked };
 }
 
-test("Keepa : leads actifs mis à jour selon les jetons, jamais deux fois en 20 h, rien d'effacé", { skip }, async () => {
+test("Keepa : leads actifs mis à jour selon les jetons, jamais deux fois le même jour, rien d'effacé", { skip }, async () => {
   const keepaSync = await import("../src/lib/keepaSync");
   await run({ LEADS: BASE_LEADS, OUT_OF_STOCK: BASE_OOS });
   const saved = process.env.KEEPA_API_KEY;
@@ -376,7 +376,7 @@ test("Keepa : leads actifs mis à jour selon les jetons, jamais deux fois en 20 
     assert.equal(new Set(all).size, all.length); // aucun lead demandé deux fois
     assert.equal(r1.requested + r2.requested, 3);
     assert.equal(r1.noData + r2.noData, 1); // D : aucune donnée chez Keepa
-    // Moins de 20 h après : rien à faire
+    // Plus tard le même jour : rien à faire (jamais deux fois le même jour)
     const r3 = await keepaSync.runKeepa({ db, fetch: fakeKeepa(100).impl, now: new Date(NOW.getTime() + 3600_000), trigger: "TEST" });
     assert.equal(r3.status, "SKIPPED");
     // Données enregistrées à part ; la Sheet reste intacte
