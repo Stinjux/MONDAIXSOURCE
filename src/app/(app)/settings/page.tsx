@@ -105,7 +105,10 @@ export default async function SettingsPage() {
                     {keepa.status.status === "FAILED" ? `échec — ${keepa.status.message}` : `${keepa.status.updated} lead${keepa.status.updated > 1 ? "s" : ""} mis à jour${keepa.status.message ? ` · ${keepa.status.message}` : ""}`}
                   </p>
                 )}
-                <KeepaTestButton />
+                <span className="flex flex-wrap items-center gap-3">
+                  <KeepaTestButton />
+                  <a href="/keepa" className="link text-sm">Voir le journal Keepa (lead par lead)</a>
+                </span>
                 <p className="text-xs text-ink-3">
                   Le site lance la mise à jour tout seul toutes les 15 minutes : rien d&apos;autre à configurer que <code className="font-mono">KEEPA_API_KEY</code>. Chaque lead est mis à jour au plus
                   une fois par jour ; chaque passage dépense les jetons disponibles (environ 3 par lead), soit environ 480 leads par jour avec 1 jeton par minute.

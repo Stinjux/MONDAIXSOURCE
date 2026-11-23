@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  BarChart3, CalendarCheck, ChevronsLeft, ChevronsRight, Copy, Handshake, History, KanbanSquare, LayoutDashboard, LogOut, Menu, PackageX, Receipt, Rows3, Rows4,
+  BarChart3, CalendarCheck, ChevronsLeft, ChevronsRight, Copy, Handshake, History, KanbanSquare, LayoutDashboard, LogOut, Menu, PackageX, Radar, Receipt, Rows3, Rows4,
   Search, Settings, ShoppingBag, ShoppingBasket, ShoppingCart, Store, Table2, X,
 } from "lucide-react";
 import { logout } from "@/app/(app)/actions";
@@ -48,6 +48,7 @@ export const NAV_SECTIONS: { title: string; items: Item[] }[] = [
     title: "Suivi",
     items: [
       { href: "/analytics", label: "Analytics", icon: BarChart3 },
+      { href: "/keepa", label: "Keepa", icon: Radar },
       { href: "/imports", label: "Import History", icon: History },
       { href: "/settings", label: "Settings", icon: Settings },
     ],
