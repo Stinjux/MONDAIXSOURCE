@@ -122,6 +122,16 @@ Avec la variable `KEEPA_API_KEY`, chaque lead actif (ni rejeté ni acheté) est 
 - **Journal Keepa** (`/keepa`, menu Suivi) : chaque lead avec la **date et l'heure de sa dernière analyse** par l'API Keepa, le résultat (« Données reçues » ou « Aucune donnée chez Keepa », les dernières valeurs connues étant alors affichées en gris avec leur date), la Buy Box actuelle et moyenne 90 j, le nombre d'analyses et l'état : analysé aujourd'hui, en attente aujourd'hui, jamais analysé, hors rotation (rejeté ou acheté). Chiffres cliquables pour filtrer, recherche par nom ou ASIN, et les 20 derniers passages (déclencheur, leads interrogés, avec et sans données).
 - **Données** : une ligne `KeepaSnapshot` par mise à jour, jamais modifiée ni supprimée ; seul `Product.keepaCheckedAt` avance.
 
+### Keepa Alert (`/keepa-alert`, menu Sourcing)
+
+Les leads **qui n'étaient pas acceptés** et que la **Buy Box Keepa rend maintenant intéressants**, selon **les critères d'achat de chacun** (ROI, profit, marge, ventes réglés dans « Classement et critères » : Justin et Hamza ont chacun les leurs) :
+- les leads **rejetés** qui respectent maintenant vos critères ;
+- les leads actifs qui **ne respectaient pas vos critères** (avis À considérer ou Éviter) et qui passent à « Acheter ».
+
+Chaque alerte montre **avant → maintenant** : prix Amazon, ROI, profit par unité, ventes par mois, profit mensuel et avis (avant = analyse Keepa précédente, ou la Sheet pour une première analyse), le motif (« Rejeté le … par … » ou « Sous vos critères avant ») et la date de l'analyse Keepa. Actions : **Remettre en revue** (un rejeté redevient « À revoir », à votre nom), **Ouvrir la décision**, **Ignorer** (masque l'alerte pour vous jusqu'à la prochaine analyse Keepa de ce lead). Le nombre d'alertes s'affiche dans le menu. Les leads achetés ne sont jamais en alerte.
+
+Pour que les rejetés puissent revenir, Keepa les analyse **une fois par semaine**, après les leads actifs et avec les jetons restants (les actifs restent analysés chaque jour en priorité ; le journal Keepa les montre « Rejeté · chaque semaine »).
+
 ### Fraîcheur et reconfirmation
 
 Les données d'un lead (prix Amazon, frais, coût, stock) sont **à reconfirmer 30 jours après son dernier export** dans LEADS ou sa dernière reconfirmation : pastille verte (à jour), orange (7 derniers jours), rouge (à reconfirmer). Un lead périmé ne peut pas être mis au panier ni acheté : il se **reconfirme directement dans Buy Decisions** (vue Un par un, bouton « Reconfirmer » ; les valeurs modifiées dans « Détails » sont enregistrées comme vérifiées, les valeurs de la Sheet restent intactes). Les boutons « Reconfirmer » du Pipeline, de la liste, du panier et de la fiche lead y mènent. L'ancienne section « À reconfirmer » a été retirée du menu ; son adresse `/reconfirm` redirige vers Buy Decisions.

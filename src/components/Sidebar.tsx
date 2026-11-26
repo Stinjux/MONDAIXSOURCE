@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  BarChart3, CalendarCheck, ChevronsLeft, ChevronsRight, Copy, Handshake, History, KanbanSquare, LayoutDashboard, LogOut, Menu, PackageX, Radar, Receipt, Rows3, Rows4,
+  BarChart3, BellRing, CalendarCheck, ChevronsLeft, ChevronsRight, Copy, Handshake, History, KanbanSquare, LayoutDashboard, LogOut, Menu, PackageX, Radar, Receipt, Rows3, Rows4,
   Search, Settings, ShoppingBag, ShoppingBasket, ShoppingCart, Store, Table2, X,
 } from "lucide-react";
 import { logout } from "@/app/(app)/actions";
@@ -13,7 +13,7 @@ import { useUser } from "./UserContext";
 import { ROLE_LABELS } from "@/lib/users";
 import { readUi, setUi, type UiPrefs } from "./uiPrefs";
 
-type Counts = { duplicates: number; review: number; backInStock: number; approvals: number };
+type Counts = { duplicates: number; review: number; backInStock: number; approvals: number; keepaAlerts: number };
 type Item = { href: string; label: string; icon: typeof LayoutDashboard; count?: keyof Counts; partnerOnly?: boolean };
 
 export const NAV_SECTIONS: { title: string; items: Item[] }[] = [
@@ -24,6 +24,7 @@ export const NAV_SECTIONS: { title: string; items: Item[] }[] = [
       { href: "/pipeline", label: "Pipeline", icon: KanbanSquare },
       { href: "/decisions", label: "Buy Decisions", icon: ShoppingCart },
       { href: "/achats-a-deux", label: "Achats à deux", icon: Handshake, count: "approvals", partnerOnly: true },
+      { href: "/keepa-alert", label: "Keepa Alert", icon: BellRing, count: "keepaAlerts" },
       { href: "/purchased", label: "Panier potentiel", icon: ShoppingBasket },
       { href: "/weekly-review", label: "Weekly Review", icon: CalendarCheck, count: "review" },
     ],

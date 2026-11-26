@@ -33,6 +33,9 @@ export type OfferView = {
   fbaFee: number | null;
   costPrice: number | null;
   estimatedSales: number | null;
+  /** Frais et ventes de la Sheet, avant Keepa (Keepa Alert : comparaison avant / maintenant) */
+  sheetFbaFee: number | null;
+  sheetEstimatedSales: number | null;
   currency: string;
   valuesSource: string | null;
   stockStatus: string;
@@ -171,6 +174,8 @@ export async function loadProducts(now = new Date(), filter: { asin?: string } =
         fbaFee: kFees ?? o.fbaFee,
         costPrice: o.costPrice,
         estimatedSales: kSales ?? o.estimatedSales,
+        sheetFbaFee: o.fbaFee,
+        sheetEstimatedSales: o.estimatedSales,
         currency: o.currency,
         valuesSource: o.valuesSource,
         stockStatus: o.stockStatus,
@@ -317,14 +322,16 @@ export async function lastSuccessfulSync() {
 export async function navCounts(now = new Date(), me: UserKey = "owner") {
   const current = weekKey(now);
   const { buyActionCount } = await import("./buyQueries");
+  const { keepaAlertCount } = await import("./keepaAlertQueries");
   const [duplicates, review, backInStock] = await Promise.all([
     prisma.product.findMany({ where: { lastDuplicateAt: { not: null } }, select: { lastDuplicateAt: true, duplicateAckAt: true } }),
     prisma.product.count({ where: { countsTowardGoal: true, goalWeek: { lte: current }, reviewStatus: { in: ["TO_REVIEW", "IN_PROGRESS"] } } }),
     prisma.supplierOffer.findMany({ where: { stockStatus: "IN_STOCK", backInStockAt: { not: null } }, select: { backInStockAt: true, backInStockAckAt: true } }),
   ]);
-  const approvals = await buyActionCount(me);
+  const [approvals, keepaAlerts] = await Promise.all([buyActionCount(me), keepaAlertCount(me).catch(() => 0)]);
   return {
     approvals,
+    keepaAlerts,
     duplicates: duplicates.filter((p) => duplicateAlertActive(p.lastDuplicateAt, p.duplicateAckAt)).length,
     review,
     backInStock: backInStock.filter((o) => duplicateAlertActive(o.backInStockAt, o.backInStockAckAt)).length,

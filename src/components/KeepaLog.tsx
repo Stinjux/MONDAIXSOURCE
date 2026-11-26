@@ -3,7 +3,7 @@
 // renvoyé, et où il en est aujourd'hui. Filtres, recherche, passages récents.
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { CheckCircle2, CircleSlash, Clock, Search, SearchX, TrendingDown } from "lucide-react";
+import { CalendarClock, CheckCircle2, CircleSlash, Clock, Search, SearchX, TrendingDown } from "lucide-react";
 import { formatAgo, formatDateTime } from "@/lib/dates";
 import { cad, num } from "@/lib/format";
 import { KEEPA_STATE_LABELS, type KeepaLeadState, type KeepaResult } from "@/lib/keepaLog";
@@ -31,6 +31,7 @@ const ICON: Record<KeepaLeadState, React.ReactNode> = {
   TODAY: <CheckCircle2 size={15} className="text-good" />,
   PENDING: <Clock size={15} className="text-warning" />,
   NEVER: <SearchX size={15} className="text-ink-3" />,
+  WEEKLY: <CalendarClock size={15} className="text-ink-3" />,
   OUT: <CircleSlash size={15} className="text-ink-3" />,
 };
 const TRIGGER: Record<string, string> = { AUTO: "Automatique", CRON: "Tâche planifiée", MANUAL: "Bouton", CLI: "Commande" };
@@ -39,7 +40,7 @@ export function KeepaLog({ rows, runs, configured }: { rows: KeepaLogRow[]; runs
   const [filter, setFilter] = useState<Filter>("ALL");
   const [query, setQuery] = useState("");
   const counts = useMemo(() => {
-    const c: Record<KeepaLeadState, number> = { TODAY: 0, PENDING: 0, NEVER: 0, OUT: 0 };
+    const c: Record<KeepaLeadState, number> = { TODAY: 0, PENDING: 0, NEVER: 0, WEEKLY: 0, OUT: 0 };
     for (const r of rows) c[r.state]++;
     return c;
   }, [rows]);
@@ -49,7 +50,7 @@ export function KeepaLog({ rows, runs, configured }: { rows: KeepaLogRow[]; runs
       .filter((r) => (filter === "ALL" || r.state === filter) && (!q || `${r.asin} ${r.name}`.toLowerCase().includes(q)))
       .sort((a, b) => (b.checkedAt ?? "").localeCompare(a.checkedAt ?? "") || a.name.localeCompare(b.name, "fr"));
   }, [rows, filter, query]);
-  const active = counts.TODAY + counts.PENDING + counts.NEVER;
+  const active = counts.TODAY + counts.PENDING + counts.NEVER + counts.WEEKLY;
 
   return (
     <div className="flex flex-col gap-4">
@@ -60,8 +61,8 @@ export function KeepaLog({ rows, runs, configured }: { rows: KeepaLogRow[]; runs
       )}
 
       {/* Chiffres clés, cliquables pour filtrer */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" role="radiogroup" aria-label="Filtrer par état">
-        {(["TODAY", "PENDING", "NEVER", "OUT"] as KeepaLeadState[]).map((s) => (
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5" role="radiogroup" aria-label="Filtrer par état">
+        {(["TODAY", "PENDING", "NEVER", "WEEKLY", "OUT"] as KeepaLeadState[]).map((s) => (
           <button
             key={s}
             type="button"
@@ -76,12 +77,14 @@ export function KeepaLog({ rows, runs, configured }: { rows: KeepaLogRow[]; runs
             <span className="mt-1 block font-serif text-[28px] leading-tight font-semibold tabular-nums text-ink">{counts[s]}</span>
             <span className="text-[11px] text-ink-3">
               {s === "TODAY"
-                ? `sur ${active} lead${active > 1 ? "s" : ""} actif${active > 1 ? "s" : ""}`
+                ? `sur ${active} lead${active > 1 ? "s" : ""} suivi${active > 1 ? "s" : ""}`
                 : s === "PENDING"
-                  ? "analysés un autre jour, repassent aujourd'hui"
+                  ? "repassent aujourd'hui"
                   : s === "NEVER"
                     ? "passent en premier"
-                    : "rejetés ou achetés : plus analysés"}
+                    : s === "WEEKLY"
+                      ? "analysés une fois par semaine (Keepa Alert)"
+                      : "achetés : plus analysés"}
             </span>
           </button>
         ))}

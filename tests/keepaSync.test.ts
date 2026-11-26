@@ -22,4 +22,7 @@ test("Keepa : jamais interrogés d'abord (les plus récents), puis les plus anci
     { id: "hier", keepaCheckedAt: h(21), firstSeenAt: h(500) },
   ];
   assert.deepEqual(dueOrder(items, now).map((i) => i.id), ["jamais-nouveau", "jamais-ancien", "vieux", "hier"]);
+  // Une fois par semaine (rejetés) : seulement ceux analysés il y a au moins 7 jours
+  assert.deepEqual(dueOrder(items, now, 7).map((i) => i.id), ["jamais-nouveau", "jamais-ancien"]);
+  assert.deepEqual(dueOrder([{ id: "8j", keepaCheckedAt: h(8 * 24), firstSeenAt: h(900) }], now, 7).map((i) => i.id), ["8j"]);
 });

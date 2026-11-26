@@ -11,6 +11,10 @@ test("journal Keepa : état du lead et résultat de sa dernière analyse", () =>
   assert.deepEqual(keepaLeadState({ keepaCheckedAt: yesterday, lastSnapshotAt: yesterday, active: true }, now), { state: "PENDING", result: "DATA" });
   assert.deepEqual(keepaLeadState({ keepaCheckedAt: null, lastSnapshotAt: null, active: true }, now), { state: "NEVER", result: null });
   assert.deepEqual(keepaLeadState({ keepaCheckedAt: yesterday, lastSnapshotAt: null, active: false }, now), { state: "OUT", result: "NO_DATA" });
+  // Rejeté : analysé une fois par semaine
+  assert.equal(keepaLeadState({ keepaCheckedAt: yesterday, lastSnapshotAt: yesterday, active: true, rejected: true }, now).state, "WEEKLY");
+  assert.equal(keepaLeadState({ keepaCheckedAt: "2026-11-15T20:00:00.000Z", lastSnapshotAt: null, active: true, rejected: true }, now).state, "PENDING");
+  assert.equal(keepaLeadState({ keepaCheckedAt: null, lastSnapshotAt: null, active: true, rejected: true }, now).state, "NEVER");
   // 1 h du matin au Québec, le 23 : déjà « aujourd'hui »
   assert.equal(keepaLeadState({ keepaCheckedAt: "2026-11-23T06:00:00.000Z", lastSnapshotAt: null, active: true }, now).state, "TODAY");
 });

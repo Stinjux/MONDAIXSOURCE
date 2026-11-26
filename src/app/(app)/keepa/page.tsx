@@ -22,7 +22,7 @@ export default async function KeepaPage() {
     const s = latestBy.get(p.id);
     const rejected = p.reviewStatus === "REJECTED";
     const { state, result } = keepaLeadState(
-      { keepaCheckedAt: p.keepaCheckedAt?.toISOString() ?? null, lastSnapshotAt: s?.capturedAt.toISOString() ?? null, active: !rejected && !bought.has(p.asin) },
+      { keepaCheckedAt: p.keepaCheckedAt?.toISOString() ?? null, lastSnapshotAt: s?.capturedAt.toISOString() ?? null, active: !bought.has(p.asin), rejected },
       now,
     );
     return {
@@ -36,7 +36,7 @@ export default async function KeepaPage() {
       buyBox: s?.buyBox ?? null,
       buyBoxAvg90: s?.buyBoxAvg90 ?? null,
       priceDrop: s ? priceDrop(s) : null,
-      outReason: rejected ? "Rejeté" : bought.has(p.asin) ? "Acheté" : null,
+      outReason: bought.has(p.asin) ? "Acheté" : null,
     };
   });
   return (
@@ -44,7 +44,7 @@ export default async function KeepaPage() {
       <PageHeader
         eyebrow="Suivi"
         title="Keepa"
-        description="Quel lead a été analysé par l'API Keepa, quand, et avec quel résultat. Les leads actifs sont analysés au plus une fois par jour, automatiquement ; les rejetés et achetés ne le sont plus."
+        description="Quel lead a été analysé par l'API Keepa, quand, et avec quel résultat. Les leads actifs sont analysés au plus une fois par jour, automatiquement ; les rejetés une fois par semaine (Keepa Alert) ; les achetés ne le sont plus."
       />
       <KeepaLog
         configured={!!keepaKey()}

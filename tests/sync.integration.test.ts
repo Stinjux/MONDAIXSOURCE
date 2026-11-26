@@ -358,7 +358,7 @@ test("Keepa : leads actifs mis à jour selon les jetons, jamais deux fois le mê
   const saved = process.env.KEEPA_API_KEY;
   process.env.KEEPA_API_KEY = "cle-de-test";
   try {
-    // Un lead rejeté et un lead acheté ne sont pas interrogés
+    // Un lead acheté n'est pas interrogé ; un lead rejeté passe après les actifs (une fois par semaine)
     await db.product.update({ where: { asin: "B0EEEEEEEE" }, data: { reviewStatus: "REJECTED" } });
     await db.purchase.create({ data: { totalCost: 20, totalUnits: 1, items: { create: [{ asin: "B0FFFFFFFF", name: "F", quantity: 1, unitCost: 20 }] } } });
     // 7 jetons : 2 leads seulement (3 jetons chacun)
@@ -371,10 +371,11 @@ test("Keepa : leads actifs mis à jour selon les jetons, jamais deux fois le mê
     const k2 = fakeKeepa(100);
     const r2 = await keepaSync.runKeepa({ db, fetch: k2.impl, now: new Date(NOW.getTime() + 15 * 60_000), trigger: "TEST" });
     const all = [...k1.asked.flat(), ...k2.asked.flat()].sort();
-    assert.deepEqual(all, ["B0AAAAAAAA", "B0BBBBBBBB", "B0DDDDDDDD"]);
-    assert.ok(!all.includes("B0EEEEEEEE") && !all.includes("B0FFFFFFFF"));
+    assert.deepEqual(all, ["B0AAAAAAAA", "B0BBBBBBBB", "B0DDDDDDDD", "B0EEEEEEEE"]);
+    assert.ok(!all.includes("B0FFFFFFFF"));
+    assert.ok(!k1.asked.flat().includes("B0EEEEEEEE")); // le rejeté n'a pas pris les jetons des actifs
     assert.equal(new Set(all).size, all.length); // aucun lead demandé deux fois
-    assert.equal(r1.requested + r2.requested, 3);
+    assert.equal(r1.requested + r2.requested, 4);
     assert.equal(r1.noData + r2.noData, 1); // D : aucune donnée chez Keepa
     // Plus tard le même jour : rien à faire (jamais deux fois le même jour)
     const r3 = await keepaSync.runKeepa({ db, fetch: fakeKeepa(100).impl, now: new Date(NOW.getTime() + 3600_000), trigger: "TEST" });
@@ -387,6 +388,7 @@ test("Keepa : leads actifs mis à jour selon les jetons, jamais deux fois le mê
     // Le lendemain : nouvelle ligne, l'ancienne est conservée
     await keepaSync.runKeepa({ db, fetch: fakeKeepa(100).impl, now: new Date(NOW.getTime() + 25 * 3600_000), trigger: "TEST" });
     assert.equal(await db.keepaSnapshot.count({ where: { asin: "B0AAAAAAAA" } }), 2);
+    assert.equal(await db.keepaSnapshot.count({ where: { asin: "B0EEEEEEEE" } }), 1); // rejeté : pas avant une semaine
     // Quota atteint en cours de route : arrêt propre, run enregistré
     await db.product.updateMany({ data: { keepaCheckedAt: null } });
     const r5 = await keepaSync.runKeepa({ db, fetch: fakeKeepa(6, { throttleAfter: 0 }).impl, now: new Date(NOW.getTime() + 50 * 3600_000), trigger: "TEST" });

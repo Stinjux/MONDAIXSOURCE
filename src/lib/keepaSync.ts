@@ -5,6 +5,8 @@
 //    s'arrête dès que Keepa répond « plus de jetons ». Pensée pour tourner toutes les 15 minutes.
 //  * Chaque lead actif est mis à jour au plus une fois par jour (jour calendaire, heure du Québec) ;
 //    les leads jamais mis à jour, puis ceux mis à jour il y a le plus longtemps, passent en premier.
+//  * Les leads rejetés sont analysés une fois par semaine, après les actifs, avec les jetons restants
+//    (Keepa Alert : un rejeté peut redevenir intéressant). Les leads achetés ne sont plus analysés.
 //  * N'efface ni ne modifie rien : une ligne KeepaSnapshot par mise à jour, les valeurs de la Sheet
 //    restent intactes ; seul Product.keepaCheckedAt (colonne propre à Keepa) avance.
 //  * Un seul passage à la fois (verrou en base qui expire seul, jamais supprimé).
@@ -18,6 +20,9 @@ const LOCK_KEY = "keepa.lock";
 const COST_KEY = "keepa.cost";
 /** Résultat du dernier passage (affiché dans Settings), y compris une erreur avant tout appel (clé invalide…) */
 export const KEEPA_STATUS_KEY = "keepa.status";
+
+/** Les leads rejetés sont analysés une fois par semaine (Keepa Alert) */
+export const REJECTED_EVERY_DAYS = 7;
 
 export type KeepaRunResult = {
   status: "SUCCESS" | "FAILED" | "SKIPPED";
@@ -39,10 +44,11 @@ export function batchSize(tokensLeft: number, costPerAsin: number, remaining: nu
  * Leads à mettre à jour, dans l'ordre : jamais interrogés (les plus récents d'abord), puis les plus anciens.
  * Un lead déjà interrogé aujourd'hui (heure du Québec) n'est jamais repris le même jour.
  */
-export function dueOrder<T extends { keepaCheckedAt: Date | null; firstSeenAt: Date }>(items: T[], now: Date): T[] {
-  const today = localDateKey(now);
+export function dueOrder<T extends { keepaCheckedAt: Date | null; firstSeenAt: Date }>(items: T[], now: Date, everyDays = 1): T[] {
+  // Dû si la dernière analyse date d'un jour (heure du Québec) antérieur ou égal à « aujourd'hui − everyDays »
+  const limit = localDateKey(new Date(now.getTime() - everyDays * 86_400_000));
   return items
-    .filter((p) => !p.keepaCheckedAt || localDateKey(p.keepaCheckedAt) < today)
+    .filter((p) => !p.keepaCheckedAt || localDateKey(p.keepaCheckedAt) <= limit)
     .sort((a, b) => {
       if (!a.keepaCheckedAt !== !b.keepaCheckedAt) return a.keepaCheckedAt ? 1 : -1;
       if (!a.keepaCheckedAt) return b.firstSeenAt.getTime() - a.firstSeenAt.getTime();
@@ -94,15 +100,18 @@ async function runKeepaInner(opts: KeepaRunOptions): Promise<KeepaRunResult> {
   let runId: string | undefined;
   const result: KeepaRunResult = { status: "SUCCESS", ...empty };
   try {
-    // Leads concernés : actifs (ni rejetés ni achetés), ou ceux demandés
+    // Leads concernés : actifs chaque jour, puis rejetés chaque semaine (jamais les achetés), ou ceux demandés
     const purchased = new Set(
       (await db.purchaseItem.findMany({ where: { purchase: { cancelledAt: null } }, select: { asin: true } })).map((i) => i.asin),
     );
     const candidates = await db.product.findMany({
-      where: opts.asins ? { asin: { in: opts.asins } } : { reviewStatus: { not: "REJECTED" } },
-      select: { id: true, asin: true, keepaCheckedAt: true, firstSeenAt: true },
+      where: opts.asins ? { asin: { in: opts.asins } } : undefined,
+      select: { id: true, asin: true, keepaCheckedAt: true, firstSeenAt: true, reviewStatus: true },
     });
-    const due = opts.asins ? candidates : dueOrder(candidates.filter((p) => !purchased.has(p.asin)), now);
+    const pool = candidates.filter((p) => !purchased.has(p.asin));
+    const due = opts.asins
+      ? candidates
+      : [...dueOrder(pool.filter((p) => p.reviewStatus !== "REJECTED"), now), ...dueOrder(pool.filter((p) => p.reviewStatus === "REJECTED"), now, REJECTED_EVERY_DAYS)];
     if (!due.length) return { ...result, status: "SKIPPED", message: "Aucun lead à mettre à jour pour l'instant" };
 
     const status = await keepaTokenStatus(fetchImpl);
