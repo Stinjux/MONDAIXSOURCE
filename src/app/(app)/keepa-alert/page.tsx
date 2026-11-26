@@ -6,17 +6,18 @@ import { loadKeepaAlerts } from "@/lib/keepaAlertQueries";
 
 export const metadata = { title: "Keepa Alert" };
 
-export default async function KeepaAlertPage() {
+export default async function KeepaAlertPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+  const { tab } = await searchParams;
   const me = await requireAdmin();
   const { alerts, thresholds } = await loadKeepaAlerts(me);
   return (
     <>
       <PageHeader
-        eyebrow="Sourcing"
+        eyebrow="Keepa"
         title="Keepa Alert"
-        description="Les leads que vous aviez rejetés, ou qui ne respectaient pas vos critères, et que la Buy Box Keepa rend maintenant intéressants. Avant = analyse Keepa précédente (ou la Sheet) ; maintenant = dernière analyse Keepa."
+        description="Chaque lead analysé par Keepa, selon vos critères : New good (devient profitable à la dernière analyse), Still good (toujours profitable, depuis quand) et Still below target (pas encore dans vos critères)."
       />
-      <KeepaAlertBoard alerts={alerts} thresholds={thresholds} configured={!!keepaKey()} />
+      <KeepaAlertBoard alerts={alerts} thresholds={thresholds} configured={!!keepaKey()} initialTab={tab} />
     </>
   );
 }

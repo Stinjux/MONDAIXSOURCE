@@ -38,9 +38,9 @@ function schedulePush() {
   if (pushTimer) clearTimeout(pushTimer);
   pushTimer = setTimeout(pushSaved, 800);
 }
-export function pushSaved() {
+export function pushSaved(): Promise<unknown> {
   pushTimer = null;
-  fetch("/api/prefs", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ data: readSaved() }), keepalive: true }).catch(() => {
+  return fetch("/api/prefs", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ data: readSaved() }), keepalive: true }).catch(() => {
     /* hors ligne : la version du navigateur sera envoyée à la prochaine ouverture */
   });
 }

@@ -124,11 +124,12 @@ Avec la variable `KEEPA_API_KEY`, chaque lead actif (ni rejeté ni acheté) est 
 
 ### Keepa Alert (`/keepa-alert`, section Keepa du menu)
 
-Les leads **qui n'étaient pas acceptés** et que la **Buy Box Keepa rend maintenant intéressants**, selon **les critères d'achat de chacun** (ROI, profit, marge, ventes réglés dans « Classement et critères » : Justin et Hamza ont chacun les leurs) :
-- les leads **rejetés** qui respectent maintenant vos critères ;
-- les leads actifs qui **ne respectaient pas vos critères** (avis À considérer ou Éviter) et qui passent à « Acheter ».
+**Tous les leads analysés par Keepa** (sauf les achetés), jugés selon **les critères d'achat de chacun** (ROI, profit, marge, ventes réglés dans « Classement et critères » : Justin et Hamza ont chacun les leurs), en trois onglets :
+- **New good** : répond à vos critères à la **dernière analyse Keepa** alors qu'il ne les respectait pas juste avant (analyse précédente, ou la Sheet pour une première analyse). Carte avec la **date où il est devenu profitable**, le **prix extrait** à cette analyse et **avant → maintenant** (prix Amazon, ROI, profit par unité, ventes par mois, profit mensuel, avis). Il reste « New good » jusqu'à sa prochaine analyse : s'il est toujours bon, il passe « Still good ».
+- **Still good** : profitable à la dernière analyse et à celle d'avant ; **depuis combien de temps** (première analyse de la série ininterrompue d'analyses bonnes ; « depuis au moins » quand il était déjà bon dans la Sheet).
+- **Still below target** : tous les autres, avec **ce qui manque** (ex. « ROI 25 % < 30 % ») et l'**évolution** du profit mensuel par rapport à avant (case « En hausse seulement »).
 
-Chaque alerte montre **avant → maintenant** : prix Amazon, ROI, profit par unité, ventes par mois, profit mensuel et avis (avant = analyse Keepa précédente, ou la Sheet pour une première analyse), le motif (« Rejeté le … par … » ou « Sous vos critères avant ») et la date de l'analyse Keepa. Actions : **Remettre en revue** (un rejeté redevient « À revoir », à votre nom), **Ouvrir la décision**, **Ignorer** (masque l'alerte pour vous jusqu'à la prochaine analyse Keepa de ce lead). Le nombre d'alertes s'affiche dans le menu. Les leads achetés ne sont jamais en alerte.
+Recherche par nom ou ASIN. Actions : **Remettre en revue** (un rejeté redevient « À revoir », à votre nom), **Ouvrir la décision** et, sur un New good, **Marquer comme vu** (pour vous seulement, jusqu'à la prochaine analyse de ce lead). Le chiffre du menu compte les **New good pas encore vus**. Le calcul utilise le coût fournisseur actuel et les valeurs vérifiées passent avant Keepa, comme partout dans l'app ; l'historique Keepa n'est que lu.
 
 Pour que les rejetés puissent revenir, Keepa les analyse **une fois par semaine**, après les leads actifs et avec les jetons restants (les actifs restent analysés chaque jour en priorité ; le journal Keepa les montre « Rejeté · chaque semaine »).
 

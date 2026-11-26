@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_THRESHOLDS as T } from "../src/lib/decision";
 import { keepaSalePrice, keepaTotalFees } from "../src/lib/keepa";
-import { keepaAlerts } from "../src/lib/keepaAlerts";
+import { daysSince, keepaAlerts, needsFullHistory } from "../src/lib/keepaAlerts";
 import { preliminaryProfit } from "../src/lib/profit";
 import type { KeepaView, OfferView, ProductView } from "../src/lib/queries";
 
@@ -34,42 +34,69 @@ function lead(id: string, k: KeepaView | null, opts: { reviewStatus?: string; sh
 }
 const TODAY = "2026-11-26T15:00:00.000Z";
 
-test("Keepa Alert : sous vos critères avant, Acheter maintenant grâce à la Buy Box Keepa", () => {
+const D = (day: number) => `2026-11-${String(day).padStart(2, "0")}T15:00:00.000Z`;
+const run = (products: ProductView[], history = new Map<string, KeepaView[]>(), extra: { thresholds?: typeof T; seen?: Record<string, string>; purchased?: Set<string> } = {}) =>
+  keepaAlerts({ products, history, thresholds: extra.thresholds ?? T, purchased: extra.purchased ?? new Set(), seen: extra.seen, now: NOW });
+
+test("Keepa Alert : New good = sous vos critères avant (Sheet), profitable à la dernière analyse, avec date et prix extrait", () => {
   // Keepa : moyenne 90 j 60 $ → frais 15 % × 60 + 5 = 14 $ → profit 16 $, ROI 53 %
-  const alerts = keepaAlerts({ products: [lead("1", keepa(60, TODAY))], previous: new Map(), thresholds: T, purchased: new Set(), now: NOW });
-  assert.equal(alerts.length, 1);
-  const a = alerts[0];
-  assert.equal(a.reason, "CRITERIA");
+  const [a] = run([lead("1", keepa(60, TODAY))]);
+  assert.equal(a.group, "NEW_GOOD");
   assert.equal(a.beforeFrom, null); // avant = la Sheet
-  assert.deepEqual([a.before.price, a.before.verdict, a.now.price, a.now.verdict], [40, "CONSIDER", 60, "BUY"]); // profit 3 $ = le minimum, ROI et marge sous les critères
+  assert.deepEqual([a.goodSince, a.keepaAt, a.now.price], [TODAY, TODAY, 60]);
+  assert.deepEqual([a.before.price, a.before.verdict, a.now.verdict, a.trend], [40, "CONSIDER", "BUY", "UP"]);
   assert.equal(Math.round(a.now.roi!), 53);
 });
 
-test("Keepa Alert : rejeté qui répond maintenant aux critères ; déjà bon ou encore mauvais : pas d'alerte", () => {
+test("Keepa Alert : tous les leads analysés sont rangés ; jamais analysés et achetés exclus", () => {
   const products = [
-    lead("2", keepa(60, TODAY), { reviewStatus: "REJECTED", sheet: { bb: 60, cost: 30, fee: 14, sales: 100 } }), // rejeté, même s'il était déjà bon
-    lead("3", keepa(60, TODAY), { sheet: { bb: 60, cost: 30, fee: 14, sales: 100 } }), // déjà « Acheter » avant : rien de nouveau
-    lead("4", keepa(42, TODAY)), // Keepa ne suffit pas : ROI toujours sous 30 %
+    lead("2", keepa(60, TODAY), { reviewStatus: "REJECTED", sheet: { bb: 60, cost: 30, fee: 14, sales: 100 } }), // rejeté mais déjà bon dans la Sheet
+    lead("3", keepa(60, TODAY), { sheet: { bb: 60, cost: 30, fee: 14, sales: 100 } }), // déjà bon dans la Sheet
+    lead("4", keepa(50, TODAY)), // Keepa 50 $ : profit 7,50 $ au lieu de 3 $, mais ROI 25 % sous 30 %
+    lead("5", null), // pas encore analysé
+    lead("6", keepa(60, TODAY)), // acheté
   ];
-  const alerts = keepaAlerts({ products, previous: new Map(), thresholds: T, purchased: new Set(), now: NOW });
-  assert.deepEqual(alerts.map((a) => [a.asin, a.reason, a.rejectedBy]), [["B000000002", "REJECTED", "partner"]]);
+  const alerts = run(products, new Map(), { purchased: new Set(["6"]) });
+  assert.deepEqual(
+    alerts.map((a) => [a.productId, a.group]),
+    [["2", "STILL_GOOD"], ["3", "STILL_GOOD"], ["4", "BELOW"]],
+  );
+  const [r] = alerts;
+  assert.deepEqual([r.rejectedBy, r.goodSince, r.goodBeforeKeepa], ["partner", TODAY, true]);
+  const below = alerts[2];
+  assert.ok(below.reasons.some((x) => x.startsWith("ROI")), "ce qui manque est indiqué");
+  assert.equal(below.trend, "UP"); // en hausse, mais pas assez
 });
 
-test("Keepa Alert : avant = analyse Keepa précédente ; ignorer jusqu'à la prochaine analyse ; achetés exclus", () => {
-  const p = lead("5", keepa(60, TODAY));
-  const previous = new Map([[p.id, keepa(42, "2026-11-25T15:00:00.000Z")]]);
-  const [a] = keepaAlerts({ products: [p], previous, thresholds: T, purchased: new Set(), now: NOW });
-  assert.deepEqual([a.beforeFrom, a.before.price, a.before.verdict === "BUY"], ["2026-11-25T15:00:00.000Z", 42, false]);
-  // Déjà bon à l'analyse précédente : pas d'alerte
-  assert.equal(keepaAlerts({ products: [p], previous: new Map([[p.id, keepa(60, "2026-11-25T15:00:00.000Z")]]), thresholds: T, purchased: new Set(), now: NOW }).length, 0);
-  // Ignorée pour cette analyse : masquée ; une analyse plus récente la refait apparaître
-  assert.equal(keepaAlerts({ products: [p], previous, thresholds: T, purchased: new Set(), dismissed: { [p.id]: TODAY }, now: NOW }).length, 0);
-  assert.equal(keepaAlerts({ products: [p], previous, thresholds: T, purchased: new Set(), dismissed: { [p.id]: "2026-11-20T15:00:00.000Z" }, now: NOW }).length, 1);
-  assert.equal(keepaAlerts({ products: [p], previous, thresholds: T, purchased: new Set([p.id]), now: NOW }).length, 0);
+test("Keepa Alert : New good jusqu'à la prochaine analyse, puis Still good depuis la date où il est devenu bon", () => {
+  const p = lead("7", keepa(60, TODAY));
+  // Avant : 42 $ hier → New good
+  assert.equal(run([p], new Map([[p.id, [keepa(42, D(25))]]]))[0].group, "NEW_GOOD");
+  // Bon hier et avant-hier, pas bon le 20 → Still good depuis le 24
+  const history = new Map([[p.id, [keepa(60, D(25)), keepa(61, D(24)), keepa(42, D(20)), keepa(60, D(10))]]]);
+  const [a] = run([p], history);
+  assert.deepEqual([a.group, a.goodSince, a.goodBeforeKeepa, a.beforeFrom], ["STILL_GOOD", D(24), false, D(25)]);
+  assert.equal(needsFullHistory(a, history), false);
+  assert.equal(daysSince(a.goodSince!, NOW), 2);
+  // Bon à toutes ses analyses, sous les critères dans la Sheet → depuis la 1re analyse, pas « déjà bon dans la Sheet »
+  const allGood = new Map([[p.id, [keepa(60, D(25)), keepa(60, D(18))]]]);
+  const [b] = run([p], allGood);
+  assert.deepEqual([b.goodSince, b.goodBeforeKeepa, needsFullHistory(b, allGood)], [D(18), false, true]);
+  // Plus bon à la dernière analyse → Still below target, en baisse
+  const [c] = run([lead("7", keepa(42, TODAY))], new Map([[p.id, [keepa(60, D(25))]]]));
+  assert.deepEqual([c.group, c.goodSince, c.trend], ["BELOW", null, "DOWN"]);
 });
 
-test("Keepa Alert : selon les critères de chacun", () => {
-  const products = [lead("6", keepa(60, TODAY))]; // ROI 53 %
-  assert.equal(keepaAlerts({ products, previous: new Map(), thresholds: { ...T, minRoi: 30 }, purchased: new Set(), now: NOW }).length, 1); // Justin : ROI min 30 %
-  assert.equal(keepaAlerts({ products, previous: new Map(), thresholds: { ...T, minRoi: 60 }, purchased: new Set(), now: NOW }).length, 0); // Hamza : ROI min 60 %
+test("Keepa Alert : « vu » seulement pour cette analyse ; selon les critères de chacun", () => {
+  const p = lead("8", keepa(60, TODAY));
+  assert.equal(run([p], new Map(), { seen: { [p.id]: TODAY } })[0].seen, true);
+  assert.equal(run([p], new Map(), { seen: { [p.id]: D(20) } })[0].seen, false); // analyse plus récente : redevient à voir
+  assert.equal(run([p], new Map(), { thresholds: { ...T, minRoi: 30 } })[0].group, "NEW_GOOD"); // Justin : ROI min 30 %
+  assert.equal(run([p], new Map(), { thresholds: { ...T, minRoi: 60 } })[0].group, "BELOW"); // Hamza : ROI min 60 %
+});
+
+test("Keepa Alert : ordre — New good pas vus d'abord, Still below target en hausse d'abord", () => {
+  const products = [lead("9", keepa(42, TODAY)), lead("10", keepa(50, TODAY)), lead("11", keepa(60, TODAY)), lead("12", keepa(65, TODAY))];
+  const alerts = run(products, new Map(), { seen: { "12": TODAY } });
+  assert.deepEqual(alerts.map((a) => a.productId), ["11", "12", "10", "9"]);
 });
