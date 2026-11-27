@@ -167,15 +167,44 @@ export function EmptyState({ title, children, icon }: { title: string; children?
   );
 }
 
-/** Données Keepa d'un lead : « Keepa · il y a 3 h » et, s'il y a lieu, « Prix en baisse −13 % ». */
-export function KeepaBadges({ keepa, compact }: { keepa: { at: string; priceDrop: number | null } | null | undefined; compact?: boolean }) {
+/**
+ * Données Keepa d'un lead, en peu de place : « Keepa · il y a 3 h » et, s'il y a lieu, au plus un
+ * avertissement de prix (Buy Box en chute de 20 % ou plus en 2 semaines, sinon prix 10 % sous la moyenne
+ * 90 j) et un avertissement Amazon (plus de 70 % de la Buy Box sur 180 j ; « Amazon vend » sinon).
+ */
+export function KeepaBadges({
+  keepa,
+  compact,
+}: {
+  keepa: { at: string; priceDrop: number | null; bbDrop14?: number | null; amazonSelling?: boolean; amazonShare?: number | null } | null | undefined;
+  compact?: boolean;
+}) {
   if (!keepa) return null;
+  const share = keepa.amazonShare ?? null;
+  const amazonHeavy = share != null && share > 70;
+  const amazonSells = !amazonHeavy && (keepa.amazonSelling || (share != null && share > 0));
   return (
     <>
-      {keepa.priceDrop != null && (
-        <Badge tone="serious" icon={<TrendingDown size={10} />} title="Buy Box actuelle sous sa moyenne 90 jours (Keepa)">
-          Prix en baisse −{keepa.priceDrop} %
+      {keepa.bbDrop14 != null ? (
+        <Badge tone="critical" icon={<TrendingDown size={10} />} title="Buy Box actuelle au moins 20 % sous la plus haute des analyses Keepa des 2 dernières semaines">
+          Buy Box −{keepa.bbDrop14} % en 2 sem.
         </Badge>
+      ) : (
+        keepa.priceDrop != null && (
+          <Badge tone="serious" icon={<TrendingDown size={10} />} title="Buy Box actuelle sous sa moyenne 90 jours (Keepa)">
+            Prix en baisse −{keepa.priceDrop} %
+          </Badge>
+        )
+      )}
+      {amazonHeavy && (
+        <Badge tone="warning" icon={<AlertTriangle size={10} />} title={`Amazon vend ce produit et a gagné ${share} % de la Buy Box sur 180 jours (Keepa) : difficile de vendre face à lui`}>
+          Amazon {share} % de la Buy Box
+        </Badge>
+      )}
+      {amazonSells && (
+        <span className="text-[11px] text-ink-3" title={share != null ? `Amazon vend aussi ce produit (${share} % de la Buy Box sur 180 jours)` : "Amazon vend aussi ce produit (Keepa)"}>
+          Amazon vend{share != null ? ` · ${share} % BB` : ""}
+        </span>
       )}
       {!compact && (
         <span className="text-[11px] text-ink-3" title="Prix Amazon, frais et ventes mis à jour depuis Keepa">

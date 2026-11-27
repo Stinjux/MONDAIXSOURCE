@@ -10,13 +10,13 @@ import type { UserKey } from "./users";
 
 type SnapRow = {
   productId: string; capturedAt: Date; buyBox: number | null; buyBoxAvg90: number | null; amazonPrice: number | null; amazonSelling: boolean; newOffers: number | null;
-  fbaOffers: number | null; salesRank: number | null; salesRankAvg90: number | null; monthlySold: number | null; fbaFee: number | null; referralPct: number | null;
+  fbaOffers: number | null; salesRank: number | null; salesRankAvg90: number | null; monthlySold: number | null; fbaFee: number | null; referralPct: number | null; amazonBuyBoxPct: number | null;
 };
 const toView = (k: SnapRow): KeepaView => ({ ...k, capturedAt: k.capturedAt.toISOString(), priceDrop: priceDrop(k) });
 
 /** Analyse Keepa précédente (avant la dernière) de chaque lead. */
 async function previousKeepa(): Promise<Map<string, KeepaView[]>> {
-  const rows = await prisma.$queryRaw<SnapRow[]>`SELECT "productId", "capturedAt", "buyBox", "buyBoxAvg90", "amazonPrice", "amazonSelling", "newOffers", "fbaOffers", "salesRank", "salesRankAvg90", "monthlySold", "fbaFee", "referralPct"
+  const rows = await prisma.$queryRaw<SnapRow[]>`SELECT "productId", "capturedAt", "buyBox", "buyBoxAvg90", "amazonPrice", "amazonSelling", "newOffers", "fbaOffers", "salesRank", "salesRankAvg90", "monthlySold", "fbaFee", "referralPct", "amazonBuyBoxPct"
     FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY "productId" ORDER BY "capturedAt" DESC) AS rn FROM "KeepaSnapshot") s WHERE rn = 2`;
   return new Map(rows.map((k) => [k.productId, [toView(k)]]));
 }

@@ -4,7 +4,7 @@
 // et enregistrés en base pour être retrouvés sur tous vos appareils.
 import { useCallback, useEffect, useState } from "react";
 import { Filter, RotateCcw, X } from "lucide-react";
-import { DEFAULT_THRESHOLDS, VERDICT_LABELS, type Thresholds, type Verdict } from "@/lib/decision";
+import { AMAZON_BB_WARN, DEFAULT_THRESHOLDS, DEFAULT_WEIGHTS, VERDICT_LABELS, VOLUME_FULL, WEIGHT_LABELS, normalizeWeights, type ScoreWeights, type Thresholds, type Verdict } from "@/lib/decision";
 import { DEFAULT_FILTERS, PERIODS, STRATEGIES, hasRangeFilters, parseFilters, type DecisionFilters, type Period, type VerdictFilter } from "@/lib/decisionFilters";
 import { amount } from "@/lib/normalize";
 import { currentPrefsKey } from "@/lib/prefsBoot";
@@ -84,7 +84,7 @@ export function FilterPanel({
   /** Case à cocher propre à une page (ex. « Inclure les leads rejetés ») */
   extraToggle?: { label: string; checked: boolean; onChange: (v: boolean) => void };
 }) {
-  const thresholdInput = (key: keyof Thresholds, label: string, unit: string) => (
+  const thresholdInput = (key: Exclude<keyof Thresholds, "weights">, label: string, unit: string) => (
     <label className="text-xs text-ink-2">
       {label}
       <span className="mt-1 flex items-center gap-1.5">
@@ -124,12 +124,13 @@ export function FilterPanel({
             </button>
           ))}
         </div>
+        <WeightsEditor weights={filters.thresholds.weights} onChange={(weights) => update({ thresholds: { ...filters.thresholds, weights } })} />
       </div>
 
       <div className="rounded-md border border-line bg-surface p-3">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-xs font-semibold tracking-wide text-ink-2 uppercase">Mes critères d&apos;achat</span>
-          <button type="button" className="flex items-center gap-1 text-xs text-ink-3 hover:text-ink" onClick={() => update({ thresholds: DEFAULT_THRESHOLDS })}>
+          <button type="button" className="flex items-center gap-1 text-xs text-ink-3 hover:text-ink" onClick={() => update({ thresholds: { ...DEFAULT_THRESHOLDS, weights: filters.thresholds.weights } })}>
             <RotateCcw size={12} /> Par défaut
           </button>
         </div>
@@ -153,6 +154,50 @@ export function FilterPanel({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Poids du Score d'achat (par compte) : ROI, profit mensuel, marge, volume ; part en % affichée. */
+function WeightsEditor({ weights, onChange }: { weights: ScoreWeights | undefined; onChange: (w: ScoreWeights) => void }) {
+  const w = normalizeWeights(weights);
+  const total = w.roi + w.monthlyProfit + w.margin + w.volume;
+  const keys = Object.keys(WEIGHT_LABELS) as (keyof ScoreWeights)[];
+  return (
+    <div className="mt-3 border-t border-line pt-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <span className="text-xs font-semibold tracking-wide text-ink-2 uppercase">Poids du score d&apos;achat</span>
+        <button type="button" className="flex items-center gap-1 text-xs text-ink-3 hover:text-ink" onClick={() => onChange(DEFAULT_WEIGHTS)}>
+          <RotateCcw size={12} /> Par défaut
+        </button>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {keys.map((k) => (
+          <label key={k} className="text-xs text-ink-2">
+            <span className="flex items-baseline justify-between gap-2">
+              {WEIGHT_LABELS[k]}
+              <b className="text-ink tabular-nums">{Math.round((w[k] / total) * 100)} %</b>
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={50}
+              step={5}
+              value={w[k]}
+              aria-label={`Poids : ${WEIGHT_LABELS[k]}`}
+              className="mt-1 w-full accent-accent"
+              onChange={(e) => {
+                const next = { ...w, [k]: Number(e.target.value) };
+                if (next.roi + next.monthlyProfit + next.margin + next.volume > 0) onChange(next);
+              }}
+            />
+          </label>
+        ))}
+      </div>
+      <p className="mt-1.5 text-[11px] leading-snug text-ink-3">
+        Volume : note pleine à {VOLUME_FULL} ventes / mois (Keepa, sinon la Sheet), les premières ventes comptent le plus. Si Amazon vend lui-même : −10 points, −25 s&apos;il a plus de{" "}
+        {AMAZON_BB_WARN} % de la Buy Box sur 180 jours.
+      </p>
     </div>
   );
 }

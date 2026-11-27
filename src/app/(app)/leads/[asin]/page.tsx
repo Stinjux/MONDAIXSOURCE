@@ -1,3 +1,4 @@
+import { keepaBrief } from "@/lib/decisionRows";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ExternalLink, Gavel, LineChart, Receipt, RefreshCw } from "lucide-react";
@@ -54,7 +55,7 @@ export default async function LeadPage({ params }: { params: Promise<{ asin: str
             {p.reviewedBy && p.reviewStatus !== "TO_REVIEW" && <ByUser profile={profiles[p.reviewedBy]} />}
             {p.confirmedBy && <ByUser profile={profiles[p.confirmedBy]} prefix="reconfirmé par" />}
             <span title={freshnessText(fresh)}><FreshnessPill fresh={fresh} /></span>
-            <KeepaBadges keepa={p.keepa ? { at: p.keepa.capturedAt, priceDrop: p.keepa.priceDrop } : null} />
+            <KeepaBadges keepa={keepaBrief(p.keepa)} />
             <SourceBadges sources={p.sources} />
             {p.dup.any && <DuplicateBadges dup={p.dup} compact />}
             <span className="text-ink-3">Découvert le {formatDate(p.firstSeenAt)}</span>
@@ -144,14 +145,14 @@ export default async function LeadPage({ params }: { params: Promise<{ asin: str
             <div className="flex flex-col gap-3">
               <div className="flex flex-wrap items-center gap-2 text-xs text-ink-2">
                 <span>Mis à jour le {formatDateTime(k.capturedAt)}</span>
-                {k.priceDrop != null && <Badge tone="serious">Prix en baisse −{k.priceDrop} %</Badge>}
-                {k.amazonSelling && <Badge tone="critical">Amazon vend ce produit</Badge>}
+                <KeepaBadges keepa={keepaBrief(k)} compact />
               </div>
               <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
                 {[
                   ["Buy Box actuelle", cad(k.buyBox)],
                   ["Buy Box moyenne 90 j", cad(k.buyBoxAvg90)],
                   ["Prix Amazon (vendeur)", k.amazonPrice != null ? cad(k.amazonPrice) : "Amazon ne vend pas"],
+                  ["Part de Buy Box d'Amazon (180 j)", k.amazonBuyBoxPct != null ? `${k.amazonBuyBoxPct} %` : "—"],
                   ["Vendeurs FBA", num(k.fbaOffers)],
                   ["Offres neuves", num(k.newOffers)],
                   ["Achats le mois dernier", k.monthlySold != null ? num(k.monthlySold) : "non publié"],

@@ -12,7 +12,7 @@
 // fournisseur actuel sert pour toutes les analyses (seul le côté Amazon change d'une analyse à l'autre).
 import type { Thresholds, Verdict } from "./decision";
 import { evaluateRow } from "./decisionFilters";
-import { toDecisionRows, type DecisionRow } from "./decisionRows";
+import { toDecisionRows, type DecisionRow, type KeepaBrief } from "./decisionRows";
 import { keepaSalePrice, keepaTotalFees } from "./keepa";
 import { NO_TAX, type TaxConfig } from "./profit";
 import type { KeepaView, ProductView } from "./queries";
@@ -50,6 +50,8 @@ export type KeepaAlert = {
   trend: "UP" | "DOWN" | "SAME" | null;
   /** NEW_GOOD marqué « vu » pour cette analyse : ne compte plus dans le menu */
   seen: boolean;
+  /** Avertissements Keepa (Buy Box en chute, Amazon vendeur) */
+  keepa: KeepaBrief | null;
 };
 
 /** Le lead tel qu'il était avec une autre analyse Keepa (ou avec la Sheet seule si `k` est null). */
@@ -159,6 +161,7 @@ export function keepaAlerts(input: {
       reasons: group === "BELOW" ? reasons : [],
       trend: trendOf(beforeSide, nowSide),
       seen: group === "NEW_GOOD" && seen[p.id] === keepaAt,
+      keepa: row.keepa,
     });
   }
   const mp = (a: KeepaAlert) => a.now.monthlyProfit ?? a.now.profit ?? -Infinity;

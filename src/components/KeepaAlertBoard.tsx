@@ -15,7 +15,7 @@ import { daysSince, type AlertGroup, type AlertSide, type KeepaAlert } from "@/l
 import { pushSaved, readSaved, writeSaved } from "./DecisionFilters";
 import { ProductImage } from "./ProductImage";
 import { useUser } from "./UserContext";
-import { Badge, EmptyState, ReviewBadge, Supplier, cn } from "./ui";
+import { Badge, EmptyState, KeepaBadges, ReviewBadge, Supplier, cn } from "./ui";
 
 const TONE: Record<Verdict, "good" | "warning" | "critical" | "neutral"> = { BUY: "good", CONSIDER: "warning", AVOID: "critical", INCOMPLETE: "neutral" };
 
@@ -168,6 +168,9 @@ function LeadCell({ a, size = 36 }: { a: KeepaAlert; size?: number }) {
           {a.name}
         </Link>
         <span className="font-mono text-xs text-ink-3">{a.asin}</span>
+        <span className="mt-0.5 flex flex-wrap items-center gap-1">
+          <KeepaBadges keepa={a.keepa} compact />
+        </span>
       </div>
     </div>
   );
@@ -310,6 +313,7 @@ function NewGoodCard({ a, pending, reopen, markSeen }: { a: KeepaAlert } & Actio
             ) : (
               <ReviewBadge status={a.reviewStatus} />
             )}
+            <KeepaBadges keepa={a.keepa} compact />
             {a.seen && (
               <Badge tone="neutral" icon={<Check size={10} />}>
                 Vu

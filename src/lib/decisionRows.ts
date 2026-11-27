@@ -1,6 +1,6 @@
 // Lignes de la section Buy Decisions : un lead = un ASIN, évalué sur sa meilleure offre fournisseur.
 // Les valeurs vérifiées en Weekly Review remplacent les valeurs importées de la Sheet.
-import { buyScore, type DecisionMetrics } from "./decision";
+import { buyScore, type AmazonRisk, type DecisionMetrics } from "./decision";
 import { NO_TAX, pick, preliminaryProfit, type TaxConfig } from "./profit";
 import { freshness, type Freshness } from "./freshness";
 import type { OfferView, ProductView } from "./queries";
@@ -44,9 +44,18 @@ export type DecisionRow = DecisionMetrics & {
   confirmedAt: string | null;
   /** Fraîcheur des données (30 jours après le dernier export ou la dernière reconfirmation) */
   fresh: Freshness;
-  /** Dernière mise à jour Keepa et alerte « Prix en baisse » (en %), null si jamais mis à jour */
-  keepa: { at: string; priceDrop: number | null } | null;
+  /** Dernière mise à jour Keepa et avertissements (prix en baisse, Buy Box en chute, Amazon vendeur), null si jamais mis à jour */
+  keepa: KeepaBrief | null;
+  /** Amazon sur l'offre selon Keepa (pénalité du score) */
+  amazon: AmazonRisk | null;
 };
+
+/** Résumé Keepa d'un lead pour l'affichage (badges et avertissements) */
+export type KeepaBrief = { at: string; priceDrop: number | null; bbDrop14?: number | null; amazonSelling?: boolean; amazonShare?: number | null };
+
+export const keepaBrief = (k: ProductView["keepa"]): KeepaBrief | null =>
+  k ? { at: k.capturedAt, priceDrop: k.priceDrop, bbDrop14: k.bbDrop14 ?? null, amazonSelling: k.amazonSelling, amazonShare: k.amazonBuyBoxPct ?? null } : null;
+export const amazonRisk = (k: ProductView["keepa"]): AmazonRisk | null => (k ? { selling: k.amazonSelling, share: k.amazonBuyBoxPct ?? null } : null);
 
 /** Rentabilité d'une offre fournisseur, valeurs vérifiées en priorité. */
 export function evaluateOffer(p: ProductView, o: OfferView, tax: TaxConfig) {
@@ -61,7 +70,7 @@ export function evaluateOffer(p: ProductView, o: OfferView, tax: TaxConfig) {
     metrics,
     issue: r.issue,
     taxes: r.taxes,
-    score: buyScore(metrics),
+    score: buyScore(metrics, undefined, amazonRisk(p.keepa)),
     amazonPrice: s.value,
     costPrice: c.value,
     fees: f.value,
@@ -109,7 +118,8 @@ export function toDecisionRows(products: ProductView[], tax: TaxConfig = NO_TAX,
         exportedAt: p.exportedAt,
         confirmedAt: p.confirmedAt,
         fresh: freshness(p.freshSince, now),
-        keepa: p.keepa ? { at: p.keepa.capturedAt, priceDrop: p.keepa.priceDrop } : null,
+        keepa: keepaBrief(p.keepa),
+        amazon: amazonRisk(p.keepa),
       };
     });
 }

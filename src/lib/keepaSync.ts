@@ -159,7 +159,7 @@ async function runKeepaInner(opts: KeepaRunOptions): Promise<KeepaRunResult> {
             data: {
               productId: p.id, asin: k.asin, capturedAt: now, buyBox: k.buyBox, buyBoxAvg90: k.buyBoxAvg90, amazonPrice: k.amazonPrice, amazonSelling: k.amazonSelling,
               newOffers: k.newOffers, fbaOffers: k.fbaOffers, salesRank: k.salesRank, salesRankAvg90: k.salesRankAvg90, monthlySold: k.monthlySold,
-              fbaFee: k.fbaFee, referralPct: k.referralPct, runId,
+              fbaFee: k.fbaFee, referralPct: k.referralPct, amazonBuyBoxPct: k.amazonBuyBoxPct, runId,
             },
           });
         }

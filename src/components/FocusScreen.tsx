@@ -105,7 +105,7 @@ export function FocusScreen({
       const rank = { STALE: 0, SOON: 1, FRESH: 2 };
       list = leads
         .filter((l) => l.row.fresh.state !== "FRESH" && l.reviewStatus !== "REJECTED" && !l.purchased)
-        .sort((a, b) => rank[a.row.fresh.state] - rank[b.row.fresh.state] || (b.row.score ?? -1) - (a.row.score ?? -1));
+        .sort((a, b) => rank[a.row.fresh.state] - rank[b.row.fresh.state] || (evaluateRow(b.row, filters.thresholds).score ?? -1) - (evaluateRow(a.row, filters.thresholds).score ?? -1));
     } else {
       const sort = compareRows(filters.strategy);
       const evaluated = leads.map((l) => ({ l, e: evaluateRow(l.row, filters.thresholds) }));
@@ -271,7 +271,7 @@ function LeadPanel({
   const { offers, best } = evaluateFocus(lead, edits, tax);
   const metrics = best?.metrics ?? lead.row;
   const evaluated = evaluateRow(
-    { ...metrics, score: best?.score ?? null, unavailable: best?.unavailable ?? false, restricted: lead.restricted, countsTowardGoal: lead.row.countsTowardGoal, goalWeek: lead.row.goalWeek },
+    { ...metrics, score: best?.score ?? null, unavailable: best?.unavailable ?? false, restricted: lead.restricted, countsTowardGoal: lead.row.countsTowardGoal, goalWeek: lead.row.goalWeek, amazon: lead.row.amazon },
     thresholds,
   );
   const stale = lead.row.fresh.state === "STALE" && !confirmedNow;
@@ -506,7 +506,7 @@ function LeadPanel({
       <section className="rounded-md border border-line bg-surface p-4">
         <div className="flex items-center justify-between gap-2">
           <Badge tone={VERDICT_TONE[evaluated.verdict]}>{VERDICT_LABELS[evaluated.verdict]}</Badge>
-          {best?.score != null && <span className="text-xs text-ink-3">Score <b className="text-base text-ink tabular-nums">{best.score}</b>/100</span>}
+          {evaluated.score != null && <span className="text-xs text-ink-3">Score <b className="text-base text-ink tabular-nums">{evaluated.score}</b>/100</span>}
         </div>
         {evaluated.reasons.length > 0 && <p className="mt-1.5 text-[11px] leading-snug text-ink-3">{evaluated.reasons.join(" · ")}</p>}
         {best?.issue && <p className="mt-1.5 text-[11px] text-warning">{best.issue}</p>}
@@ -624,7 +624,7 @@ function LeadPanel({
     return (
       <article className="mx-auto flex w-full max-w-5xl flex-col gap-4">
         {productBlock}
-        <DecisionHero metrics={metrics} thresholds={thresholds} verdict={evaluated.verdict} reasons={evaluated.reasons} score={best?.score ?? null} issue={best?.issue ?? null} />
+        <DecisionHero metrics={metrics} thresholds={thresholds} verdict={evaluated.verdict} reasons={evaluated.reasons} score={evaluated.score} issue={best?.issue ?? null} />
         <div className="mx-auto w-full max-w-xl">{actionsBlock}</div>
         <section className="rounded-md border border-line bg-surface">
           <button

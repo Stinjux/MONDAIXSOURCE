@@ -17,7 +17,7 @@ const offer = (sheet: { bb: number; cost: number; fee: number; sales: number }):
 });
 const keepa = (avg90: number, at: string, monthlySold = 100): KeepaView => ({
   buyBox: avg90, buyBoxAvg90: avg90, amazonPrice: null, amazonSelling: false, newOffers: 4, fbaOffers: 3, salesRank: 1000, salesRankAvg90: 1100, monthlySold,
-  fbaFee: 5, referralPct: 15, capturedAt: at, priceDrop: null,
+  fbaFee: 5, referralPct: 15, amazonBuyBoxPct: null, capturedAt: at, priceDrop: null,
 });
 /** Le lead tel que loadProducts le construit : Keepa appliqué avant la Sheet */
 function lead(id: string, k: KeepaView | null, opts: { reviewStatus?: string; sheet?: { bb: number; cost: number; fee: number; sales: number } } = {}): ProductView {

@@ -1,7 +1,7 @@
 // Filtres de décision partagés par « Buy Decisions », le Pipeline et le Mode décision
 // (fonctions pures, testées). Les deux pages appliquent exactement les mêmes règles.
 import { weekKey } from "./dates";
-import { DEFAULT_THRESHOLDS, verdict, type DecisionMetrics, type Thresholds, type Verdict } from "./decision";
+import { DEFAULT_THRESHOLDS, DEFAULT_WEIGHTS, buyScore, normalizeWeights, verdict, type AmazonRisk, type DecisionMetrics, type ScoreWeights, type Thresholds, type Verdict } from "./decision";
 
 /** Période de découverte des leads (semaines du lundi, la semaine en cours comprise). */
 export type Period = "week" | "4w" | "12w" | "all";
@@ -27,7 +27,7 @@ export const rowWeek = (r: { goalWeek: string | null; firstSeenAt?: string | nul
 export type Strategy = "score" | "roi" | "monthlyProfit" | "margin" | "profit";
 
 export const STRATEGIES: { key: Strategy; label: string; hint: string }[] = [
-  { key: "score", label: "Score d'achat", hint: "Équilibre ROI (40 %), profit mensuel (35 %) et marge (25 %)" },
+  { key: "score", label: "Score d'achat", hint: "Équilibre ROI, profit mensuel, marge et volume, selon vos poids" },
   { key: "roi", label: "ROI %", hint: "Rendement du capital : idéal avec un budget limité" },
   { key: "monthlyProfit", label: "Profit mensuel", hint: "Potentiel total : idéal pour maximiser les gains" },
   { key: "margin", label: "Marge (profit %)", hint: "Sécurité face aux baisses de prix Amazon" },
@@ -54,7 +54,7 @@ export type DecisionFilters = {
 
 export const DEFAULT_FILTERS: DecisionFilters = {
   strategy: "score",
-  thresholds: DEFAULT_THRESHOLDS,
+  thresholds: { ...DEFAULT_THRESHOLDS, weights: DEFAULT_WEIGHTS },
   verdict: "ACTIONABLE",
   weekOnly: false,
   includeUnavailable: false,
@@ -77,6 +77,8 @@ export type FilterableRow = DecisionMetrics & {
   goalWeek: string | null;
   firstSeenAt?: string | null;
   costPrice?: number | null;
+  /** Amazon sur l'offre (Keepa) : pénalité du score */
+  amazon?: AmazonRisk | null;
 };
 
 /** Verdict final : un lead en rupture ou restreint n'est jamais « Acheter » tel quel. */
@@ -85,6 +87,8 @@ export function evaluateRow<T extends FilterableRow>(r: T, t: Thresholds): T & {
   const blocked = r.unavailable || r.restricted;
   return {
     ...r,
+    // Score recalculé avec les poids du compte (volume compris) et la pénalité Amazon
+    score: buyScore(r, t.weights, r.amazon),
     verdict: v.verdict === "BUY" && blocked ? "CONSIDER" : v.verdict,
     reasons: [...(r.unavailable ? ["Fournisseur en rupture"] : []), ...(r.restricted ? ["ASIN restreint sur Amazon"] : []), ...v.reasons],
   };
@@ -151,6 +155,7 @@ export function parseFilters(saved: unknown): DecisionFilters {
       minProfit: n(t.minProfit, DEFAULT_THRESHOLDS.minProfit),
       minMargin: n(t.minMargin, DEFAULT_THRESHOLDS.minMargin),
       minSales: n(t.minSales, DEFAULT_THRESHOLDS.minSales),
+      weights: normalizeWeights(t.weights && typeof t.weights === "object" ? (t.weights as Partial<ScoreWeights>) : null),
     },
     verdict: verdicts.includes(s.verdict as VerdictFilter) ? (s.verdict as VerdictFilter) : DEFAULT_FILTERS.verdict,
     // Ancien réglage « cette semaine seulement » repris comme période

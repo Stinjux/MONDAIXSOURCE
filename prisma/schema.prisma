@@ -22,9 +22,9 @@ datasource db {
 
 /// Produit Amazon.ca identifié par son ASIN.
 model Product {
-  id               String    @id @default(cuid())
-  asin             String    @unique
-  marketplace      String    @default("CA")
+  id               String   @id @default(cuid())
+  asin             String   @unique
+  marketplace      String   @default("CA")
   name             String
   amazonUrl        String?
   /// Première / dernière date de découverte (date d'export LEADS si fiable, sinon date d'import).
@@ -33,26 +33,26 @@ model Product {
   /// Source qui a fait découvrir le produit : LEADS | OUT_OF_STOCK | LEGACY
   firstSource      String
   /// Compte dans l'objectif hebdomadaire (uniquement les nouveaux ASIN du pipeline LEADS).
-  countsTowardGoal Boolean   @default(false)
+  countsTowardGoal Boolean  @default(false)
   /// Lundi (AAAA-MM-JJ, fuseau America/Toronto) de la semaine de découverte. Figé à la création.
   goalWeek         String?
 
   // --- Revue hebdomadaire (manuelle) ---
   /// TO_REVIEW | IN_PROGRESS | VALIDATED | REJECTED | FOLLOW_UP
-  reviewStatus     String    @default("TO_REVIEW")
-  reviewNotes      String?
+  reviewStatus    String    @default("TO_REVIEW")
+  reviewNotes     String?
   /// Motifs de la décision, choisis parmi les modèles de notes (Settings) : « Bon ROI », « Faible volume »…
-  reviewTags       String[]  @default([])
-  reviewChecklist  Json?
-  reviewedAt       DateTime?
+  reviewTags      String[]  @default([])
+  reviewChecklist Json?
+  reviewedAt      DateTime?
   /// Compte qui a fixé le statut de revue (owner | partner) ; null = avant les comptes (propriétaire)
-  reviewedBy       String?
+  reviewedBy      String?
 
   // --- Données Amazon vérifiées manuellement (jamais importées) ---
   verifiedSalePrice Float?
   verifiedFbaFee    Float?
   /// UNKNOWN | UNGATED | GATED | APPROVAL_PENDING | APPROVED
-  restriction       String   @default("UNKNOWN")
+  restriction       String    @default("UNKNOWN")
   verifiedAt        DateTime?
   /// Dernière reconfirmation complète du lead (écran « À reconfirmer »). Les données sont
   /// à reconfirmer 30 jours après le dernier export LEADS ou cette date.
@@ -78,9 +78,9 @@ model Product {
 
 /// Offre d'un fournisseur pour un produit (ASIN + fournisseur normalisé).
 model SupplierOffer {
-  id           String  @id @default(cuid())
+  id           String   @id @default(cuid())
   productId    String
-  product      Product @relation(fields: [productId], references: [id])
+  product      Product  @relation(fields: [productId], references: [id])
   /// URL normalisée (hôte + chemin) ou "store:<nom>" lorsque seule la boutique est connue.
   supplierKey  String
   supplierName String?
@@ -96,7 +96,7 @@ model SupplierOffer {
   fbaFee         Float?
   costPrice      Float?
   estimatedSales Float?
-  currency       String   @default("CAD")
+  currency       String  @default("CAD")
   valuesSource   String?
 
   // --- Suivi de stock (module OUT OF STOCK, d'après les colonnes N-P de la Sheet) ---
@@ -319,27 +319,27 @@ model ChangeLog {
 
 /// Exécution d'une synchronisation. (Table historique "ImportEvent" conservée.)
 model ImportRun {
-  id         String    @id @default(cuid())
+  id         String        @id @default(cuid())
   source     String
-  startedAt  DateTime  @default(now())
+  startedAt  DateTime      @default(now())
   /// Nouveaux produits (ASIN) créés
-  imported   Int       @default(0)
+  imported   Int           @default(0)
   /// Lignes existantes dont les valeurs ont changé
-  updated    Int       @default(0)
+  updated    Int           @default(0)
   /// Nouvelles occurrences d'un produit déjà connu
-  duplicates Int       @default(0)
+  duplicates Int           @default(0)
   /// Lignes invalides ou impossibles à traiter
-  errors     Int       @default(0)
+  errors     Int           @default(0)
   details    String?
   finishedAt DateTime?
   /// RUNNING | SUCCESS | FAILED | SKIPPED | LEGACY
-  status     String    @default("LEGACY")
+  status     String        @default("LEGACY")
   /// MANUAL | CRON | CLI | LEGACY_MIGRATION
   trigger    String?
-  rowsRead   Int       @default(0)
-  unchanged  Int       @default(0)
-  warnings   Int       @default(0)
-  missing    Int       @default(0)
+  rowsRead   Int           @default(0)
+  unchanged  Int           @default(0)
+  warnings   Int           @default(0)
+  missing    Int           @default(0)
   issues     ImportIssue[]
 
   @@index([startedAt])
@@ -469,25 +469,27 @@ model BuyVote {
 /// jamais modifiée ni supprimée : la plus récente sert aux calculs (après les valeurs vérifiées,
 /// avant celles de la Sheet) ; les valeurs de la Sheet restent intactes.
 model KeepaSnapshot {
-  id             String   @id @default(cuid())
-  productId      String
-  asin           String
-  capturedAt     DateTime @default(now())
+  id              String   @id @default(cuid())
+  productId       String
+  asin            String
+  capturedAt      DateTime @default(now())
   /// Buy Box actuelle et moyenne 90 jours ($ CA)
-  buyBox         Float?
-  buyBoxAvg90    Float?
-  amazonPrice    Float?
-  amazonSelling  Boolean  @default(false)
-  newOffers      Int?
-  fbaOffers      Int?
-  salesRank      Int?
-  salesRankAvg90 Int?
+  buyBox          Float?
+  buyBoxAvg90     Float?
+  amazonPrice     Float?
+  amazonSelling   Boolean  @default(false)
+  newOffers       Int?
+  fbaOffers       Int?
+  salesRank       Int?
+  salesRankAvg90  Int?
   /// « X achetés le mois dernier » selon Amazon
-  monthlySold    Int?
+  monthlySold     Int?
   /// Frais FBA ($) et commission Amazon (%)
-  fbaFee         Float?
-  referralPct    Float?
-  runId          String?
+  fbaFee          Float?
+  referralPct     Float?
+  runId           String?
+  /// Part de la Buy Box gagnée par Amazon sur 180 jours (%), null si inconnue (analyses avant ce champ)
+  amazonBuyBoxPct Float?
 
   @@index([productId, capturedAt])
   @@index([capturedAt])

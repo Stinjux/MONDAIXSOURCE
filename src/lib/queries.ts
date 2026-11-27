@@ -10,7 +10,7 @@ import { amazonPrice, columnEPrice, preliminaryProfit, type ProfitResult } from 
 import { getTaxConfig } from "./settings";
 import { needsRecheck } from "./stock";
 import { freshSince, freshness, lastExportDate } from "./freshness";
-import { keepaSalePrice, keepaTotalFees, priceDrop, type KeepaFacts } from "./keepa";
+import { buyBoxDrop, keepaSalePrice, keepaTotalFees, priceDrop, type KeepaFacts } from "./keepa";
 import { actorKey, type UserKey } from "./users";
 
 const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
@@ -110,6 +110,8 @@ export type KeepaView = Omit<KeepaFacts, "title" | "asin"> & {
   capturedAt: string;
   /** Baisse de la Buy Box actuelle sous sa moyenne 90 j (en %), si au moins 10 % */
   priceDrop: number | null;
+  /** Chute de la Buy Box sous la plus haute des analyses des 14 derniers jours (en %), si au moins 20 % */
+  bbDrop14?: number | null;
 };
 
 /** Dernière mise à jour Keepa de chaque lead. */
@@ -119,13 +121,19 @@ async function latestKeepa(productIds?: string[]): Promise<Map<string, KeepaView
     distinct: ["productId"],
     orderBy: [{ productId: "asc" }, { capturedAt: "desc" }],
   });
+  // Buy Box la plus haute des analyses des 14 jours précédant la dernière (lecture seule)
+  const peaks = await prisma.$queryRaw<{ productId: string; peak: number | null }[]>`
+    SELECT s."productId", MAX(s."buyBox") AS peak FROM "KeepaSnapshot" s
+    JOIN (SELECT "productId", MAX("capturedAt") AS last FROM "KeepaSnapshot" GROUP BY "productId") l ON l."productId" = s."productId"
+    WHERE s."capturedAt" >= l.last - INTERVAL '14 days' GROUP BY s."productId"`;
+  const peak = new Map(peaks.map((r) => [r.productId, r.peak]));
   return new Map(
     rows.map((k) => [
       k.productId,
       {
         buyBox: k.buyBox, buyBoxAvg90: k.buyBoxAvg90, amazonPrice: k.amazonPrice, amazonSelling: k.amazonSelling, newOffers: k.newOffers, fbaOffers: k.fbaOffers,
-        salesRank: k.salesRank, salesRankAvg90: k.salesRankAvg90, monthlySold: k.monthlySold, fbaFee: k.fbaFee, referralPct: k.referralPct,
-        capturedAt: k.capturedAt.toISOString(), priceDrop: priceDrop(k),
+        salesRank: k.salesRank, salesRankAvg90: k.salesRankAvg90, monthlySold: k.monthlySold, fbaFee: k.fbaFee, referralPct: k.referralPct, amazonBuyBoxPct: k.amazonBuyBoxPct,
+        capturedAt: k.capturedAt.toISOString(), priceDrop: priceDrop(k), bbDrop14: buyBoxDrop(k.buyBox, peak.get(k.productId) ?? null),
       },
     ]),
   );

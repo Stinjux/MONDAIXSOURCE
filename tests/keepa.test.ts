@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { KeepaError, keepaProducts, keepaSalePrice, keepaTokenStatus, keepaTotalFees, parseKeepaResponse, priceDrop } from "../src/lib/keepa";
+import { KeepaError, buyBoxDrop, keepaProducts, keepaSalePrice, keepaTokenStatus, keepaTotalFees, parseKeepaResponse, priceDrop } from "../src/lib/keepa";
 
 // Réponse au format Keepa (stats.current / stats.avg90 indexés par type de prix, prix en centimes)
 const arr = (vals: Record<number, number>) => Array.from({ length: 36 }, (_, i) => vals[i] ?? -1);
@@ -10,9 +10,16 @@ export const SAMPLE = {
     {
       asin: "B0AAAAAAA1", title: "Lego Classic Box", availabilityAmazon: -1, monthlySold: 200, referralFeePercentage: 15,
       fbaFees: { pickAndPackFee: 612 },
-      stats: { current: arr({ 0: -1, 3: 1530, 11: 7, 18: 3499, 34: 5 }), avg90: arr({ 3: 1810, 18: 3999 }) },
+      stats: {
+        current: arr({ 0: -1, 3: 1530, 11: 7, 18: 3499, 34: 5 }), avg90: arr({ 3: 1810, 18: 3999 }),
+        buyBoxStats: { A1SELLERFBA0001: { percentageWon: 64.5, isFBA: true }, A2SELLERFBA0002: { percentageWon: 35.5, isFBA: true } },
+      },
     },
-    { asin: "b0aaaaaaa2", availabilityAmazon: 0, monthlySold: 0, stats: { current: arr({ 0: 2499, 18: 2499 }), avg90: arr({ 18: -2 }) } },
+    {
+      asin: "b0aaaaaaa2", availabilityAmazon: 0, monthlySold: 0,
+      // Amazon.ca a gagné 82,4 % de la Buy Box sur 180 jours
+      stats: { current: arr({ 0: 2499, 18: 2499 }), avg90: arr({ 18: -2 }), buyBoxStats: { A3DWYXPMJIMRNM: { percentageWon: 82.4 }, A1SELLERFBA0001: { percentageWon: 17.6 } } },
+    },
     { title: "sans ASIN" },
   ],
 };
@@ -23,10 +30,20 @@ test("Keepa : lecture d'une réponse (centimes, valeurs absentes, Amazon vendeur
   assert.equal(products.length, 2);
   assert.deepEqual(products[0], {
     asin: "B0AAAAAAA1", title: "Lego Classic Box", buyBox: 34.99, buyBoxAvg90: 39.99, amazonPrice: null, amazonSelling: false,
-    newOffers: 7, fbaOffers: 5, salesRank: 1530, salesRankAvg90: 1810, monthlySold: 200, fbaFee: 6.12, referralPct: 15,
+    newOffers: 7, fbaOffers: 5, salesRank: 1530, salesRankAvg90: 1810, monthlySold: 200, fbaFee: 6.12, referralPct: 15, amazonBuyBoxPct: 0,
   });
   const b = products[1];
-  assert.deepEqual([b.asin, b.buyBoxAvg90, b.buyBox, b.amazonPrice, b.amazonSelling, b.monthlySold, b.fbaFee], ["B0AAAAAAA2", null, 24.99, 24.99, true, null, null]);
+  assert.deepEqual([b.asin, b.buyBoxAvg90, b.buyBox, b.amazonPrice, b.amazonSelling, b.monthlySold, b.fbaFee, b.amazonBuyBoxPct], ["B0AAAAAAA2", null, 24.99, 24.99, true, null, null, 82]);
+  // Pas de statistiques de Buy Box : part inconnue
+  assert.equal(parseKeepaResponse({ products: [{ asin: "B0X", stats: { current: arr({}) } }] }).products[0].amazonBuyBoxPct, null);
+});
+
+test("Keepa : Buy Box en chute de 20 % ou plus sur 2 semaines", () => {
+  assert.equal(buyBoxDrop(40, 50), 20);
+  assert.equal(buyBoxDrop(41, 50), null); // −18 %
+  assert.equal(buyBoxDrop(50, 50), null);
+  assert.equal(buyBoxDrop(null, 50), null);
+  assert.equal(buyBoxDrop(30, null), null);
 });
 
 test("Keepa : prix retenu, frais totaux, alerte prix en baisse", () => {
@@ -53,7 +70,7 @@ test("Keepa : requête Amazon.ca, clé jamais affichée, erreurs lisibles", asyn
     }) as unknown as typeof fetch;
     const res = await keepaProducts(["B0AAAAAAA1", "B0AAAAAAA2"], ok);
     assert.equal(res.products.length, 2);
-    assert.match(url, /^https:\/\/api\.keepa\.com\/product\?domain=6&asin=B0AAAAAAA1,B0AAAAAAA2&stats=90&buybox=1&history=0&key=cle-secrete-123$/);
+    assert.match(url, /^https:\/\/api\.keepa\.com\/product\?domain=6&asin=B0AAAAAAA1,B0AAAAAAA2&stats=180&buybox=1&history=0&key=cle-secrete-123$/);
     const throttled = (async () => new Response(JSON.stringify({ tokensLeft: -3, refillIn: 20000, refillRate: 1 }), { status: 429 })) as unknown as typeof fetch;
     const err = await keepaProducts(["B0AAAAAAA1"], throttled).catch((e) => e);
     assert.ok(err instanceof KeepaError);

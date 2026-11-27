@@ -49,10 +49,11 @@ test("périmètre : plages « afficher seulement » (ROI, ventes, coût)", () =>
 
 test("tri : stratégie choisie, valeurs manquantes en dernier, départage par score", () => {
   const rows = [
-    evaluateRow(row({ id: "low", roi: 20, score: 40 }), T),
-    evaluateRow(row({ id: "none", roi: null, profit: null, score: null }), T),
-    evaluateRow(row({ id: "high", roi: 90, score: 60 }), T),
-    evaluateRow(row({ id: "tie", roi: 90, score: 80 }), T),
+    // Score donné tel quel (evaluateRow le recalcule avec les poids du compte)
+    { ...row({ id: "low", roi: 20, score: 40 }), verdict: "BUY" as const },
+    { ...row({ id: "none", roi: null, profit: null, score: null }), verdict: "INCOMPLETE" as const },
+    { ...row({ id: "high", roi: 90, score: 60 }), verdict: "BUY" as const },
+    { ...row({ id: "tie", roi: 90, score: 80 }), verdict: "BUY" as const },
   ];
   assert.deepEqual([...rows].sort(compareRows("roi")).map((r) => r.id), ["tie", "high", "low", "none"]);
 });
@@ -70,4 +71,16 @@ test("préférences : valeurs invalides ignorées, défauts appliqués", () => {
   assert.equal(p.thresholds.minRoi, 40);
   assert.equal(p.thresholds.minProfit, T.minProfit);
   assert.equal(parseFilters({ strategy: "hack", verdict: 3 }).strategy, "score");
+  // Poids du score : gardés s'ils sont valides, sinon poids par défaut
+  assert.deepEqual(parseFilters({ thresholds: { weights: { roi: 10, monthlyProfit: 10, margin: 0, volume: 40 } } }).thresholds.weights, { roi: 10, monthlyProfit: 10, margin: 0, volume: 40 });
+  assert.deepEqual(parseFilters({ thresholds: { weights: "x" } }).thresholds.weights, DEFAULT_FILTERS.thresholds.weights);
+});
+
+test("score recalculé avec les poids du compte et la pénalité Amazon", () => {
+  const r = row({ id: "v", roi: 50, profit: 10 });
+  const volumeHeavy = { ...T, weights: { roi: 0, monthlyProfit: 0, margin: 0, volume: 10 } };
+  const roiOnly = { ...T, weights: { roi: 10, monthlyProfit: 0, margin: 0, volume: 0 } };
+  assert.equal(evaluateRow(r, roiOnly).score, 50);
+  assert.notEqual(evaluateRow(r, volumeHeavy).score, evaluateRow(r, roiOnly).score);
+  assert.equal(evaluateRow({ ...r, amazon: { selling: true, share: 90 } }, roiOnly).score, 25);
 });

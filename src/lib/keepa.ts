@@ -2,9 +2,10 @@
 // La clé vient uniquement de la variable KEEPA_API_KEY (Railway) ; elle n'est jamais affichée,
 // journalisée ni envoyée au navigateur.
 //
-// Requête utilisée : /product?domain=6&asin=…&stats=90&buybox=1&history=0
+// Requête utilisée : /product?domain=6&asin=…&stats=180&buybox=1&history=0
 //  - domain 6 = Amazon.ca ; jusqu'à 100 ASIN par requête ;
-//  - stats=90 : statistiques sur 90 jours (sans coût supplémentaire) ;
+//  - stats=180 : statistiques (moyennes 30 / 90 / 180 j ; buyBoxStats, la part de
+//    Buy Box de chaque vendeur, porte sur ces 180 jours), sans coût supplémentaire ;
 //  - buybox=1 : données de Buy Box (environ 2 jetons de plus par produit) ;
 //  - history=0 : pas d'historique complet (réponse plus légère).
 // Les prix sont en centimes ; -1 / -2 = pas d'offre ou valeur inconnue.
@@ -39,7 +40,24 @@ export type KeepaFacts = {
   /** Frais FBA d'expédition ($) et commission Amazon (%) */
   fbaFee: number | null;
   referralPct: number | null;
+  /** Part de la Buy Box gagnée par Amazon sur 180 jours (%) ; null si Keepa ne la donne pas */
+  amazonBuyBoxPct: number | null;
 };
+
+/** Identifiants vendeur d'Amazon lui-même (Amazon.ca, et Amazon.com au cas où il apparaîtrait) */
+export const AMAZON_SELLER_IDS = new Set(["A3DWYXPMJIMRNM", "ATVPDKIKX0DER"]);
+
+/** Part de Buy Box d'Amazon dans stats.buyBoxStats (clé = vendeur, percentageWon en %). */
+export function amazonBuyBoxShare(stats: Record<string, unknown>): number | null {
+  const bb = stats.buyBoxStats;
+  if (!bb || typeof bb !== "object") return null;
+  let share = 0;
+  for (const [seller, v] of Object.entries(bb as Record<string, unknown>)) {
+    const pct = v && typeof v === "object" ? (v as Record<string, unknown>).percentageWon : null;
+    if (AMAZON_SELLER_IDS.has(seller) && typeof pct === "number" && pct > 0) share += pct;
+  }
+  return Math.round(Math.min(100, share));
+}
 
 export type KeepaTokens = { tokensLeft: number; refillIn: number; refillRate: number; tokensConsumed?: number };
 
@@ -73,6 +91,7 @@ export function parseKeepaProduct(p: Record<string, unknown>): KeepaFacts | null
     monthlySold: monthly,
     fbaFee: pickPack,
     referralPct: referral != null && referral > 0 && referral < 50 ? referral : null,
+    amazonBuyBoxPct: amazonBuyBoxShare(stats),
   };
 }
 
@@ -108,6 +127,14 @@ export function keepaTotalFees(k: Pick<KeepaFacts, "fbaFee" | "referralPct">, sa
 export function priceDrop(k: Pick<KeepaFacts, "buyBox" | "buyBoxAvg90">, pct = 10): number | null {
   if (k.buyBox == null || k.buyBoxAvg90 == null || k.buyBoxAvg90 <= 0) return null;
   const drop = ((k.buyBoxAvg90 - k.buyBox) / k.buyBoxAvg90) * 100;
+  return drop >= pct ? Math.round(drop) : null;
+}
+
+/** Avertissement « Buy Box en chute » : Buy Box actuelle au moins `pct` % sous la plus haute des analyses
+ *  des 14 derniers jours. */
+export function buyBoxDrop(current: number | null, peak14: number | null, pct = 20): number | null {
+  if (current == null || peak14 == null || peak14 <= 0) return null;
+  const drop = ((peak14 - current) / peak14) * 100;
   return drop >= pct ? Math.round(drop) : null;
 }
 
@@ -157,6 +184,6 @@ export async function keepaTokenStatus(fetchImpl: typeof fetch = fetch): Promise
 /** Données Amazon.ca de 1 à 100 ASIN. */
 export async function keepaProducts(asins: string[], fetchImpl: typeof fetch = fetch) {
   if (!asins.length || asins.length > KEEPA_MAX_ASINS) throw new Error(`De 1 à ${KEEPA_MAX_ASINS} ASIN par requête`);
-  const q = `/product?domain=${KEEPA_DOMAIN_CA}&asin=${asins.map(encodeURIComponent).join(",")}&stats=90&buybox=1&history=0`;
+  const q = `/product?domain=${KEEPA_DOMAIN_CA}&asin=${asins.map(encodeURIComponent).join(",")}&stats=180&buybox=1&history=0`;
   return parseKeepaResponse(await call(q, fetchImpl));
 }
