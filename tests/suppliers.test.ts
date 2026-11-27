@@ -8,7 +8,7 @@ import { groupBySupplier } from "../src/lib/suppliers";
 
 const offer = (id: string, key: string, name: string, url: string | null, cost: number, extra: Partial<OfferView> = {}): OfferView => ({
   id, supplierKey: key, supplierName: name, supplierUrl: url, firstSeenAt: "2026-10-12T16:00:00Z", lastSeenAt: "2026-10-13T16:00:00Z",
-  salePrice: 42, buyBox90: 40, amazonPrice: 40, priceE: 42, fbaFee: 7, costPrice: cost, estimatedSales: 50, currency: "CAD", valuesSource: "LEADS",
+  salePrice: 42, buyBox90: 40, amazonPrice: 40, priceE: 42, origin: { price: "sheet", fees: "sheet", sales: "sheet" }, sheetFbaFee: 7, sheetEstimatedSales: 50, fbaFee: 7, costPrice: cost, estimatedSales: 50, currency: "CAD", valuesSource: "LEADS",
   stockStatus: "UNKNOWN", stockCheckedAt: null, stockDetail: null, backInStockAt: null, backInStockAlert: false, needsRecheck: true,
   verifiedCostPrice: null, verifiedAvailability: null, verifiedAt: null, occurrences: 1, sources: ["LEADS"], present: true,
   oosAvailability: null, oosNotes: null, sheetRoi: null, sheetProfit: null,
@@ -16,8 +16,8 @@ const offer = (id: string, key: string, name: string, url: string | null, cost: 
 });
 const product = (id: string, asin: string, offers: OfferView[], reviewStatus = "TO_REVIEW"): ProductView => ({
   id, asin, name: `Produit ${id}`, amazonUrl: null, firstSeenAt: "2026-11-02T16:00:00Z", lastSeenAt: "2026-11-02T16:00:00Z", firstSource: "LEADS",
-  countsTowardGoal: true, goalWeek: "2026-11-02", reviewStatus, reviewNotes: null, reviewTags: [], reviewChecklist: {}, reviewedAt: null, verifiedSalePrice: null,
-  verifiedFbaFee: null, restriction: "UNKNOWN", verifiedAt: null, exportedAt: "2026-11-02T16:00:00Z", confirmedAt: null, freshSince: "2026-11-02T16:00:00Z",
+  countsTowardGoal: true, goalWeek: "2026-11-02", reviewStatus, reviewNotes: null, reviewTags: [], reviewChecklist: {}, reviewedAt: null, reviewedBy: null, confirmedBy: null, verifiedSalePrice: null,
+  verifiedFbaFee: null, restriction: "UNKNOWN", verifiedAt: null, exportedAt: "2026-11-02T16:00:00Z", confirmedAt: null, freshSince: "2026-11-02T16:00:00Z", keepa: null,
   lastDuplicateAt: null, duplicateAlert: false, dup: { exactOfferIds: [], crossSheet: false, crossSheetOfferIds: [], multiSupplier: offers.length > 1, any: offers.length > 1 },
   occurrences: offers.length, sources: ["LEADS"], present: true, offers, best: offers[0],
 });

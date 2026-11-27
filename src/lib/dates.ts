@@ -223,6 +223,16 @@ const dateTimeFormat = new Intl.DateTimeFormat("fr-CA", { timeZone: TIME_ZONE, d
 
 const toDate = (v: Date | string) => (typeof v === "string" ? new Date(v) : v);
 export const formatDate = (v: Date | string | null | undefined) => (v ? dateFormat.format(toDate(v)) : "—");
+/** « à l'instant », « il y a 3 h », « il y a 2 j ». */
+export function formatAgo(v: Date | string | null | undefined, now = new Date()): string {
+  if (!v) return "—";
+  const min = Math.max(0, Math.round((now.getTime() - toDate(v).getTime()) / 60_000));
+  if (min < 2) return "à l'instant";
+  if (min < 60) return `il y a ${min} min`;
+  const h = Math.round(min / 60);
+  return h < 36 ? `il y a ${h} h` : `il y a ${Math.round(h / 24)} j`;
+}
+
 export const formatDateTime = (v: Date | string | null | undefined) => (v ? dateTimeFormat.format(toDate(v)) : "—");
 
 /** "12 – 18 oct." à partir d'une clé de semaine. */

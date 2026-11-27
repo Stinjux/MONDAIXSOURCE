@@ -18,7 +18,7 @@ async function heicPreview(bytes: Uint8Array): Promise<Uint8Array | null> {
   }
 }
 
-export async function saveDocument(input: { asin: string; filename: string; bytes: Uint8Array; kind?: string; purchaseId?: string | null }): Promise<SavedDocument> {
+export async function saveDocument(input: { asin: string; filename: string; bytes: Uint8Array; kind?: string; purchaseId?: string | null; uploadedBy?: string | null }): Promise<SavedDocument> {
   const asin = input.asin.trim().toUpperCase();
   if (!/^[A-Z0-9]{10}$/.test(asin)) throw new Error("ASIN invalide");
   if (input.bytes.length === 0) throw new Error(`${input.filename} : fichier vide`);
@@ -39,10 +39,10 @@ export async function saveDocument(input: { asin: string; filename: string; byte
   const product = await prisma.product.findUnique({ where: { asin }, select: { id: true } });
   const purchaseId = input.purchaseId ? ((await prisma.purchase.findUnique({ where: { id: input.purchaseId }, select: { id: true } }))?.id ?? null) : null;
   const doc = await prisma.productDocument.create({
-    data: { asin, productId: product?.id ?? null, purchaseId, kind, filename: safeFilename(input.filename, type.ext), mimeType: type.mime, size: input.bytes.length, sha256, hasPreview },
+    data: { asin, productId: product?.id ?? null, purchaseId, kind, filename: safeFilename(input.filename, type.ext), mimeType: type.mime, size: input.bytes.length, sha256, hasPreview, uploadedBy: input.uploadedBy ?? null },
     select: { id: true, filename: true, mimeType: true, size: true },
   });
-  await prisma.changeLog.create({ data: { entity: "ProductDocument", entityId: doc.id, action: "CREATE", after: { asin, kind, filename: doc.filename, size: doc.size } } });
+  await prisma.changeLog.create({ data: { actor: input.uploadedBy ?? "admin", entity: "ProductDocument", entityId: doc.id, action: "CREATE", after: { asin, kind, filename: doc.filename, size: doc.size } } });
   return doc;
 }
 

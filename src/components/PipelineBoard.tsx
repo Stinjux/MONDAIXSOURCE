@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { setReviewStatus } from "@/app/(app)/actions";
 import { VERDICT_LABELS, type Verdict } from "@/lib/decision";
-import { STRATEGIES, compareRows, evaluateRow, matchesVerdict } from "@/lib/decisionFilters";
+import { PERIODS, STRATEGIES, compareRows, evaluateRow, inPeriod, matchesVerdict, rowWeek } from "@/lib/decisionFilters";
 import type { DecisionRow } from "@/lib/decisionRows";
 import { formatDate } from "@/lib/dates";
 import { cad, pct } from "@/lib/format";
@@ -18,7 +18,8 @@ import type { CartState } from "./Cart";
 import { FilterPanel, VerdictChips, countVerdicts, readSaved, useDecisionFilters, writeSaved } from "./DecisionFilters";
 import { FreshnessPill } from "./Freshness";
 import { ProductImage } from "./ProductImage";
-import { Badge, EmptyState, Supplier, cn } from "./ui";
+import { Badge, EmptyState, KeepaBadges, Supplier, UserAvatar, cn } from "./ui";
+import { useUser } from "./UserContext";
 
 const ICONS: Record<Stage, React.ReactNode> = {
   NEW: <Inbox size={15} />,
@@ -103,9 +104,14 @@ export function PipelineBoard({ rows, purchased, currentWeek, initialView = null
   const pool = useMemo(() => {
     const q = query.trim().toLowerCase();
     return evaluated.filter(
-      (r) => (!q || `${r.asin} ${r.name} ${r.supplierName ?? ""} ${r.supplierKey}`.toLowerCase().includes(q)) && (!filters.weekOnly || (r.countsTowardGoal && r.goalWeek === currentWeek)),
+      (r) => {
+        if (q && !`${r.asin} ${r.name} ${r.supplierName ?? ""} ${r.supplierKey}`.toLowerCase().includes(q)) return false;
+        // Période de découverte, partagée avec Buy Decisions (les plages ROI / ventes / coût n'y s'appliquent pas)
+        const week = rowWeek(r);
+        return filters.period === "all" || (!!week && inPeriod(week, filters.period, currentWeek));
+      },
     );
-  }, [evaluated, query, filters.weekOnly, currentWeek]);
+  }, [evaluated, query, filters.period, currentWeek]);
   const counts = useMemo(() => countVerdicts(pool), [pool]);
 
   const { columns, hidden } = useMemo(() => {
@@ -132,7 +138,7 @@ export function PipelineBoard({ rows, purchased, currentWeek, initialView = null
 
   const move = (r: DecisionRow, to: Stage) => {
     setMessage(null);
-    if (to === "RECONFIRM" || (to === "READY" && r.fresh.state === "STALE")) return router.push(`/reconfirm?asin=${r.asin}`);
+    if (to === "RECONFIRM" || (to === "READY" && r.fresh.state === "STALE")) return router.push(`/decisions?asin=${r.asin}`);
     if (to === "BOUGHT") return setMessage({ ok: false, text: "Un achat se confirme depuis le panier de Buy Decisions." });
     const next = STAGE_STATUS[to];
     const previous = status[r.productId] ?? r.reviewStatus;
@@ -166,14 +172,13 @@ export function PipelineBoard({ rows, purchased, currentWeek, initialView = null
             <input className="field pl-9" placeholder="Rechercher par ASIN, produit ou fournisseur" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Rechercher" />
           </div>
           <Link href="/decisions" className="btn-primary"><Gavel size={15} /> Décider un par un</Link>
-          <Link href="/reconfirm" className="btn-ghost"><RefreshCw size={15} /> Reconfirmer ({columns.RECONFIRM.length + hidden.RECONFIRM})</Link>
           <button type="button" className="btn-ghost" aria-expanded={showFilters} onClick={() => setShowFilters((v) => !v)}>
             <SlidersHorizontal size={15} /> {showFilters ? "Masquer" : "Filtres"}
           </button>
         </div>
         <div className="flex flex-wrap items-center gap-1.5 border-t border-line px-3 py-2">
           <VerdictChips value={filters.verdict} onChange={(v) => update({ verdict: v })} counts={counts} total={pool.length} />
-          <span className="ml-auto text-[11px] text-ink-3">Tri : {STRATEGY_LABEL[filters.strategy]}{filters.weekOnly && " · cette semaine"}</span>
+          <span className="ml-auto text-[11px] text-ink-3">Tri : {STRATEGY_LABEL[filters.strategy]}{filters.period !== "all" && ` · ${PERIODS.find((p) => p.key === filters.period)!.label.toLowerCase()}`}</span>
         </div>
       </div>
       {showFilters && <FilterPanel filters={filters} update={update} />}
@@ -246,11 +251,10 @@ export function PipelineBoard({ rows, purchased, currentWeek, initialView = null
                 {s === "READY" && list.length > 0 && (
                   <p className="mt-1 text-[11px] text-ink-2">1 u. de chaque : <b className="text-ink tabular-nums">{cad(readyCost)}</b> · profit mensuel max <b className="text-good tabular-nums">{cad(readyMonthly)}</b></p>
                 )}
-                {s === "RECONFIRM" && list.length > 0 && <Link href="/reconfirm" className="mt-1 inline-flex items-center gap-1 text-[11px] text-accent hover:underline"><RefreshCw size={11} /> Lancer la reconfirmation</Link>}
                 {hidden[s] > 0 && (
                   <p className="mt-1 text-[11px] text-ink-3">
                     + {hidden[s]} masqué{hidden[s] > 1 ? "s" : ""} ·{" "}
-                    <button type="button" className="text-accent hover:underline" onClick={() => { update({ verdict: "ALL", weekOnly: false }); setQuery(""); }}>tout afficher</button>
+                    <button type="button" className="text-accent hover:underline" onClick={() => { update({ verdict: "ALL", period: "all" }); setQuery(""); }}>tout afficher</button>
                   </p>
                 )}
               </header>
@@ -299,6 +303,7 @@ function LeadCard({
   onDragStart: () => void;
   onDragEnd: () => void;
 }) {
+  const { profiles } = useUser();
   const draggable = stage !== "BOUGHT";
   return (
     <article
@@ -332,6 +337,8 @@ function LeadCard({
         <Badge tone={VERDICT_TONE[r.verdict]}>{VERDICT_LABELS[r.verdict]}</Badge>
         {stage !== "BOUGHT" && stage !== "REJECTED" && <FreshnessPill fresh={r.fresh} compact />}
         {r.unavailable && <Badge tone="critical">Rupture</Badge>}
+        <KeepaBadges keepa={r.keepa} compact />
+        {r.reviewedBy && r.reviewStatus !== "TO_REVIEW" && <UserAvatar profile={profiles[r.reviewedBy]} size={18} title={`Décidé par ${profiles[r.reviewedBy].name}`} />}
         {r.restricted && <Badge tone="serious" icon={<Lock size={10} />}>Restreint</Badge>}
         {inCart > 0 && <Badge tone="accent" icon={<ShoppingCart size={10} />}>× {inCart}</Badge>}
       </div>
@@ -350,7 +357,7 @@ function LeadCard({
           ))}
         </select>
         {stage === "RECONFIRM" ? (
-          <Link href={`/reconfirm?asin=${r.asin}`} className="btn-ghost px-2 py-1 text-[11px] text-critical"><RefreshCw size={11} /> Reconfirmer</Link>
+          <Link href={`/decisions?asin=${r.asin}`} className="btn-ghost px-2 py-1 text-[11px] text-critical"><RefreshCw size={11} /> Reconfirmer</Link>
         ) : stage === "READY" ? (
           <button type="button" className="btn-ghost px-2 py-1 text-[11px]" onClick={onAddToCart}><ShoppingCart size={11} /> Panier</button>
         ) : stage === "NEW" || stage === "ANALYSIS" || stage === "BOUGHT" ? (

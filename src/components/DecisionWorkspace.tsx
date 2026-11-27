@@ -9,9 +9,9 @@ import { ChartScatter, LayoutList, ShoppingCart, SlidersHorizontal, SquareStack,
 import { BuyDecisions } from "./BuyDecisions";
 import { DecisionMap } from "./DecisionMap";
 import { Cart, cartLineValues, type CartState } from "./Cart";
-import { FilterPanel, VerdictChips, countVerdicts, readSaved, useDecisionFilters, writeSaved } from "./DecisionFilters";
+import { FilterPanel, QuickFilters, VerdictChips, countVerdicts, readSaved, useDecisionFilters, writeSaved } from "./DecisionFilters";
 import { FocusScreen } from "./FocusScreen";
-import { evaluateRow, inScope } from "@/lib/decisionFilters";
+import { evaluateRow, inScope, matchesVerdict } from "@/lib/decisionFilters";
 import type { DecisionRow } from "@/lib/decisionRows";
 import type { FocusLead } from "@/lib/focus";
 import type { NoteTemplates } from "@/lib/noteTemplates";
@@ -70,6 +70,7 @@ export function DecisionWorkspace({
   }, []);
 
   const byId = useMemo(() => new Map(rows.map((r) => [r.productId, r])), [rows]);
+  const approvals = useMemo(() => Object.fromEntries(leads.map((l) => [l.productId, l.buy ?? null])), [leads]);
   const lines = Object.entries(cart).filter(([id]) => byId.has(id));
   const units = lines.reduce((n, [, l]) => n + l.qty, 0);
   const total = lines.reduce((n, [id, l]) => n + (cartLineValues(byId.get(id)!, l, tax).subtotal ?? 0), 0);
@@ -96,7 +97,12 @@ export function DecisionWorkspace({
   }, [rows, filters, currentWeek]);
 
   // La file « Un par un » suit vos filtres : elle se recrée quand ils changent
-  const queueKey = JSON.stringify([filters.strategy, filters.verdict, filters.weekOnly, filters.includeUnavailable, filters.thresholds, start.n]);
+  const queueKey = JSON.stringify([filters.strategy, filters.verdict, filters.period, filters.roiMin, filters.roiMax, filters.salesMin, filters.costMax, filters.includeUnavailable, filters.thresholds, start.n]);
+  // Nombre de leads correspondant aux filtres et à l'avis choisi (Un par un et Carte)
+  const matching = useMemo(
+    () => rows.map((r) => evaluateRow(r, filters.thresholds)).filter((r) => r.reviewStatus !== "REJECTED" && inScope(r, filters, currentWeek) && matchesVerdict(r.verdict, filters.verdict)).length,
+    [rows, filters, currentWeek],
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -142,6 +148,7 @@ export function DecisionWorkspace({
         </button>
       </div>
 
+      <QuickFilters filters={filters} update={update} count={view === "list" ? undefined : matching} />
       {view !== "list" && showFilters && (
         <div className="flex flex-col gap-3">
           <FilterPanel filters={filters} update={update} />
@@ -168,7 +175,7 @@ export function DecisionWorkspace({
             <button type="button" className="btn-ghost self-end px-2 py-1 text-xs" onClick={() => setCartOpen(false)}>
               <X size={14} /> Fermer <span className="text-ink-3">(Échap)</span>
             </button>
-            <Cart rows={rows} cart={cart} setCart={setCart} budget={budget} setBudget={setBudget} tax={tax} />
+            <Cart rows={rows} cart={cart} setCart={setCart} budget={budget} setBudget={setBudget} tax={tax} approvals={approvals} />
           </div>
         </div>
       )}

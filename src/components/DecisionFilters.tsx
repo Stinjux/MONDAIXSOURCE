@@ -3,18 +3,18 @@
 // Les réglages sont mémorisés dans ce navigateur, synchronisés entre les pages et les onglets ouverts,
 // et enregistrés en base pour être retrouvés sur tous vos appareils.
 import { useCallback, useEffect, useState } from "react";
-import { RotateCcw } from "lucide-react";
-import { DEFAULT_THRESHOLDS, VERDICT_LABELS, type Thresholds, type Verdict } from "@/lib/decision";
-import { DEFAULT_FILTERS, STRATEGIES, parseFilters, type DecisionFilters, type VerdictFilter } from "@/lib/decisionFilters";
-import { PREFS_STORAGE_KEY } from "@/lib/prefsBoot";
+import { Filter, RotateCcw, X } from "lucide-react";
+import { AMAZON_BB_WARN, DEFAULT_THRESHOLDS, DEFAULT_WEIGHTS, VERDICT_LABELS, VOLUME_FULL, WEIGHT_LABELS, normalizeWeights, type ScoreWeights, type Thresholds, type Verdict } from "@/lib/decision";
+import { DEFAULT_FILTERS, PERIODS, STRATEGIES, hasRangeFilters, parseFilters, type DecisionFilters, type Period, type VerdictFilter } from "@/lib/decisionFilters";
+import { amount } from "@/lib/normalize";
+import { currentPrefsKey } from "@/lib/prefsBoot";
 import { cn } from "./ui";
 
-const STORAGE_KEY = PREFS_STORAGE_KEY;
 const EVENT = "mondaix:decision-filters";
 
 export function readSaved(): Record<string, unknown> {
   try {
-    const v = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+    const v = JSON.parse(localStorage.getItem(currentPrefsKey()) ?? "{}");
     return v && typeof v === "object" ? v : {};
   } catch {
     return {};
@@ -24,7 +24,7 @@ export function readSaved(): Record<string, unknown> {
 /** Écrit seulement les champs fournis (n'efface pas budget / quantités / autres filtres), puis les envoie à la base. */
 export function writeSaved(patch: Record<string, unknown>) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...readSaved(), ...patch, updatedAt: Date.now() }));
+    localStorage.setItem(currentPrefsKey(), JSON.stringify({ ...readSaved(), ...patch, updatedAt: Date.now() }));
     window.dispatchEvent(new Event(EVENT));
     schedulePush();
   } catch {
@@ -38,9 +38,9 @@ function schedulePush() {
   if (pushTimer) clearTimeout(pushTimer);
   pushTimer = setTimeout(pushSaved, 800);
 }
-export function pushSaved() {
+export function pushSaved(): Promise<unknown> {
   pushTimer = null;
-  fetch("/api/prefs", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ data: readSaved() }), keepalive: true }).catch(() => {
+  return fetch("/api/prefs", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ data: readSaved() }), keepalive: true }).catch(() => {
     /* hors ligne : la version du navigateur sera envoyée à la prochaine ouverture */
   });
 }
@@ -64,6 +64,7 @@ export function useDecisionFilters() {
   const update = useCallback((patch: Partial<DecisionFilters>) => {
     setFilters((f) => {
       const next = { ...f, ...patch };
+      next.weekOnly = next.period === "week"; // ancien réglage, gardé cohérent
       writeSaved({ ...next });
       return next;
     });
@@ -83,7 +84,7 @@ export function FilterPanel({
   /** Case à cocher propre à une page (ex. « Inclure les leads rejetés ») */
   extraToggle?: { label: string; checked: boolean; onChange: (v: boolean) => void };
 }) {
-  const thresholdInput = (key: keyof Thresholds, label: string, unit: string) => (
+  const thresholdInput = (key: Exclude<keyof Thresholds, "weights">, label: string, unit: string) => (
     <label className="text-xs text-ink-2">
       {label}
       <span className="mt-1 flex items-center gap-1.5">
@@ -123,12 +124,13 @@ export function FilterPanel({
             </button>
           ))}
         </div>
+        <WeightsEditor weights={filters.thresholds.weights} onChange={(weights) => update({ thresholds: { ...filters.thresholds, weights } })} />
       </div>
 
       <div className="rounded-md border border-line bg-surface p-3">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-xs font-semibold tracking-wide text-ink-2 uppercase">Mes critères d&apos;achat</span>
-          <button type="button" className="flex items-center gap-1 text-xs text-ink-3 hover:text-ink" onClick={() => update({ thresholds: DEFAULT_THRESHOLDS })}>
+          <button type="button" className="flex items-center gap-1 text-xs text-ink-3 hover:text-ink" onClick={() => update({ thresholds: { ...DEFAULT_THRESHOLDS, weights: filters.thresholds.weights } })}>
             <RotateCcw size={12} /> Par défaut
           </button>
         </div>
@@ -140,7 +142,7 @@ export function FilterPanel({
         </div>
         <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 border-t border-line pt-3 text-xs text-ink-2">
           <label className="flex cursor-pointer items-center gap-2">
-            <input type="checkbox" className="accent-accent" checked={filters.weekOnly} onChange={(e) => update({ weekOnly: e.target.checked })} /> Leads de cette semaine seulement
+            <input type="checkbox" className="accent-accent" checked={filters.period === "week"} onChange={(e) => update({ period: e.target.checked ? "week" : "all" })} /> Leads de cette semaine seulement
           </label>
           <label className="flex cursor-pointer items-center gap-2">
             <input type="checkbox" className="accent-accent" checked={filters.includeUnavailable} onChange={(e) => update({ includeUnavailable: e.target.checked })} /> Inclure les ruptures
@@ -152,6 +154,132 @@ export function FilterPanel({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Poids du Score d'achat (par compte) : ROI, profit mensuel, marge, volume ; part en % affichée. */
+function WeightsEditor({ weights, onChange }: { weights: ScoreWeights | undefined; onChange: (w: ScoreWeights) => void }) {
+  const w = normalizeWeights(weights);
+  const total = w.roi + w.monthlyProfit + w.margin + w.volume;
+  const keys = Object.keys(WEIGHT_LABELS) as (keyof ScoreWeights)[];
+  return (
+    <div className="mt-3 border-t border-line pt-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <span className="text-xs font-semibold tracking-wide text-ink-2 uppercase">Poids du score d&apos;achat</span>
+        <button type="button" className="flex items-center gap-1 text-xs text-ink-3 hover:text-ink" onClick={() => onChange(DEFAULT_WEIGHTS)}>
+          <RotateCcw size={12} /> Par défaut
+        </button>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {keys.map((k) => (
+          <label key={k} className="text-xs text-ink-2">
+            <span className="flex items-baseline justify-between gap-2">
+              {WEIGHT_LABELS[k]}
+              <b className="text-ink tabular-nums">{Math.round((w[k] / total) * 100)} %</b>
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={50}
+              step={5}
+              value={w[k]}
+              aria-label={`Poids : ${WEIGHT_LABELS[k]}`}
+              className="mt-1 w-full accent-accent"
+              onChange={(e) => {
+                const next = { ...w, [k]: Number(e.target.value) };
+                if (next.roi + next.monthlyProfit + next.margin + next.volume > 0) onChange(next);
+              }}
+            />
+          </label>
+        ))}
+      </div>
+      <p className="mt-1.5 text-[11px] leading-snug text-ink-3">
+        Volume : note pleine à {VOLUME_FULL} ventes / mois (Keepa, sinon la Sheet), les premières ventes comptent le plus. Si Amazon vend lui-même : −10 points, −25 s&apos;il a plus de{" "}
+        {AMAZON_BB_WARN} % de la Buy Box sur 180 jours.
+      </p>
+    </div>
+  );
+}
+
+/** Champ numérique libre : appliqué dès qu'il est lisible, vide = sans limite. */
+function NumField({ value, onChange, unit, label, placeholder = "—", width = "w-16" }: { value: number | null; onChange: (v: number | null) => void; unit: string; label: string; placeholder?: string; width?: string }) {
+  const [text, setText] = useState(value == null ? "" : String(value).replace(".", ","));
+  useEffect(() => {
+    setText((t) => {
+      const cur = t.trim() ? amount(t) : null;
+      return cur === value ? t : value == null ? "" : String(value).replace(".", ",");
+    });
+  }, [value]);
+  return (
+    <span className="relative">
+      <input
+        className={cn("field py-1 pr-6 text-right text-sm tabular-nums", width, value != null && "border-accent/60 bg-accent/5")}
+        inputMode="decimal"
+        placeholder={placeholder}
+        aria-label={label}
+        value={text}
+        onChange={(e) => {
+          setText(e.target.value);
+          if (!e.target.value.trim()) return onChange(null);
+          const v = amount(e.target.value);
+          if (v !== undefined && v >= 0) onChange(v);
+        }}
+      />
+      <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-xs text-ink-3">{unit}</span>
+    </span>
+  );
+}
+
+/**
+ * Barre « Afficher seulement », toujours visible dans Buy Decisions (Un par un, Liste, Carte) :
+ * période de découverte, ROI min / max, ventes minimum, coût maximum. Ces filtres réduisent la file
+ * sans changer l'avis de chaque lead (vos critères d'achat restent dans « Classement et critères »).
+ */
+export function QuickFilters({ filters, update, count }: { filters: DecisionFilters; update: (patch: Partial<DecisionFilters>) => void; count?: number }) {
+  const active = hasRangeFilters(filters);
+  const label = "text-[11px] font-semibold tracking-[0.06em] text-ink-2 uppercase";
+  return (
+    <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border bg-surface px-3 py-2", active ? "border-accent/40" : "border-line")} role="group" aria-label="Afficher seulement">
+      <span className="flex items-center gap-1.5 text-xs font-semibold text-ink">
+        <Filter size={14} className={active ? "text-accent" : "text-ink-3"} /> Afficher seulement
+      </span>
+      <label className="flex items-center gap-1.5">
+        <span className={label}>Période</span>
+        <select className={cn("field w-auto py-1 text-sm", filters.period !== "all" && "border-accent/60 bg-accent/5")} value={filters.period} onChange={(e) => update({ period: e.target.value as Period })}>
+          {PERIODS.map((p) => (
+            <option key={p.key} value={p.key}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <span className="flex items-center gap-1.5">
+        <span className={label}>ROI</span>
+        <NumField label="Afficher à partir de ce ROI" placeholder="min" unit="%" value={filters.roiMin} onChange={(v) => update({ roiMin: v })} />
+        <span className="text-xs text-ink-3">à</span>
+        <NumField label="Afficher jusqu'à ce ROI" placeholder="max" unit="%" value={filters.roiMax} onChange={(v) => update({ roiMax: v })} />
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span className={label}>Ventes / mois ≥</span>
+        <NumField label="Afficher à partir de ces ventes par mois" unit="u." value={filters.salesMin} onChange={(v) => update({ salesMin: v })} />
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span className={label}>Coût / u. ≤</span>
+        <NumField label="Afficher jusqu'à ce coût par unité" unit="$" value={filters.costMax} onChange={(v) => update({ costMax: v })} />
+      </span>
+      <span className="ml-auto flex items-center gap-3 text-xs">
+        {count != null && (
+          <span className="text-ink-3 tabular-nums">
+            {count} lead{count > 1 ? "s" : ""}
+          </span>
+        )}
+        {active && (
+          <button type="button" className="flex items-center gap-1 text-accent hover:underline" onClick={() => update({ period: "all", roiMin: null, roiMax: null, salesMin: null, costMax: null })}>
+            <X size={12} /> Tout afficher
+          </button>
+        )}
+      </span>
     </div>
   );
 }

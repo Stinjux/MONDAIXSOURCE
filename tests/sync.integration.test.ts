@@ -48,7 +48,7 @@ function reader(sheets: { LEADS: string[][]; OUT_OF_STOCK: string[][] }) {
 
 async function reset() {
   await db.$executeRawUnsafe(
-    `TRUNCATE "PurchaseItem", "Purchase", "ImportIssue", "ImportEvent", "PriceSnapshot", "StockCheck", "Occurrence", "SupplierOffer", "Product", "ChangeLog", "AppSetting", "Lead", "DataBackup", "SupplierOrder" CASCADE`,
+    `TRUNCATE "PurchaseItem", "Purchase", "ImportIssue", "ImportEvent", "PriceSnapshot", "StockCheck", "Occurrence", "SupplierOffer", "Product", "ChangeLog", "AppSetting", "Lead", "DataBackup", "SupplierOrder", "KeepaSnapshot", "BuyVote" CASCADE`,
   );
 }
 
@@ -328,4 +328,78 @@ test("migration : la décision la plus récente l'emporte, LEADS et OUT OF STOCK
   const status = async (asin: string) => (await db.product.findUniqueOrThrow({ where: { asin } })).reviewStatus;
   assert.equal(await status("B0MMMMMMM1"), "REJECTED");
   assert.equal(await status("B0MMMMMMM2"), "VALIDATED");
+});
+
+// --- Keepa : faux serveur (jetons limités, 3 jetons par ASIN) ---
+function fakeKeepa(start: number, opts: { throttleAfter?: number } = {}) {
+  let tokens = start;
+  let productCalls = 0;
+  const asked: string[][] = [];
+  const impl = (async (input: string) => {
+    const u = new URL(String(input));
+    if (u.pathname === "/token") return new Response(JSON.stringify({ tokensLeft: tokens, refillIn: 30000, refillRate: 1 }));
+    productCalls++;
+    const asins = (u.searchParams.get("asin") ?? "").split(",");
+    if (opts.throttleAfter != null && productCalls > opts.throttleAfter) return new Response(JSON.stringify({ tokensLeft: -1, refillIn: 60000, refillRate: 1 }), { status: 429 });
+    asked.push(asins);
+    tokens -= asins.length * 3;
+    const arr = (v: Record<number, number>) => Array.from({ length: 36 }, (_, i) => v[i] ?? -1);
+    const products = asins
+      .filter((a) => a !== "B0DDDDDDDD") // sans données chez Keepa
+      .map((asin) => ({ asin, monthlySold: 120, referralFeePercentage: 15, fbaFees: { pickAndPackFee: 550 }, stats: { current: arr({ 18: 3800, 34: 4 }), avg90: arr({ 18: 4200 }) } }));
+    return new Response(JSON.stringify({ products, tokensLeft: tokens, refillIn: 30000, refillRate: 1, tokensConsumed: asins.length * 3 }));
+  }) as unknown as typeof fetch;
+  return { impl, asked };
+}
+
+test("Keepa : leads actifs mis à jour selon les jetons, jamais deux fois le même jour, rien d'effacé", { skip }, async () => {
+  const keepaSync = await import("../src/lib/keepaSync");
+  await run({ LEADS: BASE_LEADS, OUT_OF_STOCK: BASE_OOS });
+  const saved = process.env.KEEPA_API_KEY;
+  process.env.KEEPA_API_KEY = "cle-de-test";
+  try {
+    // Un lead acheté n'est pas interrogé ; un lead rejeté passe après les actifs (une fois par semaine)
+    await db.product.update({ where: { asin: "B0EEEEEEEE" }, data: { reviewStatus: "REJECTED" } });
+    await db.purchase.create({ data: { totalCost: 20, totalUnits: 1, items: { create: [{ asin: "B0FFFFFFFF", name: "F", quantity: 1, unitCost: 20 }] } } });
+    // 7 jetons : 2 leads seulement (3 jetons chacun)
+    const k1 = fakeKeepa(7);
+    const r1 = await keepaSync.runKeepa({ db, fetch: k1.impl, now: NOW, trigger: "TEST" });
+    assert.equal(r1.status, "SUCCESS");
+    assert.deepEqual([r1.requested, r1.updated + r1.noData], [2, 2]);
+    assert.match(r1.message ?? "", /au prochain passage/);
+    // Assez de jetons : le reste (A, B, D) ; D n'a pas de données chez Keepa
+    const k2 = fakeKeepa(100);
+    const r2 = await keepaSync.runKeepa({ db, fetch: k2.impl, now: new Date(NOW.getTime() + 15 * 60_000), trigger: "TEST" });
+    const all = [...k1.asked.flat(), ...k2.asked.flat()].sort();
+    assert.deepEqual(all, ["B0AAAAAAAA", "B0BBBBBBBB", "B0DDDDDDDD", "B0EEEEEEEE"]);
+    assert.ok(!all.includes("B0FFFFFFFF"));
+    assert.ok(!k1.asked.flat().includes("B0EEEEEEEE")); // le rejeté n'a pas pris les jetons des actifs
+    assert.equal(new Set(all).size, all.length); // aucun lead demandé deux fois
+    assert.equal(r1.requested + r2.requested, 4);
+    assert.equal(r1.noData + r2.noData, 1); // D : aucune donnée chez Keepa
+    // Plus tard le même jour : rien à faire (jamais deux fois le même jour)
+    const r3 = await keepaSync.runKeepa({ db, fetch: fakeKeepa(100).impl, now: new Date(NOW.getTime() + 3600_000), trigger: "TEST" });
+    assert.equal(r3.status, "SKIPPED");
+    // Données enregistrées à part ; la Sheet reste intacte
+    const snap = await db.keepaSnapshot.findFirstOrThrow({ where: { asin: "B0AAAAAAAA" } });
+    assert.deepEqual([snap.buyBox, snap.buyBoxAvg90, snap.fbaOffers, snap.monthlySold, snap.fbaFee, snap.referralPct], [38, 42, 4, 120, 5.5, 15]);
+    const offer = await db.supplierOffer.findFirstOrThrow({ where: { product: { asin: "B0AAAAAAAA" } } });
+    assert.equal(offer.salePrice, 45);
+    // Le lendemain : nouvelle ligne, l'ancienne est conservée
+    await keepaSync.runKeepa({ db, fetch: fakeKeepa(100).impl, now: new Date(NOW.getTime() + 25 * 3600_000), trigger: "TEST" });
+    assert.equal(await db.keepaSnapshot.count({ where: { asin: "B0AAAAAAAA" } }), 2);
+    assert.equal(await db.keepaSnapshot.count({ where: { asin: "B0EEEEEEEE" } }), 1); // rejeté : pas avant une semaine
+    // Quota atteint en cours de route : arrêt propre, run enregistré
+    await db.product.updateMany({ data: { keepaCheckedAt: null } });
+    const r5 = await keepaSync.runKeepa({ db, fetch: fakeKeepa(6, { throttleAfter: 0 }).impl, now: new Date(NOW.getTime() + 50 * 3600_000), trigger: "TEST" });
+    assert.equal(r5.status, "SUCCESS");
+    assert.match(r5.message ?? "", /Quota Keepa atteint/);
+    assert.equal(await db.importRun.count({ where: { source: "KEEPA" } }), 4);
+    // Sans clé : rien n'est fait
+    delete process.env.KEEPA_API_KEY;
+    assert.equal((await keepaSync.runKeepa({ db, fetch: fakeKeepa(100).impl, trigger: "TEST" })).status, "SKIPPED");
+  } finally {
+    if (saved === undefined) delete process.env.KEEPA_API_KEY;
+    else process.env.KEEPA_API_KEY = saved;
+  }
 });

@@ -15,6 +15,7 @@ export default async function PurchasedPage() {
     totalProfit: p.totalProfit,
     totalUnits: p.totalUnits,
     cancelledAt: p.cancelledAt?.toISOString() ?? null,
+    createdBy: p.createdBy,
     items: p.items.map((i) => ({
       id: i.id, asin: i.asin, name: i.name, supplierName: i.supplierName, supplierUrl: i.supplierUrl, quantity: i.quantity, unitCost: i.unitCost,
       amazonPrice: i.amazonPrice, fees: i.fees, taxes: i.taxes, unitProfit: i.unitProfit, roi: i.roi, margin: i.margin,

@@ -15,6 +15,8 @@ export type CogsLine = {
   source: string;
   orderNumber?: string | null;
   note: string | null;
+  /** Compte qui a saisi l'achat */
+  createdBy?: string | null;
 };
 
 export type CogsProduct = {

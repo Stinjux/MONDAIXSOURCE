@@ -8,6 +8,8 @@ import { archiveDocument, updateDocument } from "@/app/(app)/actions";
 import { formatDate } from "@/lib/dates";
 import { DOC_KINDS, DOC_KIND_LABELS, MAX_DOC_BYTES, formatBytes, type DocKind } from "@/lib/documents";
 import { cn } from "./ui";
+import { useUser } from "./UserContext";
+import { actorKey } from "@/lib/users";
 
 export type DocView = {
   id: string;
@@ -18,6 +20,7 @@ export type DocView = {
   purchaseId: string | null;
   hasPreview: boolean;
   uploadedAt: string;
+  uploadedBy?: string | null;
   archivedAt: string | null;
 };
 export type OrderOption = { id: string; label: string };
@@ -25,6 +28,7 @@ export type OrderOption = { id: string; label: string };
 const ACCEPT = ".pdf,.jpg,.jpeg,.png,.webp,.gif,.heic,.heif,application/pdf,image/*";
 
 export function DocumentDrop({ asin, documents, orders }: { asin: string; documents: DocView[]; orders: OrderOption[] }) {
+  const { profiles } = useUser();
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
@@ -154,6 +158,7 @@ export function DocumentDrop({ asin, documents, orders }: { asin: string; docume
                     </p>
                     <p className="text-[11px] text-ink-3">
                       {formatBytes(d.size)} · ajouté le {formatDate(d.uploadedAt)}
+                      {actorKey(d.uploadedBy) && ` par ${profiles[actorKey(d.uploadedBy)!].name}`}
                       {d.archivedAt && " · archivé"}
                     </p>
                   </div>

@@ -6,7 +6,7 @@ import type { OfferView, ProductView } from "../src/lib/queries";
 
 const offer = (id: string, name: string, cost: number): OfferView => ({
   id, supplierKey: name.toLowerCase(), supplierName: name, supplierUrl: null, firstSeenAt: "2026-10-12T16:00:00Z", lastSeenAt: "2026-10-13T16:00:00Z",
-  salePrice: 42, buyBox90: 40, amazonPrice: 40, priceE: 42, fbaFee: 7, costPrice: cost, estimatedSales: 50, currency: "CAD", valuesSource: "LEADS",
+  salePrice: 42, buyBox90: 40, amazonPrice: 40, priceE: 42, origin: { price: "sheet", fees: "sheet", sales: "sheet" }, sheetFbaFee: 7, sheetEstimatedSales: 50, fbaFee: 7, costPrice: cost, estimatedSales: 50, currency: "CAD", valuesSource: "LEADS",
   stockStatus: "UNKNOWN", stockCheckedAt: null, stockDetail: null, backInStockAt: null, backInStockAlert: false, needsRecheck: true,
   verifiedCostPrice: null, verifiedAvailability: null, verifiedAt: null, occurrences: 1, sources: ["LEADS"], present: true,
   oosAvailability: null, oosNotes: null, sheetRoi: null, sheetProfit: null,
@@ -19,7 +19,7 @@ test("un ASIN = une ligne, avec tous ses fournisseurs et la meilleure offre en t
   const product = {
     id: "p1", asin: "B0AAAAAAAA", name: "Produit A", amazonUrl: null, firstSeenAt: "2026-10-12T16:00:00Z", lastSeenAt: "2026-10-13T16:00:00Z",
     firstSource: "LEADS", countsTowardGoal: true, goalWeek: "2026-10-12", reviewStatus: "TO_REVIEW", reviewNotes: null, reviewTags: [], reviewChecklist: {},
-    reviewedAt: null, verifiedSalePrice: null, verifiedFbaFee: null, restriction: "UNKNOWN", verifiedAt: null, exportedAt: "2026-10-13T16:00:00Z", confirmedAt: null, freshSince: "2026-10-13T16:00:00Z",
+    reviewedAt: null, reviewedBy: null, confirmedBy: null, verifiedSalePrice: null, verifiedFbaFee: null, restriction: "UNKNOWN", verifiedAt: null, exportedAt: "2026-10-13T16:00:00Z", confirmedAt: null, freshSince: "2026-10-13T16:00:00Z", keepa: null,
     lastDuplicateAt: null, duplicateAlert: false,
     dup: { exactOfferIds: [], crossSheet: false, crossSheetOfferIds: [], multiSupplier: true, any: true },
     occurrences: 2, sources: ["LEADS"], present: true, offers: [walmart, costco], best: costco,

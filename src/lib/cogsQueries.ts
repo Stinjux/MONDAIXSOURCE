@@ -7,7 +7,7 @@ export async function loadCogsLines(asin?: string): Promise<CogsLine[]> {
   // Seuls les achats réels saisis dans COGS comptent (le panier potentiel n'en fait pas partie)
   const items = await prisma.purchaseItem.findMany({
     where: { purchase: { source: "MANUAL" }, ...(asin ? { asin } : {}) },
-    include: { purchase: { select: { id: true, createdAt: true, cancelledAt: true, source: true, note: true, orderNumber: true } } },
+    include: { purchase: { select: { id: true, createdAt: true, cancelledAt: true, source: true, note: true, orderNumber: true, createdBy: true } } },
     orderBy: { purchase: { createdAt: "desc" } },
   });
   return items.map((i) => ({
@@ -23,6 +23,7 @@ export async function loadCogsLines(asin?: string): Promise<CogsLine[]> {
     source: i.purchase.source,
     orderNumber: i.purchase.orderNumber,
     note: i.purchase.note,
+    createdBy: i.purchase.createdBy,
   }));
 }
 

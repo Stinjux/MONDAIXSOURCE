@@ -4,29 +4,41 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  BarChart3, CalendarCheck, ChevronsLeft, ChevronsRight, Copy, History, KanbanSquare, LayoutDashboard, LogOut, Menu, PackageX, Receipt, RefreshCw, Rows3, Rows4,
+  BarChart3, BellRing, CalendarCheck, ChevronDown, ChevronsLeft, ChevronsRight, Copy, Handshake, History, KanbanSquare, LayoutDashboard, LogOut, Menu, PackageX, Radar, Receipt, Rows3, Rows4,
   Search, Settings, ShoppingBag, ShoppingBasket, ShoppingCart, Store, Table2, X,
 } from "lucide-react";
 import { logout } from "@/app/(app)/actions";
-import { cn } from "./ui";
-import { readUi, setUi, type UiPrefs } from "./uiPrefs";
+import { UserAvatar, cn } from "./ui";
+import { useUser } from "./UserContext";
+import { ROLE_LABELS } from "@/lib/users";
+import { DEFAULT_UI, readUi, setUi, type UiPrefs } from "./uiPrefs";
 
-type Counts = { duplicates: number; review: number; backInStock: number; reconfirm: number };
-type Item = { href: string; label: string; icon: typeof LayoutDashboard; count?: keyof Counts };
+type Counts = { duplicates: number; review: number; backInStock: number; approvals: number; keepaAlerts: number };
+type Item = { href: string; label: string; icon: typeof LayoutDashboard; count?: keyof Counts; partnerOnly?: boolean };
 
-export const NAV_SECTIONS: { title: string; items: Item[] }[] = [
+export const NAV_SECTIONS: { key: string; title: string; items: Item[] }[] = [
   {
+    key: "sourcing",
     title: "Sourcing",
     items: [
       { href: "/", label: "Dashboard", icon: LayoutDashboard },
       { href: "/pipeline", label: "Pipeline", icon: KanbanSquare },
       { href: "/decisions", label: "Buy Decisions", icon: ShoppingCart },
+      { href: "/achats-a-deux", label: "Achats à deux", icon: Handshake, count: "approvals", partnerOnly: true },
       { href: "/purchased", label: "Panier potentiel", icon: ShoppingBasket },
       { href: "/weekly-review", label: "Weekly Review", icon: CalendarCheck, count: "review" },
-      { href: "/reconfirm", label: "À reconfirmer", icon: RefreshCw, count: "reconfirm" },
     ],
   },
   {
+    key: "keepa",
+    title: "Keepa",
+    items: [
+      { href: "/keepa-alert", label: "Keepa Alert", icon: BellRing, count: "keepaAlerts" },
+      { href: "/keepa", label: "Journal Keepa", icon: Radar },
+    ],
+  },
+  {
+    key: "catalogue",
     title: "Catalogue",
     items: [
       { href: "/leads", label: "All Leads", icon: Table2 },
@@ -36,6 +48,7 @@ export const NAV_SECTIONS: { title: string; items: Item[] }[] = [
     ],
   },
   {
+    key: "inventaire",
     title: "Inventaire",
     items: [
       { href: "/cogs", label: "COGS & factures", icon: Receipt },
@@ -43,6 +56,7 @@ export const NAV_SECTIONS: { title: string; items: Item[] }[] = [
     ],
   },
   {
+    key: "suivi",
     title: "Suivi",
     items: [
       { href: "/analytics", label: "Analytics", icon: BarChart3 },
@@ -81,17 +95,65 @@ function SearchButton() {
   );
 }
 
+// Catégories pliées : masquées par CSS (attribut posé sur <html> avant l'affichage, voir uiPrefs),
+// sauf en menu réduit (barre d'icônes) où toutes les icônes restent visibles.
+const COLLAPSE_CSS = NAV_SECTIONS.map(
+  ({ key }) =>
+    `:root:not([data-sidebar="rail"])[data-nav-collapsed~="${key}"] [data-nav-list="${key}"]{display:none}` +
+    `:root[data-nav-collapsed~="${key}"] [data-nav-chevron="${key}"]{transform:rotate(-90deg)}` +
+    `:root:not([data-nav-collapsed~="${key}"]) [data-nav-sum="${key}"]{display:none}`,
+).join("");
+
+/** Lien actif : la page elle-même ou une de ses sous-pages (/keepa ne s'allume pas sur /keepa-alert). */
+const isActive = (pathname: string, href: string) => (href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`));
+
 function NavLinks({ counts, onNavigate }: { counts: Counts; onNavigate?: () => void }) {
   const pathname = usePathname();
+  const { partnerEnabled } = useUser();
+  const [collapsed, setCollapsed] = useState<string[]>([]);
+  useEffect(() => {
+    setCollapsed(readUi().navCollapsed);
+    const onUi = (e: Event) => setCollapsed((e as CustomEvent<UiPrefs>).detail.navCollapsed);
+    window.addEventListener("mondaix:ui", onUi);
+    return () => window.removeEventListener("mondaix:ui", onUi);
+  }, []);
+  const toggle = (key: string) => {
+    const cur = readUi().navCollapsed;
+    setUi({ navCollapsed: cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key] });
+  };
   return (
-    <nav className="flex flex-col gap-4" aria-label="Navigation principale">
-      {NAV_SECTIONS.map((section) => (
-        <div key={section.title}>
-          <div className="rail-hide mb-1 px-2.5 text-[10px] font-semibold tracking-[0.16em] text-nav-ink/60 uppercase">{section.title}</div>
+    <nav className="flex flex-col gap-3" aria-label="Navigation principale">
+      <style>{COLLAPSE_CSS}</style>
+      {NAV_SECTIONS.map((section) => {
+        const items = section.items.filter((i) => !i.partnerOnly || partnerEnabled);
+        const total = items.reduce((n, i) => n + (i.count ? counts[i.count] : 0), 0);
+        const hasActive = items.some((i) => isActive(pathname, i.href));
+        const open = !collapsed.includes(section.key);
+        return (
+        <div key={section.key}>
+          <button
+            type="button"
+            onClick={() => toggle(section.key)}
+            aria-expanded={open}
+            aria-controls={`nav-${section.key}`}
+            className={cn(
+              "rail-hide mb-1 flex w-full items-center gap-1.5 rounded-sm px-2.5 py-1 text-left text-[10px] font-semibold tracking-[0.16em] uppercase transition hover:bg-white/5 hover:text-white",
+              hasActive ? "text-white/80" : "text-nav-ink/60",
+            )}
+            title={open ? `Replier ${section.title}` : `Déplier ${section.title}`}
+          >
+            <ChevronDown size={12} data-nav-chevron={section.key} className="shrink-0 transition-transform" />
+            <span className="flex-1">{section.title}</span>
+            {total > 0 && (
+              <span data-nav-sum={section.key} className="rounded-sm bg-white/15 px-1.5 text-[10px] leading-4 tracking-normal text-white tabular-nums">
+                {total}
+              </span>
+            )}
+          </button>
           <div className="rail-only mx-3 mb-1 border-t border-nav-line" aria-hidden />
-          <div className="flex flex-col gap-0.5">
-            {section.items.map(({ href, label, icon: Icon, count }) => {
-              const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+          <div className="flex flex-col gap-0.5" id={`nav-${section.key}`} data-nav-list={section.key}>
+            {items.map(({ href, label, icon: Icon, count }) => {
+              const active = isActive(pathname, href);
               const n = count ? counts[count] : 0;
               return (
                 <Link
@@ -118,16 +180,33 @@ function NavLinks({ counts, onNavigate }: { counts: Counts; onNavigate?: () => v
             })}
           </div>
         </div>
-      ))}
+        );
+      })}
     </nav>
   );
 }
 
 function Footer({ ui, onToggleRail }: { ui: UiPrefs; onToggleRail?: () => void }) {
   const compact = ui.density === "compact";
+  const { me, profiles, partnerEnabled } = useUser();
   const row = "rail-center flex w-full items-center gap-3 px-2.5 py-2 text-sm text-nav-ink transition hover:bg-white/5 hover:text-white";
   return (
     <div className="flex flex-col border-t border-nav-line pt-2">
+      {/* Compte connecté (toutes les actions sont enregistrées à son nom) et déconnexion */}
+      <div className="mb-1 rounded-sm bg-white/[0.04] px-2.5 py-2" title={`Connecté : ${profiles[me].name}`}>
+        <div className="rail-center flex items-center gap-2.5">
+          <UserAvatar profile={profiles[me]} size={28} />
+          <span className="rail-hide min-w-0 flex-1 leading-tight">
+            <span className="block truncate text-sm font-semibold text-white">{profiles[me].name}</span>
+            <span className="block truncate text-[10px] tracking-[0.12em] text-nav-ink/70 uppercase">{partnerEnabled ? ROLE_LABELS[me] : "Connecté"}</span>
+          </span>
+        </div>
+        <form action={logout} className="rail-hide mt-2">
+          <button type="submit" className="flex w-full items-center justify-center gap-1.5 rounded-sm border border-white/20 px-2 py-1.5 text-xs text-nav-ink transition hover:border-white/50 hover:text-white" title="Se déconnecter (pour changer de compte)">
+            <LogOut size={13} /> Se déconnecter
+          </button>
+        </form>
+      </div>
       <button type="button" className={row} onClick={() => setUi({ density: compact ? "comfort" : "compact" })} title={compact ? "Affichage confortable" : "Affichage compact"}>
         {compact ? <Rows3 size={16} className="shrink-0" /> : <Rows4 size={16} className="shrink-0" />}
         <span className="rail-hide">{compact ? "Affichage confortable" : "Affichage compact"}</span>
@@ -138,9 +217,10 @@ function Footer({ ui, onToggleRail }: { ui: UiPrefs; onToggleRail?: () => void }
           <span className="rail-hide">Réduire le menu</span>
         </button>
       )}
-      <form action={logout}>
-        <button type="submit" className={row} title="Déconnexion">
-          <LogOut size={16} className="shrink-0" /> <span className="rail-hide">Déconnexion</span>
+      {/* Menu réduit en barre d'icônes : la déconnexion reste accessible */}
+      <form action={logout} className="rail-only">
+        <button type="submit" className={row} title="Se déconnecter" aria-label="Se déconnecter">
+          <LogOut size={16} className="shrink-0" />
         </button>
       </form>
     </div>
@@ -149,7 +229,7 @@ function Footer({ ui, onToggleRail }: { ui: UiPrefs; onToggleRail?: () => void }
 
 export function Sidebar({ counts }: { counts: Counts }) {
   const [open, setOpen] = useState(false);
-  const [ui, setUiState] = useState<UiPrefs>({ sidebar: "full", density: "comfort" });
+  const [ui, setUiState] = useState<UiPrefs>(DEFAULT_UI);
   const pathname = usePathname();
   useEffect(() => setOpen(false), [pathname]);
   useEffect(() => {
@@ -181,6 +261,11 @@ export function Sidebar({ counts }: { counts: Counts }) {
           <button type="button" className="btn px-2.5 text-white hover:bg-white/10" onClick={() => setOpen(true)} aria-label="Ouvrir le menu">
             <Menu size={18} />
           </button>
+          <form action={logout}>
+            <button type="submit" className="btn px-2.5 text-white hover:bg-white/10" aria-label="Se déconnecter" title="Se déconnecter">
+              <LogOut size={18} />
+            </button>
+          </form>
         </span>
       </div>
       {open && (

@@ -1,6 +1,7 @@
 // Composants d'interface sans état (utilisables côté serveur et client).
 import type { ReactNode } from "react";
-import { AlertTriangle, CheckCircle2, CircleDashed, CircleSlash, Clock, Copy, Eye, HelpCircle, Layers, Repeat, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CircleDashed, CircleSlash, Clock, Copy, Eye, HelpCircle, Layers, Repeat, TrendingDown, XCircle } from "lucide-react";
+import { formatAgo } from "@/lib/dates";
 import { REVIEW_LABELS, SOURCE_LABELS, type ReviewStatus } from "@/lib/labels";
 import { STOCK_LABELS, type StockStatus } from "@/lib/stock";
 import { storeName } from "@/lib/stores";
@@ -163,6 +164,79 @@ export function EmptyState({ title, children, icon }: { title: string; children?
       <div className="text-sm font-medium text-ink">{title}</div>
       {children && <div className="max-w-md text-sm text-ink-3">{children}</div>}
     </div>
+  );
+}
+
+/**
+ * Données Keepa d'un lead, en peu de place : « Keepa · il y a 3 h » et, s'il y a lieu, au plus un
+ * avertissement de prix (Buy Box en chute de 20 % ou plus en 2 semaines, sinon prix 10 % sous la moyenne
+ * 90 j) et un avertissement Amazon (plus de 70 % de la Buy Box sur 180 j ; « Amazon vend » sinon).
+ */
+export function KeepaBadges({
+  keepa,
+  compact,
+}: {
+  keepa: { at: string; priceDrop: number | null; bbDrop14?: number | null; amazonSelling?: boolean; amazonShare?: number | null } | null | undefined;
+  compact?: boolean;
+}) {
+  if (!keepa) return null;
+  const share = keepa.amazonShare ?? null;
+  const amazonHeavy = share != null && share > 70;
+  const amazonSells = !amazonHeavy && (keepa.amazonSelling || (share != null && share > 0));
+  return (
+    <>
+      {keepa.bbDrop14 != null ? (
+        <Badge tone="critical" icon={<TrendingDown size={10} />} title="Buy Box actuelle au moins 20 % sous la plus haute des analyses Keepa des 2 dernières semaines">
+          Buy Box −{keepa.bbDrop14} % en 2 sem.
+        </Badge>
+      ) : (
+        keepa.priceDrop != null && (
+          <Badge tone="serious" icon={<TrendingDown size={10} />} title="Buy Box actuelle sous sa moyenne 90 jours (Keepa)">
+            Prix en baisse −{keepa.priceDrop} %
+          </Badge>
+        )
+      )}
+      {amazonHeavy && (
+        <Badge tone="warning" icon={<AlertTriangle size={10} />} title={`Amazon vend ce produit et a gagné ${share} % de la Buy Box sur 180 jours (Keepa) : difficile de vendre face à lui`}>
+          Amazon {share} % de la Buy Box
+        </Badge>
+      )}
+      {amazonSells && (
+        <span className="text-[11px] text-ink-3" title={share != null ? `Amazon vend aussi ce produit (${share} % de la Buy Box sur 180 jours)` : "Amazon vend aussi ce produit (Keepa)"}>
+          Amazon vend{share != null ? ` · ${share} % BB` : ""}
+        </span>
+      )}
+      {!compact && (
+        <span className="text-[11px] text-ink-3" title="Prix Amazon, frais et ventes mis à jour depuis Keepa">
+          Keepa · {formatAgo(keepa.at)}
+        </span>
+      )}
+    </>
+  );
+}
+
+/** Avatar d'un compte : initiales sur sa couleur, avec son nom en infobulle (jamais la couleur seule). */
+export function UserAvatar({ profile, size = 22, title }: { profile: { name: string; initials: string; color: string }; size?: number; title?: string }) {
+  return (
+    <span
+      className="inline-grid shrink-0 place-items-center rounded-full font-semibold text-white"
+      style={{ width: size, height: size, background: profile.color, fontSize: Math.max(9, Math.round(size * 0.42)) }}
+      title={title ?? profile.name}
+      aria-label={title ?? profile.name}
+    >
+      {profile.initials}
+    </span>
+  );
+}
+
+/** « par Marc » : avatar + nom, pour attribuer une décision ou une action. */
+export function ByUser({ profile, prefix = "par", className }: { profile: { name: string; initials: string; color: string }; prefix?: string; className?: string }) {
+  return (
+    <span className={cn("inline-flex items-center gap-1 text-[11px] text-ink-2", className)}>
+      {prefix && <span className="text-ink-3">{prefix}</span>}
+      <UserAvatar profile={profile} size={16} />
+      <span className="font-medium text-ink">{profile.name}</span>
+    </span>
   );
 }
 

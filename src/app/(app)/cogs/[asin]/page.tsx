@@ -4,7 +4,9 @@ import { ArrowLeft, ExternalLink, FileText, LineChart, ShoppingBag } from "lucid
 import { DocumentDrop } from "@/components/DocumentDrop";
 import { ManualPurchaseForm } from "@/components/ManualPurchaseForm";
 import { ProductImage } from "@/components/ProductImage";
-import { Badge, Card, EmptyState, Kpi, PageHeader, Supplier, cn } from "@/components/ui";
+import { Badge, ByUser, Card, EmptyState, Kpi, PageHeader, Supplier, cn } from "@/components/ui";
+import { getProfiles } from "@/lib/settings";
+import { actorKey } from "@/lib/users";
 import { cogsByProduct } from "@/lib/cogs";
 import { loadCogsLines, loadProductDocuments } from "@/lib/cogsQueries";
 import { formatDate } from "@/lib/dates";
@@ -15,6 +17,7 @@ export const metadata = { title: "COGS du produit" };
 
 export default async function CogsProductPage({ params }: { params: Promise<{ asin: string }> }) {
   const asin = decodeURIComponent((await params).asin).trim().toUpperCase();
+  const profiles = await getProfiles();
   const [product, lines, documents] = await Promise.all([
     prisma.product.findUnique({ where: { asin }, select: { name: true, amazonUrl: true } }),
     loadCogsLines(asin),
@@ -84,6 +87,7 @@ export default async function CogsProductPage({ params }: { params: Promise<{ as
                       <td>
                         <span className="block">{formatDate(l.orderedAt)}</span>
                         {l.orderNumber && <span className="block font-mono text-[11px] text-ink-3">n° {l.orderNumber}</span>}
+                        <ByUser profile={profiles[actorKey(l.createdBy) ?? "owner"]} prefix="saisi par" />
                         {l.cancelled && <Badge tone="critical">Annulée</Badge>}
                         {l.note && <span className="mt-0.5 block max-w-48 truncate text-[11px] text-ink-3" title={l.note}>{l.note}</span>}
                       </td>

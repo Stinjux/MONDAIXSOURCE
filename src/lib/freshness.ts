@@ -35,8 +35,9 @@ export function lastExportDate(
   return latest(dates(occurrences.filter((o) => o.source === "LEADS"))) ?? latest(dates(occurrences)) ?? latest([fallback]);
 }
 
-/** Date de référence : la plus récente entre le dernier export et la dernière reconfirmation. */
-export const freshSince = (exportedAt: Date | string | null | undefined, confirmedAt: Date | string | null | undefined) => latest([exportedAt, confirmedAt]);
+/** Date de référence : la plus récente entre le dernier export, la dernière reconfirmation et la dernière mise à jour Keepa (côté Amazon). */
+export const freshSince = (exportedAt: Date | string | null | undefined, confirmedAt: Date | string | null | undefined, keepaAt?: Date | string | null) =>
+  latest([exportedAt, confirmedAt, keepaAt]);
 
 export function freshness(since: Date | string | null | undefined, now: Date): Freshness {
   const ref = latest([since]);

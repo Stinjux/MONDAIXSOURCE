@@ -6,7 +6,9 @@ import { cancelPurchase } from "@/app/(app)/actions";
 import { toCsv } from "@/lib/cart";
 import { formatDateTime } from "@/lib/dates";
 import { cad, pct } from "@/lib/format";
-import { Asin, Badge, EmptyState, Kpi, Supplier, cn } from "./ui";
+import { Asin, Badge, EmptyState, Kpi, Supplier, cn, ByUser } from "./ui";
+import { useUser } from "./UserContext";
+import { actorKey } from "@/lib/users";
 import { ProductImage } from "./ProductImage";
 
 export type PurchasedItem = {
@@ -28,6 +30,8 @@ export type PurchasedItem = {
 export type PurchaseView = {
   id: string;
   createdAt: string;
+  /** Compte qui a confirmé ce panier (null = avant les comptes : le propriétaire) */
+  createdBy?: string | null;
   note: string | null;
   totalCost: number;
   totalProfit: number | null;
@@ -59,6 +63,7 @@ function download(filename: string, content: string) {
 }
 
 export function PurchasedList({ purchases }: { purchases: PurchaseView[] }) {
+  const { profiles } = useUser();
   const [query, setQuery] = useState("");
   const [showCancelled, setShowCancelled] = useState(false);
   const [open, setOpen] = useState<Set<string>>(() => new Set(purchases.slice(0, 1).map((p) => p.id)));
@@ -137,6 +142,7 @@ export function PurchasedList({ purchases }: { purchases: PurchaseView[] }) {
                       <span className="text-sm font-semibold text-ink">{formatDateTime(p.createdAt)}</span>
                       <span className="font-mono text-[11px] text-ink-3">#{p.id.slice(-8).toUpperCase()}</span>
                       {p.cancelledAt && <Badge tone="critical">Annulé</Badge>}
+                      <ByUser profile={profiles[actorKey(p.createdBy) ?? "owner"]} prefix="confirmé par" />
                     </span>
                     {p.note && <span className="block truncate text-xs text-ink-2">{p.note}</span>}
                   </span>

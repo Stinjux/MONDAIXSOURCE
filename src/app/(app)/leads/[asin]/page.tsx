@@ -1,3 +1,4 @@
+import { keepaBrief } from "@/lib/decisionRows";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ExternalLink, Gavel, LineChart, Receipt, RefreshCw } from "lucide-react";
@@ -5,7 +6,13 @@ import { FreshnessPill } from "@/components/Freshness";
 import { ProductImage } from "@/components/ProductImage";
 import { freshness, freshnessText } from "@/lib/freshness";
 import { AddToCartButton, BackButton, LeadEditor } from "@/components/LeadActions";
-import { Badge, Card, DuplicateBadges, EmptyState, PageHeader, PriceE, ReviewBadge, SourceBadges, StockBadge, Supplier } from "@/components/ui";
+import { Badge, ByUser, Card, KeepaBadges, DuplicateBadges, EmptyState, PageHeader, PriceE, ReviewBadge, SourceBadges, StockBadge, Supplier, UserAvatar } from "@/components/ui";
+import { BuyVotePanel } from "@/components/BuyVotePanel";
+import { KeepaRefreshButton } from "@/components/KeepaButtons";
+import { keepaKey } from "@/lib/keepa";
+import { loadBuyStatuses } from "@/lib/buyQueries";
+import { getProfiles } from "@/lib/settings";
+import { actorKey } from "@/lib/users";
 import { ACTION_LABELS, describeChange } from "@/lib/changes";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { cad, num, pct } from "@/lib/format";
@@ -19,17 +26,20 @@ export const metadata = { title: "Fiche ASIN" };
 
 export default async function LeadPage({ params }: { params: Promise<{ asin: string }> }) {
   const asin = decodeURIComponent((await params).asin).trim().toUpperCase();
-  const [{ products, tax }, templates] = await Promise.all([loadProducts(new Date(), { asin }), getNoteTemplates()]);
+  const [{ products, tax }, templates, profiles] = await Promise.all([loadProducts(new Date(), { asin }), getNoteTemplates(), getProfiles()]);
   const p = products[0];
   if (!p) notFound();
   const offerIds = p.offers.map((o) => o.id);
 
-  const [occurrences, snapshots, changes, purchases] = await Promise.all([
+  const [occurrences, snapshots, changes, purchases, buyStatuses, keepaHistory] = await Promise.all([
     prisma.occurrence.findMany({ where: { productId: p.id }, orderBy: [{ source: "asc" }, { sheetRow: "asc" }], include: { offer: { select: { supplierName: true, supplierKey: true } } } }),
     prisma.priceSnapshot.findMany({ where: { offerId: { in: offerIds } }, orderBy: { capturedAt: "desc" }, take: 40, include: { offer: { select: { supplierName: true, supplierKey: true } } } }),
     prisma.changeLog.findMany({ where: { entityId: { in: [p.id, ...offerIds] } }, orderBy: { createdAt: "desc" }, take: 50 }),
     prisma.purchaseItem.findMany({ where: { asin: p.asin }, include: { purchase: true }, orderBy: { purchase: { createdAt: "desc" } } }),
+    loadBuyStatuses([p.id]),
+    prisma.keepaSnapshot.findMany({ where: { productId: p.id }, orderBy: { capturedAt: "desc" }, take: 10 }),
   ]);
+  const k = p.keepa;
   const bought = purchases.filter((i) => !i.purchase.cancelledAt);
   const fresh = freshness(p.freshSince, new Date());
 
@@ -42,7 +52,10 @@ export default async function LeadPage({ params }: { params: Promise<{ asin: str
           <span className="flex flex-wrap items-center gap-2">
             <ProductImage asin={p.asin} size={56} />
             <ReviewBadge status={p.reviewStatus} />
+            {p.reviewedBy && p.reviewStatus !== "TO_REVIEW" && <ByUser profile={profiles[p.reviewedBy]} />}
+            {p.confirmedBy && <ByUser profile={profiles[p.confirmedBy]} prefix="reconfirmé par" />}
             <span title={freshnessText(fresh)}><FreshnessPill fresh={fresh} /></span>
+            <KeepaBadges keepa={keepaBrief(p.keepa)} />
             <SourceBadges sources={p.sources} />
             {p.dup.any && <DuplicateBadges dup={p.dup} compact />}
             <span className="text-ink-3">Découvert le {formatDate(p.firstSeenAt)}</span>
@@ -57,7 +70,7 @@ export default async function LeadPage({ params }: { params: Promise<{ asin: str
         actions={
           <>
             <BackButton />
-            <Link href={`/reconfirm?asin=${p.asin}`} className={fresh.state === "STALE" ? "btn-primary" : "btn-ghost"}><RefreshCw size={15} /> Reconfirmer</Link>
+            <Link href={`/decisions?asin=${p.asin}`} className={fresh.state === "STALE" ? "btn-primary" : "btn-ghost"}><RefreshCw size={15} /> Reconfirmer</Link>
             <Link href={`/decisions?asin=${p.asin}`} className="btn-ghost"><Gavel size={15} /> Décider</Link>
             <Link href={`/cogs/${p.asin}`} className="btn-ghost"><Receipt size={15} /> COGS & factures</Link>
             {fresh.state !== "STALE" && <AddToCartButton productId={p.id} />}
@@ -123,6 +136,69 @@ export default async function LeadPage({ params }: { params: Promise<{ asin: str
           )}
         </Card>
 
+        <BuyVotePanel productId={p.id} status={buyStatuses.get(p.id) ?? null} />
+
+        <Card title="Keepa · Amazon.ca" action={keepaKey() ? <KeepaRefreshButton asin={p.asin} /> : <span className="text-[11px] text-ink-3">KEEPA_API_KEY non configurée</span>}>
+          {!k ? (
+            <p className="text-sm text-ink-3">Pas encore mis à jour depuis Keepa. Les leads actifs le sont automatiquement, au plus une fois par jour.</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-ink-2">
+                <span>Mis à jour le {formatDateTime(k.capturedAt)}</span>
+                <KeepaBadges keepa={keepaBrief(k)} compact />
+              </div>
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
+                {[
+                  ["Buy Box actuelle", cad(k.buyBox)],
+                  ["Buy Box moyenne 90 j", cad(k.buyBoxAvg90)],
+                  ["Prix Amazon (vendeur)", k.amazonPrice != null ? cad(k.amazonPrice) : "Amazon ne vend pas"],
+                  ["Part de Buy Box d'Amazon (180 j)", k.amazonBuyBoxPct != null ? `${k.amazonBuyBoxPct} %` : "—"],
+                  ["Vendeurs FBA", num(k.fbaOffers)],
+                  ["Offres neuves", num(k.newOffers)],
+                  ["Achats le mois dernier", k.monthlySold != null ? num(k.monthlySold) : "non publié"],
+                  ["Classement des ventes", k.salesRank != null ? `#${num(k.salesRank)}` : "—"],
+                  ["Classement moyen 90 j", k.salesRankAvg90 != null ? `#${num(k.salesRankAvg90)}` : "—"],
+                  ["Frais FBA · commission", `${cad(k.fbaFee)} · ${k.referralPct != null ? `${k.referralPct} %` : "—"}`],
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <dt className="text-[11px] text-ink-3">{label}</dt>
+                    <dd className="font-medium tabular-nums text-ink">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+              <p className="text-[11px] text-ink-3">
+                Dans les calculs : Buy Box moyenne 90 j, frais (commission + FBA) et achats du mois dernier de Keepa passent avant la Sheet ; vos valeurs vérifiées passent avant tout. Les valeurs de la Sheet restent conservées.
+              </p>
+              {keepaHistory.length > 1 && (
+                <div className="overflow-x-auto">
+                  <table className="table-base text-xs">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th className="text-right">Buy Box</th>
+                        <th className="text-right">Moy. 90 j</th>
+                        <th className="text-right">Vendeurs FBA</th>
+                        <th className="text-right">Achats / mois</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {keepaHistory.map((s) => (
+                        <tr key={s.id}>
+                          <td className="text-ink-2">{formatDateTime(s.capturedAt)}</td>
+                          <td className="text-right tabular-nums">{cad(s.buyBox)}</td>
+                          <td className="text-right tabular-nums">{cad(s.buyBoxAvg90)}</td>
+                          <td className="text-right tabular-nums">{num(s.fbaOffers)}</td>
+                          <td className="text-right tabular-nums">{num(s.monthlySold)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
+
         <Card title="Historique des modifications" padded={false}>
           {changes.length === 0 ? (
             <EmptyState title="Aucune modification manuelle" />
@@ -130,15 +206,22 @@ export default async function LeadPage({ params }: { params: Promise<{ asin: str
             <ul className="max-h-96 divide-y divide-line overflow-y-auto">
               {changes.map((c) => {
                 const lines = describeChange(c.before, c.after);
+                const who = actorKey(c.actor);
                 return (
-                  <li key={c.id} className="px-4 py-2.5 text-xs">
+                  <li key={c.id} className="flex gap-2.5 px-4 py-2.5 text-xs">
+                    {who ? <UserAvatar profile={profiles[who]} size={22} /> : <span className="size-[22px] shrink-0" />}
+                    <div className="min-w-0 flex-1">
                     <div className="flex justify-between gap-2">
-                      <span className="font-medium text-ink">{ACTION_LABELS[c.action] ?? c.action}</span>
+                      <span className="font-medium text-ink">
+                        {ACTION_LABELS[c.action] ?? c.action}
+                        {who && <span className="font-normal text-ink-3"> · {profiles[who].name}</span>}
+                      </span>
                       <span className="text-ink-3">{formatDateTime(c.createdAt)}</span>
                     </div>
                     {lines.map((l, i) => (
                       <div key={i} className="mt-0.5 text-ink-2">{l}</div>
                     ))}
+                    </div>
                   </li>
                 );
               })}

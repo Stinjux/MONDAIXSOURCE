@@ -12,6 +12,8 @@ export const ACTION_LABELS: Record<string, string> = {
   RESTORE: "Rétablissement",
   UPDATE: "Mise à jour",
   CONFIRM: "Lead reconfirmé",
+  BUY_VOTE: "Décision d'achat",
+  KEEPA_REFRESH: "Mise à jour Keepa",
 };
 
 const FIELD_LABELS: Record<string, string> = {
@@ -47,6 +49,12 @@ export function describeChange(before: unknown, after: unknown): string[] {
   const b = (before && typeof before === "object" ? before : {}) as Record<string, unknown>;
   const a = (after && typeof after === "object" ? after : {}) as Record<string, unknown>;
   const out: string[] = [];
+  // Décision d'achat à deux
+  if (a.vote === "BUY" || a.vote === "NO" || a.vote === "NONE") {
+    out.push(a.vote === "BUY" ? `Achat approuvé${typeof a.quantity === "number" ? ` (× ${a.quantity})` : ""}` : a.vote === "NO" ? "Achat refusé" : "Décision d'achat retirée");
+    if (a.note) out.push(`« ${String(a.note).slice(0, 120)} »`);
+    return out;
+  }
   for (const key of Object.keys(a)) {
     if (!(key in FIELD_LABELS)) continue;
     if (JSON.stringify(b[key] ?? null) === JSON.stringify(a[key] ?? null)) continue;

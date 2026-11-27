@@ -1,14 +1,15 @@
 // POST /api/documents — envoi de documents COGS (glisser-déposer) : champs « files » (un ou plusieurs),
 // « asin », « kind » (INVOICE | RECEIPT | OTHER) et « purchaseId » facultatif. Accès : session administrateur.
 import { revalidatePath } from "next/cache";
-import { requestAuthorized } from "@/lib/auth";
+import { requestUser } from "@/lib/auth";
 import { saveDocument } from "@/lib/documentStore";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  if (!(await requestAuthorized(request, "admin"))) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await requestUser(request);
+  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   let form: FormData;
   try {
     form = await request.formData();
@@ -24,7 +25,7 @@ export async function POST(request: Request) {
   const errors: string[] = [];
   for (const f of files) {
     try {
-      saved.push(await saveDocument({ asin, filename: f.name, bytes: new Uint8Array(await f.arrayBuffer()), kind, purchaseId }));
+      saved.push(await saveDocument({ asin, filename: f.name, bytes: new Uint8Array(await f.arrayBuffer()), kind, purchaseId, uploadedBy: user }));
     } catch (e) {
       errors.push(e instanceof Error ? e.message : `${f.name} : erreur`);
     }

@@ -2,7 +2,11 @@
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { CheckCircle2, ClipboardPaste, RefreshCw, ShoppingCart, Trash2, X } from "lucide-react";
-import { confirmPurchase } from "@/app/(app)/actions";
+import { castBuyVote, confirmPurchase } from "@/app/(app)/actions";
+import { useRouter } from "next/navigation";
+import type { BuyStatus } from "@/lib/buyApproval";
+import { BuyStateBadge } from "./BuyVotePanel";
+import { useUser } from "./UserContext";
 import { parsePastedAsins } from "@/lib/cart";
 import type { DecisionRow } from "@/lib/decisionRows";
 import { cad, pct } from "@/lib/format";
@@ -39,6 +43,7 @@ export function Cart({
   budget,
   setBudget,
   tax,
+  approvals = {},
 }: {
   rows: DecisionRow[];
   cart: CartState;
@@ -46,7 +51,18 @@ export function Cart({
   budget: string;
   setBudget: (v: string) => void;
   tax: TaxConfig;
+  /** Décision d'achat à deux de chaque lead (compte partenaire actif) */
+  approvals?: Record<string, BuyStatus | null>;
 }) {
+  const { me, partnerEnabled } = useUser();
+  const router = useRouter();
+  const [proposing, startPropose] = useTransition();
+  const propose = (productId: string, qty: number) =>
+    startPropose(async () => {
+      const res = await castBuyVote({ productId, vote: "BUY", quantity: qty });
+      if (!res.ok) setResult({ ok: false, text: res.error });
+      router.refresh();
+    });
   const [paste, setPaste] = useState("");
   const [pasteMsg, setPasteMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [note, setNote] = useState("");
@@ -70,6 +86,8 @@ export function Cart({
     { units: 0, cost: 0, profit: 0, missingCost: false },
   );
   const stale = values.filter((l) => l.row.fresh.state === "STALE");
+  // Achat confirmé à deux : chaque ligne doit être approuvée par les deux comptes
+  const notApproved = partnerEnabled ? values.filter((l) => approvals[l.id]?.state !== "APPROVED") : [];
   // Une commande par fournisseur : lignes regroupées par magasin
   const bySupplier = new Map<string, typeof values>();
   for (const l of values) {
@@ -192,8 +210,18 @@ export function Cart({
                       <div className="min-w-0">
                         <div className="truncate text-xs font-medium text-ink" title={row.name}>{row.name}</div>
                         <Asin asin={row.asin} url={row.amazonUrl} />
+                        {partnerEnabled && (
+                          <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                            <BuyStateBadge status={approvals[id] ?? null} />
+                            {!approvals[id]?.latest[me] && (
+                              <button type="button" className="text-[11px] font-medium text-accent hover:underline" disabled={proposing} onClick={() => propose(id, line.qty)} title="Enregistre votre approbation ; votre partenaire la verra dans Achats à deux">
+                                Proposer l&apos;achat
+                              </button>
+                            )}
+                          </span>
+                        )}
                         {row.fresh.state === "STALE" && (
-                          <Link href={`/reconfirm?asin=${row.asin}`} className="mt-0.5 flex items-center gap-1 text-[11px] text-critical hover:underline">
+                          <Link href={`/decisions?asin=${row.asin}`} className="mt-0.5 flex items-center gap-1 text-[11px] text-critical hover:underline">
                             <RefreshCw size={10} /> Données de plus de 30 j : reconfirmer
                           </Link>
                         )}
@@ -269,10 +297,16 @@ export function Cart({
         {lines.length > 0 && (
           <>
             <input className="field mt-3 py-1.5 text-xs" placeholder="Note (fournisseur, n° de commande…)" maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} />
-            <button type="button" className="btn-primary mt-2 w-full" disabled={pending || totals.missingCost || stale.length > 0} onClick={confirm}>
+            <button type="button" className="btn-primary mt-2 w-full" disabled={pending || totals.missingCost || stale.length > 0 || notApproved.length > 0} onClick={confirm}>
               <CheckCircle2 size={15} /> {pending ? "Confirmation…" : `Confirmer l'achat · ${cad(totals.cost)}`}
             </button>
             {totals.missingCost && <p className="mt-1 text-[11px] text-warning">Coût unitaire manquant ou invalide sur une ligne.</p>}
+            {notApproved.length > 0 && (
+              <p className="mt-1 text-[11px] text-critical">
+                {notApproved.length} produit{notApproved.length > 1 ? "s" : ""} pas encore approuvé{notApproved.length > 1 ? "s" : ""} par vous deux :{" "}
+                <Link href="/achats-a-deux" className="underline">voir Achats à deux</Link>, ou retirez-le{notApproved.length > 1 ? "s" : ""} du panier.
+              </p>
+            )}
             {stale.length > 0 && (
               <p className="mt-1 text-[11px] text-critical">
                 {stale.length} produit{stale.length > 1 ? "s" : ""} à reconfirmer avant d&apos;acheter (données de plus de 30 jours).
